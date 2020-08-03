@@ -211,7 +211,7 @@ struct eventpoll {
 	 * happened while transferring ready events to userspace w/out
 	 * holding ->wq.lock.
 	 */
-	struct epitem *ovflist;
+	struct epitem *ovflist; //应该由ep_epoll_callback()函数处理的
 
 	/* wakeup_source used when ep_scan_ready_list is running */
 	struct wakeup_source *ws;
@@ -1125,11 +1125,12 @@ static int ep_poll_callback(wait_queue_entry_t *wait, unsigned mode, int sync, v
 {
 	int pwake = 0;
 	unsigned long flags;
-	struct epitem *epi = ep_item_from_wait(wait); //通过sock->wq->wait，索引到eppoll_entry结构，然后到epitem结构
+	struct epitem *epi = ep_item_from_wait(wait); //通过sk_wq->wait，索引到eppoll_entry结构，然后到epitem结构
 	struct eventpoll *ep = epi->ep;
 	__poll_t pollflags = key_to_poll(key);
 	int ewake = 0;
 
+	/* 这个函数应该要确保可重入的，所以自旋锁保护的 */
 	spin_lock_irqsave(&ep->wq.lock, flags); //wq指向的是执行epoll_wait的那个进程
 
 	ep_set_busy_poll_napi_id(epi);
@@ -1184,6 +1185,7 @@ static int ep_poll_callback(wait_queue_entry_t *wait, unsigned mode, int sync, v
 	 * Wake up ( if active ) both the eventpoll wait list and the ->poll()
 	 * wait list.
 	 */
+	/* 如果进程没有调用epoll_wait的话，就不会在这里睡眠，就不会进入if中，也就不会唤醒进程的*/
 	if (waitqueue_active(&ep->wq)) {
 		if ((epi->event.events & EPOLLEXCLUSIVE) &&
 					!(pollflags & POLLFREE)) {
@@ -1201,7 +1203,7 @@ static int ep_poll_callback(wait_queue_entry_t *wait, unsigned mode, int sync, v
 				break;
 			}
 		}
-		wake_up_locked(&ep->wq); //唤醒对应进程
+		wake_up_locked(&ep->wq); //唤醒对应进程，进程唤醒后，执行epoll_wait后半部分
 	}
 	if (waitqueue_active(&ep->poll_wait))
 		pwake++;
@@ -1241,13 +1243,14 @@ out_unlock:
  */
 static void ep_ptable_queue_proc(struct file *file, wait_queue_head_t *whead,
 				 poll_table *pt)
-{
+{ /* 在socket文件的场景下，file是被监听socket文件， whead是socket的sk_wq, pt是指向ep_ptable_proc函数的*/
 	struct epitem *epi = ep_item_from_epqueue(pt);
 	struct eppoll_entry *pwq; //关联到eventpoll结构，然后关联到一个file结构
 
+	/* pwq是动态分配的，是一个比较持久的量，其中函数指向了ep_poll_callback函数 */
 	if (epi->nwait >= 0 && (pwq = kmem_cache_alloc(pwq_cache, GFP_KERNEL))) {
 		init_waitqueue_func_entry(&pwq->wait, ep_poll_callback);
-		pwq->whead = whead; //关联到eventpoll结构
+		pwq->whead = whead; // whead结构是sk_sleep(sk), 即sk_wq
 		pwq->base = epi; //关联到epi结构，就能关联到对应的file结构。最后通过pwq来回调ep_poll_callback()
 		if (epi->event.events & EPOLLEXCLUSIVE)
 			add_wait_queue_exclusive(whead, &pwq->wait);
@@ -1420,6 +1423,7 @@ static noinline void ep_destroy_wakeup_source(struct epitem *epi)
 /*
  * Must be called with "mtx" held.
  */
+/* ep eventpoll对象， event是事件， tf是被监听文件，fd 被监听设备， full_check*/
 static int ep_insert(struct eventpoll *ep, const struct epoll_event *event,
 		     struct file *tfile, int fd, int full_check)
 {
@@ -1428,6 +1432,10 @@ static int ep_insert(struct eventpoll *ep, const struct epoll_event *event,
 	long user_watches;
 	struct epitem *epi; //根据epoll_event event来构造epitem结构，表示事件（包含对应的fd等结构）
 	struct ep_pqueue epq;
+
+	/* construct epi struct, and create a temp struct epq struct(local var)
+	 * and do some check
+	 * */
 
 	lockdep_assert_irqs_enabled();
 
@@ -1673,7 +1681,7 @@ static __poll_t ep_send_events_proc(struct eventpoll *ep, struct list_head *head
 		 * is holding "mtx", so no operations coming from userspace
 		 * can change the item.
 		 */
-		if (revents) {
+		if (revents) { /* 对应的sk_wq上有要监听的事件触发的 */
 			if (__put_user(revents, &uevent->events) ||
 			    __put_user(epi->event.data, &uevent->data)) {
 				list_add(&epi->rdllink, head);
@@ -1684,8 +1692,8 @@ static __poll_t ep_send_events_proc(struct eventpoll *ep, struct list_head *head
 			}
 			esed->res++;
 			uevent++;
-			if (epi->event.events & EPOLLONESHOT)
-				epi->event.events &= EP_PRIVATE_BITS;
+			if (epi->event.events & EPOLLONESHOT) //对于oneshot模式，将对应的epitem结构上的事件清0，后续再次触发的时候，ep_item_poll就无法返回事件了
+				epi->event.events &= EP_PRIVATE_BITS; /* 其他事件全部清0了，不会触发事件了， why????*/
 			else if (!(epi->event.events & EPOLLET)) {
 				/*
 				 * If this file has been added with Level
@@ -1821,6 +1829,10 @@ fetch_events:
 			}
 
 			spin_unlock_irq(&ep->wq.lock);
+			/* 在epoll_wait()没有睡眠的时候，事件到来的话，就会将事件临时保存ovflist中，
+			 * 后续再次调用epoll_wait()的时候，才会被处理。
+			 *
+			 * */
 			if (!schedule_hrtimeout_range(to, slack, HRTIMER_MODE_ABS)) //sleep until time out，睡眠的地方哟
 				timed_out = 1;
 
@@ -1957,6 +1969,7 @@ static int do_epoll_create(int flags)
 	/* Check the EPOLL_* constant for consistency.  */
 	BUILD_BUG_ON(EPOLL_CLOEXEC != O_CLOEXEC);
 
+	/* 要求子程序exec的时候必须关闭对应的fd */
 	if (flags & ~EPOLL_CLOEXEC)
 		return -EINVAL;
 	/*
@@ -2014,14 +2027,14 @@ SYSCALL_DEFINE4(epoll_ctl, int, epfd, int, op, int, fd,
 {
 	int error;
 	int full_check = 0;
-	struct fd f, tf;
-	struct eventpoll *ep;
-	struct epitem *epi;
-	struct epoll_event epds;
+	struct fd f, tf; //f对应的是ep对象，tf对应的是被监听对象
+	struct eventpoll *ep; //ep对象
+	struct epitem *epi; //表一个监听项
+	struct epoll_event epds; //表事件
 	struct eventpoll *tep = NULL;
 
 	error = -EFAULT;
-	if (ep_op_has_event(op) && //不是del事件，就需要copy
+	if (ep_op_has_event(op) && //不是del操作，就需要copy
 	    copy_from_user(&epds, event, sizeof(struct epoll_event))) //事件拷贝到内核
 		goto error_return;
 
@@ -2046,6 +2059,7 @@ SYSCALL_DEFINE4(epoll_ctl, int, epfd, int, op, int, fd,
 	 *             * 一旦给structe poll_event中的events字段设置了EPOLLWAKEUP标记，系统会在事件排队时就保持唤醒，
 	 *                 * 从epoll_wait调用开始，持续要下一次epoll_wait调用。
 	 *                     */
+	/* check, check, still check */
 
 	/* Check if EPOLLWAKEUP is allowed */
 	if (ep_op_has_event(op))
@@ -2130,6 +2144,7 @@ SYSCALL_DEFINE4(epoll_ctl, int, epfd, int, op, int, fd,
 	case EPOLL_CTL_ADD:
 		if (!epi) {
 			epds.events |= EPOLLERR | EPOLLHUP; //事件从用户空间copy到了内核空间，即epds结构，将是将标志位置err与hup
+			/* ep eventpoll对象， epds是事件， tf是被监听文件，fd 被监听设备， full_check*/
 			error = ep_insert(ep, &epds, tf.file, fd, full_check); //核心
 		} else
 			error = -EEXIST;

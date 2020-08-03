@@ -871,7 +871,7 @@ static int vsock_shutdown(struct socket *sock, int mode)
 
 static __poll_t vsock_poll(struct file *file, struct socket *sock,
 			       poll_table *wait)
-{
+{ //sock file都是指向被监听文件的，wait是：ep_ptable_queue_proc()
 	struct sock *sk;
 	__poll_t mask;
 	struct vsock_sock *vsk;
