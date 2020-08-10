@@ -138,8 +138,11 @@ struct nested_calls {
  * have an entry of this type linked to the "rbr" RB tree.
  * Avoid increasing the size of this struct, there can be many thousands
  * of these on a server and we do not want this to take another cache line.
+ *
+ * 每个该类型成员就是表示一个epoll机制监听项
  */
 struct epitem {
+	/* eventpoll会使用一颗红黑树来管理所有的其监听的epitem对象 */
 	union {
 		/* RB tree node links this structure to the eventpoll RB tree */
 		struct rb_node rbn;
@@ -148,22 +151,26 @@ struct epitem {
 	};
 
 	/* List header used to link this structure to the eventpoll ready list */
+	/* 链入ready list */
 	struct list_head rdllink;
 
 	/*
 	 * Works together "struct eventpoll"->ovflist in keeping the
 	 * single linked chain of items.
 	 */
+	/* 必要时候链入到ovflist中的，是一个单链表 */
 	struct epitem *next;
 
 	/* The file descriptor information this item refers to */
-	/* 与被监听文件建立联系 */
-	struct epoll_filefd ffd; //file结构能索引到epitem结构么？ 不索引到epitem结构，如何索引到eppoll_entry结构，从而调用ep_poll_callback()
+	/* 与被监听文件建立联系, 每个监听项肯定对应着一个监听文件的，epoll_filefd = file + fd  */
+	struct epoll_filefd ffd;
 
 	/* Number of active wait queue attached to poll operations */
+	/* pwqlist中的成员数量 */
 	int nwait;
 
 	/* List containing poll wait queues */
+	/* 会将eppoll_entry结构链入到这个表中*/
 	struct list_head pwqlist;
 
 	/* The "container" of this item */
@@ -171,14 +178,15 @@ struct epitem {
 	struct eventpoll *ep;
 
 	/* List header used to link this item to the "struct file" items list */
-	/* 指向被监听的file结构 */
-	struct list_head fllink; //通过file结构索引到epitem结构？？？？？
+	/* 链入到对应的file结构的，这样就可以通过file结构索引到epitem结构的 */
+	struct list_head fllink;
 
 	/* wakeup_source used when EPOLLWAKEUP is set */
 	/* 与电源管理相关 */
 	struct wakeup_source __rcu *ws;
 
 	/* The structure that describe the interested events and the source fd */
+	/* 监听的事件类型 */
 	struct epoll_event event;
 };
 
@@ -204,6 +212,7 @@ struct eventpoll {
 
 	/* Wait queue used by file->poll() */
 	/* eventpoll 自己做为普通文件被监听的时候，在这里挂载eppoll_entry结构，类似于socket的sk_wq成员 */
+	/* 见epitem_poll函数就清楚了这个成员的作用 */
 	wait_queue_head_t poll_wait;
 
 	/* List of ready file descriptors */
@@ -241,15 +250,17 @@ struct eventpoll {
 };
 
 /* Wait structure used by the poll hooks */
+
 /* socket与epoll建立关系的核心结构，当然其他文件也是通过这个结构的 */
 /* 调用epoll_ctl(EPOLL_CTL_ADD)的时候，就会创建一个这个结构，注册一些回调函数，然后将其
- * 挂载到sk_wq上，当然其他的文件可能是其他的睡眠队列了。
+ * 挂载到sk_wq上，当然其他的文件可能是其他的睡眠队列了。具体各种类型的文件挂载到哪个队列上，就取决于该类型文件的
+ * poll函数的定义了，譬如：tcp_poll(), vsock_poll()
  *
  * 唤醒的时候直接，wake_up(sk_wq)就会执行epoll_callback函数，然后通过eventpoll唤醒对应的进程。
  * */
 struct eppoll_entry {
 	/* List header used to link this structure to the "struct epitem" */
-	/* 链入到epitem结构中 */
+	/* 链入到epitem结构中pwqlist成员的 */
 	struct list_head llink;
 
 	/* The "base" pointer is set to the container "struct epitem" */
@@ -1170,6 +1181,27 @@ static int ep_poll_callback(wait_queue_entry_t *wait, unsigned mode, int sync, v
 	 * callback. We need to be able to handle both cases here, hence the
 	 * test for "key" != NULL before the event match test.
 	 */
+    /* 这儿比较有趣，非常微妙。我们以EPOLLOUT为例来说明。
+     *
+     * 在vsock_poll(), tcp_poll()中都是直接判断是否有space，然后计算EPOLLOUT是否设置的。
+     *
+     * 这样就违背了EPOLLOUT的原始含义：
+     *  1. 当缓冲区从满腾出空间的时候才触发。
+     *
+     * 这种原始含义是通过底层的transport来实现的，即当底层的transport层检测到上述条件之后，将key设置EPOLLOUT作为参数
+     * 传递过来，从而pollflags |= EPOLLOUT. 这样子epollout事件的触发就是由底层控制的。
+     *
+     * 因为一旦传递过来的pollflags中不包含EPOLLOUT的话，那么久进入了这个条件，从而退出了，不会去进行后续操作的.
+     *
+     * 当然这种方式有一个问题：
+     *  就是如果同时监听了EPOLLIN|EPOLLOUT事件的话，EPOLLIN事件会唤醒进程，进程再去使用vsock_poll(), tcp_poll()等来
+     *  计算mask的时候，会同时出发EPOLLIN， EPOLLOUT事件的。这样子的EPOLLOUT事件的触发不符合最初的设计意图。
+     *
+     * 但是虽然有问题，无伤大雅。我们考虑用户态会如何使用EPOLLOUT：
+     *    一般是写出错后，会设置EPOLLOUT，当写好后，会立即将EPOLLOUT删除的。
+     *    所以说，上述这种方式的实现，虽然会过多的触发EPOLLOUT事件，但是不会漏的，多触发总比少触发强。
+     *
+     * */
 	if (pollflags && !(pollflags & epi->event.events))
 		goto out_unlock;
 
@@ -1209,7 +1241,7 @@ static int ep_poll_callback(wait_queue_entry_t *wait, unsigned mode, int sync, v
 	if (waitqueue_active(&ep->wq)) {
 		if ((epi->event.events & EPOLLEXCLUSIVE) && //exclusive才会进来的
 					!(pollflags & POLLFREE)) {
-			switch (pollflags & EPOLLINOUT_BITS) { /* 这一段代码好奇怪，三种case，动作一样的？？？？*/
+			switch (pollflags & EPOLLINOUT_BITS) { /* 这一段代码好奇怪，三种case，动作一样的， 主要是检查与监听的事件是不是匹配 ？？？？*/
 			case EPOLLIN:
 				if (epi->event.events & EPOLLIN)
 					ewake = 1;
@@ -1717,7 +1749,7 @@ static __poll_t ep_send_events_proc(struct eventpoll *ep, struct list_head *head
 			uevent++;
 			if (epi->event.events & EPOLLONESHOT) //对于oneshot模式，将对应的epitem结构上的事件清0，后续再次触发的时候，ep_item_poll就无法返回事件了
 				epi->event.events &= EP_PRIVATE_BITS; /* 其他事件全部清0了，不会触发事件了， why????*/
-			else if (!(epi->event.events & EPOLLET)) { //水平触发与边缘触发的逻辑不同了。如果是水平触发会进入这个if结构，
+			else if (!(epi->event.events & EPOLLET)) { //水平触发与边缘触发的逻辑不同了。如果是水平触发只要revents有事件的话就会进入这个if结构，
 									//rdlist中会有成员的。然后epoll_wait()再次进入的时候，会立即返回
 				/*
 				 * If this file has been added with Level

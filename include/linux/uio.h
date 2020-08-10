@@ -29,17 +29,17 @@ enum {
 };
 
 struct iov_iter {
-	int type;
-	size_t iov_offset;
-	size_t count;
+	int type; /* */
+	size_t iov_offset; /* 位于第一个缓冲区中的有效数据的起始位置 */
+	size_t count; /* iovietr表示的有效数据，感兴趣的数据, 而iovec中仅仅是单独的每个缓冲区的长度，其中有些数据可能是我们不感兴趣的*/
 	union {
-		const struct iovec *iov;
+		const struct iovec *iov; /* 数据所在 */
 		const struct kvec *kvec;
 		const struct bio_vec *bvec;
 		struct pipe_inode_info *pipe;
 	};
 	union {
-		unsigned long nr_segs;
+		unsigned long nr_segs; /* 数据段数目 */
 		struct {
 			int idx;
 			int start_idx;
@@ -54,6 +54,11 @@ struct iov_iter {
  * segment lengths have been validated.  Because the individual lengths can
  * overflow a size_t when added together.
  */
+
+/*
+ * 统计iovec包含的数据总数目 Bytes， 注意可能溢出的
+ *
+ * */
 static inline size_t iov_length(const struct iovec *iov, unsigned long nr_segs)
 {
 	unsigned long seg;
@@ -64,6 +69,7 @@ static inline size_t iov_length(const struct iovec *iov, unsigned long nr_segs)
 	return ret;
 }
 
+/* 获取第一个缓冲区结构 */
 static inline struct iovec iov_iter_iovec(const struct iov_iter *iter)
 {
 	return (struct iovec) {

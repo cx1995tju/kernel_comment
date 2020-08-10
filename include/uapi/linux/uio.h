@@ -17,13 +17,13 @@
 struct iovec
 {
 	void __user *iov_base;	/* BSD uses caddr_t (1003.1g requires void *) */
-	__kernel_size_t iov_len; /* Must be size_t (1003.1g) */
+	__kernel_size_t iov_len; /* Must be size_t (1003.1g) */ /* 数据多少Bytes */
 };
 
 /*
  *	UIO_MAXIOV shall be at least 16 1003.1g (5.4.1.1)
  */
- 
+
 #define UIO_FASTIOV	8
 #define UIO_MAXIOV	1024
 

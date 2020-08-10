@@ -951,6 +951,7 @@ static __poll_t vsock_poll(struct file *file, struct socket *sock,
 		if (sk->sk_state == TCP_ESTABLISHED) {
 			if (!(sk->sk_shutdown & SEND_SHUTDOWN)) {
 				bool space_avail_now = false;
+                /* 这里有问题，如果是水平触发状态的话，会一直触发EPOLLOUT事件的 */
 				int ret = transport->notify_poll_out(
 						vsk, 1, &space_avail_now);
 				if (ret < 0) {
