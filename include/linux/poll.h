@@ -44,6 +44,7 @@ typedef struct poll_table_struct {
 static inline void poll_wait(struct file * filp, wait_queue_head_t * wait_address, poll_table *p)
 {
 	/* p中函数是ep_ptable_queue_proc   wait_address是被监听socket的sk_wq, filp是被监听文件*/
+    /* 如果p->_qproc是空的话，不会进来的*/
 	if (p && p->_qproc && wait_address)
 		p->_qproc(filp, wait_address, p);
 }

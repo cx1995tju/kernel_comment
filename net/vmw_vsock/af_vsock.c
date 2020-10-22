@@ -1633,7 +1633,7 @@ static int vsock_stream_sendmsg(struct socket *sock, struct msghdr *msg,
 	/* Wait for room in the produce queue to enqueue our user's data. */
 	timeout = sock_sndtimeo(sk, msg->msg_flags & MSG_DONTWAIT); //non-blocking: timeout==0
 
-	err = transport->notify_send_init(vsk, &send_data); //具体transport层的初始化工作
+	err = transport->notify_send_init(vsk, &send_data); //具体transport层的初始化工作, 目前是嘛也没干
 	if (err < 0)
 		goto out;
 
@@ -1653,7 +1653,7 @@ static int vsock_stream_sendmsg(struct socket *sock, struct msghdr *msg,
 				goto out_err;
 			}
 
-			err = transport->notify_send_pre_block(vsk, &send_data);
+			err = transport->notify_send_pre_block(vsk, &send_data);//目前是啥也没干
 			if (err < 0) {
 				remove_wait_queue(sk_sleep(sk), &wait);
 				goto out_err;
@@ -1687,6 +1687,7 @@ static int vsock_stream_sendmsg(struct socket *sock, struct msghdr *msg,
 			goto out_err;
 		}
 
+        //啥也没干
 		err = transport->notify_send_pre_enqueue(vsk, &send_data);
 		if (err < 0)
 			goto out_err;
@@ -1698,7 +1699,7 @@ static int vsock_stream_sendmsg(struct socket *sock, struct msghdr *msg,
 		 */
 		//入队列了，
 		written = transport->stream_enqueue(
-				vsk, msg,
+				sk, msg,
 				len - total_written);
 		if (written < 0) {
 			err = -ENOMEM;
@@ -1980,8 +1981,7 @@ static long vsock_dev_compat_ioctl(struct file *filp,
 	return vsock_dev_do_ioctl(filp, cmd, compat_ptr(arg));
 }
 #endif
-
-//这个结构说明，这个模块(不是说内核的动态模块)，上层就是内核了，vfs层
+/* 创建一个混杂设备使用，提供了一些对于vsock的控制入口 */
 static const struct file_operations vsock_device_ops = {
 	.owner		= THIS_MODULE,
 	.unlocked_ioctl	= vsock_dev_ioctl,

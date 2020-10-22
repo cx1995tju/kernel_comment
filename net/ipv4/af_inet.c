@@ -264,12 +264,16 @@ static int inet_create(struct net *net, struct socket *sock, int protocol,
 lookup_protocol:
 	err = -ESOCKTNOSUPPORT;
 	rcu_read_lock();
+    /* 这个网域中的所有类型的inet_protosw都在一个数组中，
+     * 其中数组的每个元素，挂载了这个类型的各种protocol的inet_protosw结构(函数指针集合)
+     *
+     */
 	list_for_each_entry_rcu(answer, &inetsw[sock->type], list) {
 
 		err = 0;
 		/* Check the non-wild match. */
 		if (protocol == answer->protocol) {
-			if (protocol != IPPROTO_IP)
+			if (protocol != IPPROTO_IP) /* 最正常路径 */
 				break;
 		} else {
 			/* Check for the two wild cases. */
@@ -288,7 +292,7 @@ lookup_protocol:
 			rcu_read_unlock();
 			/*
 			 * Be more specific, e.g. net-pf-2-proto-132-type-1
-			 * (net-pf-PF_INET-proto-IPPROTO_SCTP-type-SOCK_STREAM)
+			 * (net-pf-PF_INET-proto-IPPROTO_SCTP-type-SOCK_STREAM)  SCTP协议，与UDP，TCP同层级
 			 */
 			if (++try_loading_module == 1)
 				request_module("net-pf-%d-proto-%d-type-%d",

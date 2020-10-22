@@ -84,8 +84,8 @@ static u32 virtio_transport_get_local_cid(void)
 static void virtio_transport_loopback_work(struct work_struct *work)
 {
 	struct virtio_vsock *vsock =
-		container_of(work, struct virtio_vsock, loopback_work);
-	LIST_HEAD(pkts);
+        container_of(work, struct virtio_vsock, loopback_work);
+    LIST_HEAD(pkts);
 
 	spin_lock_bh(&vsock->loopback_list_lock);
 	list_splice_init(&vsock->loopback_list, &pkts);

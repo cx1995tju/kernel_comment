@@ -1202,6 +1202,11 @@ static int ep_poll_callback(wait_queue_entry_t *wait, unsigned mode, int sync, v
      *    所以说，上述这种方式的实现，虽然会过多的触发EPOLLOUT事件，但是不会漏的，多触发总比少触发强。
      *
      * */
+    /* 如果pollflags是空，这一次检查就不会进行，会直接使用vsock_poll(), tcp_poll()等函数直接计算得到mask
+     *
+     *
+     *
+     * */
 	if (pollflags && !(pollflags & epi->event.events))
 		goto out_unlock;
 

@@ -1,7 +1,7 @@
 /*
  * NET		Generic infrastructure for INET connection oriented protocols.
  *
- *		Definitions for inet_connection_sock 
+ *		Definitions for inet_connection_sock
  *
  * Authors:	Many people, see the TCP sources
  *
@@ -66,7 +66,7 @@ struct inet_connection_sock_af_ops {
 
 /** inet_connection_sock - INET connection oriented sock
  *
- * @icsk_accept_queue:	   FIFO of established children
+ * @icsk_accept_queue:	   FIFO of established children , 完成3次握手的accept队列？？？
  * @icsk_bind_hash:	   Bind node
  * @icsk_timeout:	   Timeout
  * @icsk_retransmit_timer: Resend (no ack)

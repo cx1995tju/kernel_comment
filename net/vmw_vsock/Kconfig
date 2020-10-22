@@ -2,6 +2,7 @@
 # Vsock protocol
 #
 
+# socket 层，host guest都会使用到的
 config VSOCKETS
 	tristate "Virtual Socket protocol"
 	help
@@ -25,6 +26,7 @@ config VSOCKETS_DIAG
 
 	  Enable this module so userspace applications can query open sockets.
 
+#支持VMware hypervisor的host加载该模块
 config VMWARE_VMCI_VSOCKETS
 	tristate "VMware VMCI transport for Virtual Sockets"
 	depends on VSOCKETS && VMWARE_VMCI
@@ -37,6 +39,7 @@ config VMWARE_VMCI_VSOCKETS
 	  To compile this driver as a module, choose M here: the module
 	  will be called vmw_vsock_vmci_transport. If unsure, say N.
 
+#支持virtio的host加载该模块
 config VIRTIO_VSOCKETS
 	tristate "virtio transport for Virtual Sockets"
 	depends on VSOCKETS && VIRTIO
@@ -50,6 +53,7 @@ config VIRTIO_VSOCKETS
 	  To compile this driver as a module, choose M here: the module will be
 	  called vmw_vsock_virtio_transport. If unsure, say N.
 
+#transport common
 config VIRTIO_VSOCKETS_COMMON
 	tristate
 	help
@@ -57,6 +61,7 @@ config VIRTIO_VSOCKETS_COMMON
 	  the virtio_vsock.  The module will be called
 	  vmw_vsock_virtio_transport_common.
 
+#支持Hyper-v的host，在guest中加载该模块
 config HYPERV_VSOCKETS
 	tristate "Hyper-V transport for Virtual Sockets"
 	depends on VSOCKETS && HYPERV

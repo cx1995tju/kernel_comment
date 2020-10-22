@@ -149,6 +149,7 @@ EXPORT_SYMBOL_GPL(virtio_transport_deliver_tap_pkt);
 static int virtio_transport_send_pkt_info(struct vsock_sock *vsk,
 					  struct virtio_vsock_pkt_info *info)
 {
+    //发送包了
 	u32 src_cid, src_port, dst_cid, dst_port;
 	struct virtio_vsock_sock *vvs;
 	struct virtio_vsock_pkt *pkt;
@@ -171,12 +172,14 @@ static int virtio_transport_send_pkt_info(struct vsock_sock *vsk,
 		pkt_len = VIRTIO_VSOCK_DEFAULT_RX_BUF_SIZE;
 
 	/* virtio_transport_get_credit might return less than pkt_len credit */
+    /* 窗口管理 */
 	pkt_len = virtio_transport_get_credit(vvs, pkt_len); //缓冲区大小判断
 
 	/* Do not send zero length OP_RW pkt */
 	if (pkt_len == 0 && info->op == VIRTIO_VSOCK_OP_RW) //发包命令
 		return pkt_len;
 
+    //分配要发送的包结构了
 	pkt = virtio_transport_alloc_pkt(info, pkt_len,
 					 src_cid, src_port,
 					 dst_cid, dst_port); //这儿将用户空间的数据copy到内核中了，并且组织成了packet头部结构
@@ -348,6 +351,7 @@ static s64 virtio_transport_has_space(struct vsock_sock *vsk)
 
 s64 virtio_transport_stream_has_space(struct vsock_sock *vsk)
 {
+    //从transport层去拿一些Per-socket的信息
 	struct virtio_vsock_sock *vvs = vsk->trans;
 	s64 bytes;
 
@@ -620,6 +624,7 @@ virtio_transport_stream_enqueue(struct vsock_sock *vsk,
 				struct msghdr *msg,
 				size_t len)
 {
+//包的信息， 不是用来传输的包。
 	struct virtio_vsock_pkt_info info = {
 		.op = VIRTIO_VSOCK_OP_RW, //包头结构，to send payload
 		.type = VIRTIO_VSOCK_TYPE_STREAM,

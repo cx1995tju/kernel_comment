@@ -157,6 +157,7 @@ do {									\
 #define smp_store_release(p, v) __smp_store_release(p, v)
 #endif
 
+/*单向的可渗透屏障，确保在acquire之后的内存操作都在acquire操作被感知后才会发生*/
 #ifndef smp_load_acquire
 #define smp_load_acquire(p) __smp_load_acquire(p)
 #endif

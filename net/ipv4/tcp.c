@@ -509,11 +509,22 @@ __poll_t tcp_poll(struct file *file, struct socket *sock, poll_table *wait)
 
 	sock_poll_wait(file, sock, wait); //与epoll机制相关的核心部分
 
-	state = inet_sk_state_load(sk);
+	state = inet_sk_state_load(sk);//sk->sk_state
+    /*TCP_LISTEN状态，具体参考经典TCP状态机*/
+    /*对于listen状态的监听，一般是来自于非阻塞accept的需求，监听到connect建立成功之后，返回事件，然后调用accept()
+     *
+     * 但是我们参考经典状态机，发现连接建立成功后，TCP应该是处于ESTABLISHED状态的。也就是说：
+     *  连接建立成功后，调用该函数获取事件掩码的时候，TCP应该是处于ESTABLISHED状态的。
+     *
+     *  那么问题来了？什么时候会触发事件，且TCP处于LISTEN状态呢？
+     *
+     *  前面说的有问题，这个TCP_LISTEN到TCP_ESTABLISHED的变化不是发生在一个socket上的，而是新建了新的socket，
+     *  新的socket的状态，这个socket还是TCP_LISTEN状态的。
+     * */
 	if (state == TCP_LISTEN)
 		return inet_csk_listen_poll(sk); //获取需要监听的event bits
 
-	/* Socket is not locked. We are protected from async events
+	/* Socket is not locked. We are protected from async events //epoll机制确保了事件不会丢失的，所以异步事件没有大影响
 	 * by poll logic and correct handling of state changes
 	 * made by other threads is impossible in any case.
 	 */
@@ -525,6 +536,7 @@ __poll_t tcp_poll(struct file *file, struct socket *sock, poll_table *wait)
 	 * have a notion of HUP in just one direction, and for a
 	 * socket the read side is more interesting.
 	 *
+     * 所以说，在我们的实现中，事件可以多返回，但不能丢失。
 	 * Some poll() documentation says that EPOLLHUP is incompatible
 	 * with the EPOLLOUT/POLLWR flags, so somebody should check this
 	 * all. But careful, it tends to be safer to return too many
@@ -547,14 +559,17 @@ __poll_t tcp_poll(struct file *file, struct socket *sock, poll_table *wait)
 	 * NOTE. Check for TCP_CLOSE is added. The goal is to prevent
 	 * blocking on fresh not-connected or disconnected socket. --ANK
 	 */
+    /*the mask of %SENDSHUTDOWN or %RECVSHUTDOWN*/
 	if (sk->sk_shutdown == SHUTDOWN_MASK || state == TCP_CLOSE)
 		mask |= EPOLLHUP;
 	if (sk->sk_shutdown & RCV_SHUTDOWN)
 		mask |= EPOLLIN | EPOLLRDNORM | EPOLLRDHUP;
 
+    /* 详见TCP TFO选项， TCP FAST OPEN*/
 	/* Connected or passive Fast Open socket? */
 	if (state != TCP_SYN_SENT &&
-	    (state != TCP_SYN_RECV || tp->fastopen_rsk)) {
+	    (state != TCP_SYN_RECV || tp->fastopen_rsk)) { //fast open请求队列非空，
+        //获取接收低潮限度
 		int target = sock_rcvlowat(sk, 0, INT_MAX);
 
 		if (tp->urg_seq == tp->copied_seq &&
@@ -581,12 +596,12 @@ __poll_t tcp_poll(struct file *file, struct socket *sock, poll_table *wait)
 				if (sk_stream_is_writeable(sk))
 					mask |= EPOLLOUT | EPOLLWRNORM;
 			}
-		} else
+		} else //shutdown 状态会触发这个事件的
 			mask |= EPOLLOUT | EPOLLWRNORM;
 
 		if (tp->urg_data & TCP_URG_VALID)
-			mask |= EPOLLPRI;
-	} else if (state == TCP_SYN_SENT && inet_sk(sk)->defer_connect) {
+			mask |= EPOLLPRI; //带外数据，很着急的
+	} else if (state == TCP_SYN_SENT && inet_sk(sk)->defer_connect) { //defer_connect, 详见TFO
 		/* Active TCP fastopen socket with defer_connect
 		 * Return EPOLLOUT so application can call write()
 		 * in order for kernel to generate SYN+data

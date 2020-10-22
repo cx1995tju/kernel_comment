@@ -1469,7 +1469,7 @@ SYSCALL_DEFINE4(socketpair, int, family, int, type, int, protocol,
 int __sys_bind(int fd, struct sockaddr __user *umyaddr, int addrlen)
 {
 	struct socket *sock;
-	struct sockaddr_storage address;
+	struct sockaddr_storage address; //最大的地址空间，最多可以有128字节的
 	int err, fput_needed;
 
 	sock = sockfd_lookup_light(fd, &err, &fput_needed); //通过fd索引到对应的socket结构sock，

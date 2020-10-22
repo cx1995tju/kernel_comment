@@ -661,16 +661,16 @@ typedef unsigned char *sk_buff_data_t;
  *	@truesize: Buffer size
  *	@users: User count - see {datagram,tcp}.c
  */
-
+//核心想法：通过操作指针来增删协议头部
 struct sk_buff {
 	union {
 		struct {
 			/* These two members must be first. */
-			struct sk_buff		*next;
-			struct sk_buff		*prev;
+			struct sk_buff		*next; //next buffer
+			struct sk_buff		*prev; //prev buffer
 
 			union {
-				struct net_device	*dev;
+				struct net_device	*dev; //通过该设备到达或离开
 				/* Some protocols might use this space to store information,
 				 * while device pointer would be NULL.
 				 * UDP receive path is one user.
@@ -683,12 +683,12 @@ struct sk_buff {
 	};
 
 	union {
-		struct sock		*sk;
+		struct sock		*sk;//所属的socket
 		int			ip_defrag_offset;
 	};
 
 	union {
-		ktime_t		tstamp;
+		ktime_t		tstamp;//数据包到达或离开时间
 		u64		skb_mstamp;
 	};
 	/*
@@ -697,11 +697,11 @@ struct sk_buff {
 	 * want to keep them across layers you have to do a skb_clone()
 	 * first. This is owned by whoever has the skb queued ATM.
 	 */
-	char			cb[48] __aligned(8);
+	char			cb[48] __aligned(8);//控制缓冲区，各层可以自由使用
 
 	union {
 		struct {
-			unsigned long	_skb_refdst;
+			unsigned long	_skb_refdst;//暂时出口路由缓存,避免重复查找路由
 			void		(*destructor)(struct sk_buff *skb);
 		};
 		struct list_head	tcp_tsorted_anchor;
@@ -716,7 +716,7 @@ struct sk_buff {
 #if IS_ENABLED(CONFIG_BRIDGE_NETFILTER)
 	struct nf_bridge_info	*nf_bridge;
 #endif
-	unsigned int		len,
+	unsigned int		len,// 实际数据长度
 				data_len;
 	__u16			mac_len,
 				hdr_len;

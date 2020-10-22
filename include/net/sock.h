@@ -254,7 +254,7 @@ struct sock_common {
   *	@sk_tsq_flags: TCP Small Queues flags
   *	@sk_write_queue: Packet sending queue
   *	@sk_omem_alloc: "o" is "option" or "other"
-  *	@sk_wmem_queued: persistent queue size
+  *	@sk_wmem_queued: persistent queue size 发送队列目前的总大小
   *	@sk_forward_alloc: space allocated forward
   *	@sk_napi_id: id of the last napi context to receive data for sk
   *	@sk_ll_usec: usecs to busypoll when there is no data
@@ -262,7 +262,7 @@ struct sock_common {
   *	@sk_pacing_rate: Pacing rate (if supported by transport/packet scheduler)
   *	@sk_pacing_status: Pacing status (requested, handled by sch_fq)
   *	@sk_max_pacing_rate: Maximum pacing rate (%SO_MAX_PACING_RATE)
-  *	@sk_sndbuf: size of send buffer in bytes
+  *	@sk_sndbuf: size of send buffer in bytes 发送缓冲队列的预设大小
   *	@__sk_flags_offset: empty field used to determine location of bitfield
   *	@sk_padding: unused element for alignment
   *	@sk_no_check_tx: %SO_NO_CHECK setting, set checksum in TX packets
@@ -291,7 +291,7 @@ struct sock_common {
   *	@sk_protocol: which protocol this socket belongs in this network family
   *	@sk_peer_pid: &struct pid for this socket's peer
   *	@sk_peer_cred: %SO_PEERCRED setting
-  *	@sk_rcvlowat: %SO_RCVLOWAT setting
+  *	@sk_rcvlowat: %SO_RCVLOWAT setting 接收低潮限度
   *	@sk_rcvtimeo: %SO_RCVTIMEO setting
   *	@sk_sndtimeo: %SO_SNDTIMEO setting
   *	@sk_txhash: computed flow hash for use on transmit
@@ -1055,6 +1055,9 @@ static inline void sk_prot_clear_nulls(struct sock *sk, int size)
 /* Networking protocol blocks we attach to sockets.
  * socket layer -> transport layer interface  socket层到底下的transport层的关键地方
  */
+/* socket 层，譬如：af_inet.c af_vsock.c可以自己实现bind这些函数，当然也可以让transport实现这些函数
+ * 然后调用的时候，直接调用到transport实现的地方当然就算不实现也是没有关系的
+ * */
 struct proto {
 	void			(*close)(struct sock *sk,
 					long timeout);
@@ -1212,6 +1215,7 @@ static inline bool sk_stream_memory_free(const struct sock *sk)
 
 static inline bool sk_stream_is_writeable(const struct sock *sk)
 {
+    //至少要能放一个包进去的空间。
 	return sk_stream_wspace(sk) >= sk_stream_min_wspace(sk) &&
 	       sk_stream_memory_free(sk);
 }
@@ -2083,6 +2087,7 @@ static inline void sock_poll_wait(struct file *filp, struct socket *sock,
 				  poll_table *p)
 {
 	if (!poll_does_not_wait(p)) { //有的时候会设置参数p，就不会进入这个条件的
+        /* 为什么直接访问，没有加rcu锁,因为其不是通过sk来找到wait的，而是使用的sock来找到wait的*/
 		poll_wait(filp, &sock->wq->wait, p);
 		/* We need to be sure we are in sync with the
 		 * socket flags modification.

@@ -450,6 +450,7 @@ struct sock *inet_csk_accept(struct sock *sk, int flags, int *err, bool kern)
 
 	/* Find already established connection */
 	if (reqsk_queue_empty(queue)) {
+        /*阻塞 非阻塞*/
 		long timeo = sock_rcvtimeo(sk, flags & O_NONBLOCK);
 
 		/* If this is a non blocking socket don't sleep */
@@ -457,6 +458,7 @@ struct sock *inet_csk_accept(struct sock *sk, int flags, int *err, bool kern)
 		if (!timeo)
 			goto out_err;
 
+        /*队列上已经有了请求了或者出现错误了，醒过来了*/
 		error = inet_csk_wait_for_connect(sk, timeo);
 		if (error)
 			goto out_err;

@@ -743,7 +743,7 @@ static const struct proto_ops unix_seqpacket_ops = {
 	.sendpage =	sock_no_sendpage,
 	.set_peek_off =	unix_set_peek_off,
 };
-
+//传输层的操作也是什么都没有实现
 static struct proto unix_proto = {
 	.name			= "UNIX",
 	.owner			= THIS_MODULE,

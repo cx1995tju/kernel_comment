@@ -19,6 +19,7 @@ struct timer_list {
 	u32			flags;
 
 #ifdef CONFIG_LOCKDEP
+    //死锁检测模块
 	struct lockdep_map	lockdep_map;
 #endif
 };

@@ -37,7 +37,7 @@ EXPORT_SYMBOL(ioport_resource);
 struct resource iomem_resource = {
 	.name	= "PCI mem",
 	.start	= 0,
-	.end	= -1,
+	.end	= -1, //全f
 	.flags	= IORESOURCE_MEM,
 };
 EXPORT_SYMBOL(iomem_resource);

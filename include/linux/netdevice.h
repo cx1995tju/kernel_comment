@@ -1222,7 +1222,7 @@ struct dev_ifalias {
  *	Returns negative number, means general error invoking ndo, meaning
  *	no frames were xmit'ed and core-caller will free all frames.
  */
-struct net_device_ops {
+struct net_device_ops { //各种函数应有尽有
 	int			(*ndo_init)(struct net_device *dev);
 	void			(*ndo_uninit)(struct net_device *dev);
 	int			(*ndo_open)(struct net_device *dev);
@@ -1598,11 +1598,11 @@ enum netdev_priv_flags {
  *	@link_mode:	Mapping policy to operstate
  *	@if_port:	Selectable AUI, TP, ...
  *	@dma:		DMA channel
- *	@mtu:		Interface MTU value
+ *	@mtu:		Interface MTU value, 与mac相关了，譬如，以太网1500
  *	@min_mtu:	Interface Minimum MTU value
  *	@max_mtu:	Interface Maximum MTU value
- *	@type:		Interface hardware type
- *	@hard_header_len: Maximum hardware header length.
+ *	@type:		Interface hardware type, 网卡类型，更准确的说是接口
+ *	@hard_header_len: Maximum hardware header length. mac层
  *	@min_header_len:  Minimum hardware header length
  *
  *	@needed_headroom: Extra headroom the hardware may need, but not in all
