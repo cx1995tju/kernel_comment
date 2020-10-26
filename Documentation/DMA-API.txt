@@ -15,6 +15,8 @@ should only use the API described in part I.
 
 Part I - dma_API
 ----------------
+dma_addr_t 结构：
+	用来保存任何合法的DMA地址，CPU不能直接使用这个地址的。因为这个地址可能是物理地址，或者可以经过IOMMU使用的地址。
 
 To get the dma_API, you must #include <linux/dma-mapping.h>.  This
 provides dma_addr_t and the interfaces described below.
