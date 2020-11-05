@@ -73,6 +73,7 @@ enum pci_mmap_state {
 };
 
 /* For PCI devices, the region numbers are assigned this way: */
+//Resource相关的枚举值
 enum {
 	/* #0-5: standard PCI resources */
 	PCI_STD_RESOURCES,
@@ -112,6 +113,7 @@ enum {
  * Corresponds to values for legacy PCI INTx interrupts, as can be found in the
  * PCI_INTERRUPT_PIN register.
  */
+//设备连接到PCI总线的哪一个中断请求引脚。这四条中断请求线通过中断路径互连器连接到中断控制器
 enum pci_interrupt_pin {
 	PCI_INTERRUPT_UNKNOWN,
 	PCI_INTERRUPT_INTA,
@@ -457,6 +459,7 @@ static inline struct pci_dev *pci_physfn(struct pci_dev *dev)
 
 struct pci_dev *pci_alloc_dev(struct pci_bus *bus);
 
+//dev结构指针拿到pci_dev结构
 #define	to_pci_dev(n) container_of(n, struct pci_dev, dev)
 #define for_each_pci_dev(d) while ((d = pci_get_device(PCI_ANY_ID, PCI_ANY_ID, d)) != NULL)
 
@@ -971,6 +974,8 @@ int pci_find_ht_capability(struct pci_dev *dev, int ht_cap);
 int pci_find_next_ht_capability(struct pci_dev *dev, int pos, int ht_cap);
 struct pci_bus *pci_find_next_bus(const struct pci_bus *from);
 
+//拿到pci_dev结构
+//vendro id, device id, 从from节点开始搜索，如果from是空，则开启一个新的搜索
 struct pci_dev *pci_get_device(unsigned int vendor, unsigned int device,
 			       struct pci_dev *from);
 struct pci_dev *pci_get_subsys(unsigned int vendor, unsigned int device,
@@ -982,6 +987,7 @@ struct pci_dev *pci_get_domain_bus_and_slot(int domain, unsigned int bus,
 struct pci_dev *pci_get_class(unsigned int class, struct pci_dev *from);
 int pci_dev_present(const struct pci_device_id *ids);
 
+//pci配置空间的数据读取
 int pci_bus_read_config_byte(struct pci_bus *bus, unsigned int devfn,
 			     int where, u8 *val);
 int pci_bus_read_config_word(struct pci_bus *bus, unsigned int devfn,
@@ -1209,6 +1215,7 @@ int pci_reassign_bridge_resources(struct pci_dev *bridge, unsigned long type);
 void pdev_enable_device(struct pci_dev *);
 int pci_enable_resources(struct pci_dev *, int mask);
 void pci_assign_irq(struct pci_dev *dev);
+//获取resource结构
 struct resource *pci_find_resource(struct pci_dev *dev, struct resource *res);
 #define HAVE_PCI_REQ_REGIONS	2
 int __must_check pci_request_regions(struct pci_dev *, const char *);
@@ -1745,6 +1752,7 @@ int pci_iobar_pfn(struct pci_dev *pdev, int bar, struct vm_area_struct *vma);
 #define pci_root_bus_fwnode(bus)	NULL
 #endif
 
+//各种helper函数
 /*
  * These helpers provide future and backwards compatibility
  * for accessing popular PCI BAR info

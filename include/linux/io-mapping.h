@@ -23,7 +23,7 @@
 #include <linux/bug.h>
 #include <linux/io.h>
 #include <asm/page.h>
-
+//不要手动去映射设备空间的数据，尽量使用io-mapping提供的操作
 /*
  * The io_mapping mechanism provides an abstraction for mapping
  * individual pages from an io device to the CPU in an efficient fashion.
@@ -31,9 +31,10 @@
  * See Documentation/io-mapping.txt
  */
 
+//io_mapping 结构
 struct io_mapping {
-	resource_size_t base;
-	unsigned long size;
+	resource_size_t base; //基址，物理地址，更准确的说是总线地址，从resource中拿到的
+	unsigned long size; //大小
 	pgprot_t prot;
 	void __iomem *iomem;
 };
@@ -48,6 +49,7 @@ struct io_mapping {
  * of the object at run time.
  */
 
+//初始化一个io_mapping结构
 static inline struct io_mapping *
 io_mapping_init_wc(struct io_mapping *iomap,
 		   resource_size_t base,

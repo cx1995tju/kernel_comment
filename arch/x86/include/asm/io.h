@@ -128,6 +128,7 @@ extern int valid_mmap_phys_addr_range(unsigned long pfn, size_t size);
  *	this function
  */
 
+/* 这个函数仅仅是在IO中使用，一定是内核空间 */
 static inline phys_addr_t virt_to_phys(volatile void *address)
 {
 	return __pa(address);

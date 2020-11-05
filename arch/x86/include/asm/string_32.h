@@ -33,8 +33,8 @@ extern size_t strlen(const char *s);
 static __always_inline void *__memcpy(void *to, const void *from, size_t n)
 {
 	int d0, d1, d2;
-	asm volatile("rep ; movsl\n\t"
-		     "movl %4,%%ecx\n\t"
+	asm volatile("rep ; movsl\n\t" //重复执行 %%ecx次
+		     "movl %4,%%ecx\n\t" //从这里开始处理剩下的最多3个字节
 		     "andl $3,%%ecx\n\t"
 		     "jz 1f\n\t"
 		     "rep ; movsb\n\t"

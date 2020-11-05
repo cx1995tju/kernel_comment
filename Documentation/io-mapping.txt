@@ -27,6 +27,7 @@ With this mapping object, individual pages can be mapped either atomically
 or not, depending on the necessary scheduling environment. Of course, atomic
 maps are more efficient::
 
+//关闭了抢占的。
 	void *io_mapping_map_atomic_wc(struct io_mapping *mapping,
 				       unsigned long offset)
 

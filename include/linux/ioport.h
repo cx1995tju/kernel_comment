@@ -17,12 +17,12 @@
  * nesting etc..
  */
 struct resource {
-	resource_size_t start;
+	resource_size_t start; //起始物理地址
 	resource_size_t end;
 	const char *name;
-	unsigned long flags;
+	unsigned long flags; //一些区间性质，
 	unsigned long desc;
-	struct resource *parent, *sibling, *child;
+	struct resource *parent, *sibling, *child; //树形结构的维护
 };
 
 /*
@@ -49,6 +49,7 @@ struct resource {
 
 #define IORESOURCE_SIZEALIGN	0x00040000	/* size indicates alignment */
 #define IORESOURCE_STARTALIGN	0x00080000	/* start field is alignment */
+
 
 #define IORESOURCE_MEM_64	0x00100000
 #define IORESOURCE_WINDOW	0x00200000	/* forwarded by bridge */

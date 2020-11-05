@@ -16,14 +16,19 @@ DMA usage
 
 The slave DMA usage consists of following steps:
 
+分配一条DMA slave通道
 - Allocate a DMA slave channel
 
+设置一些salve controller相关的参数
 - Set slave and controller specific parameters
 
+获取到事务描述符
 - Get a descriptor for transaction
 
+  提交事务
 - Submit the transaction
 
+  等待传输结束
 - Issue pending requests and wait for callback notification
 
 The details of these operations are:
