@@ -105,30 +105,31 @@
 
 /* Common configuration */
 #define VIRTIO_PCI_CAP_COMMON_CFG	1
-/* Notifications */
+/* Notifications */ //很好
 #define VIRTIO_PCI_CAP_NOTIFY_CFG	2
 /* ISR access */
-#define VIRTIO_PCI_CAP_ISR_CFG		3
+#define VIRTIO_PCI_CAP_ISR_CFG		3 //中断服务状态位相关, 改capablity至少要占据一个字节，需要是设备配置相关的中断还是正常的virtqueue中断。
+						//读取这个寄存器会导致，该byte被清零，导致device de-assert the interrupt
 /* Device specific configuration */
-#define VIRTIO_PCI_CAP_DEVICE_CFG	4
+#define VIRTIO_PCI_CAP_DEVICE_CFG	4 //设备相关的配置信息，通过这个capablity实现。
 /* PCI configuration access */
-#define VIRTIO_PCI_CAP_PCI_CFG		5
+#define VIRTIO_PCI_CAP_PCI_CFG		5 //通过这个提供额外的BAR空间的访问方式
 
 /* This is the PCI capability header: */
 struct virtio_pci_cap {
-	__u8 cap_vndr;		/* Generic PCI field: PCI_CAP_ID_VNDR */
+	__u8 cap_vndr;		/* Generic PCI field: PCI_CAP_ID_VNDR */ //0x09表明是一个vendro-specific的capablity
 	__u8 cap_next;		/* Generic PCI field: next ptr. */
 	__u8 cap_len;		/* Generic PCI field: capability length */
-	__u8 cfg_type;		/* Identifies the structure. */
-	__u8 bar;		/* Where to find it. */
+	__u8 cfg_type;		/* Identifies the structure. */ //是virtio device通用capablity中的哪一种，一共五种。
+	__u8 bar;		/* Where to find it. */ //这个capability位于哪个bar。
 	__u8 padding[3];	/* Pad to full dword. */
-	__le32 offset;		/* Offset within bar. */
+	__le32 offset;		/* Offset within bar. */ //在这个bar的哪个偏移位置
 	__le32 length;		/* Length of the structure, in bytes. */
 };
 
 struct virtio_pci_notify_cap {
 	struct virtio_pci_cap cap;
-	__le32 notify_off_multiplier;	/* Multiplier for queue_notify_off. */
+	__le32 notify_off_multiplier;	/* Multiplier for queue_notify_off. */ //所有queue的notify都放置在这里，根据偏移来计算,每个queue占据的大小是这么大，
 };
 
 /* Fields in VIRTIO_PCI_CAP_COMMON_CFG: */
@@ -143,7 +144,7 @@ struct virtio_pci_common_cfg {
 	__u8 device_status;		/* read-write */
 	__u8 config_generation;		/* read-only */
 
-	/* About a specific virtqueue. */
+	/* About a specific virtqueue. */ //有多个queue怎么办？？？？, 反复写这个位置，使用queue_select区分
 	__le16 queue_select;		/* read-write */
 	__le16 queue_size;		/* read-write, power of 2. */
 	__le16 queue_msix_vector;	/* read-write */
@@ -159,7 +160,7 @@ struct virtio_pci_common_cfg {
 
 /* Fields in VIRTIO_PCI_CAP_PCI_CFG: */
 struct virtio_pci_cfg_cap {
-	struct virtio_pci_cap cap;
+	struct virtio_pci_cap cap; //通过这个设置好要访问的BAR空间内容，然后就可以从下面数组中读出来.
 	__u8 pci_cfg_data[4]; /* Data for BAR access. */
 };
 

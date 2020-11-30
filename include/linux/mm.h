@@ -340,12 +340,14 @@ extern pgprot_t protection_map[16];
  *
  * pgoff should be used in favour of virtual_address, if possible.
  */
+
 struct vm_fault {
-	struct vm_area_struct *vma;	/* Target VMA */
+	struct vm_area_struct *vma;	/* Target VMA */ //发生功能page fault的vma
 	unsigned int flags;		/* FAULT_FLAG_xxx flags */
-	gfp_t gfp_mask;			/* gfp mask to be used for allocations */
-	pgoff_t pgoff;			/* Logical page offset based on vma */
-	unsigned long address;		/* Faulting virtual address */
+	gfp_t gfp_mask;			/* gfp mask to be used for allocations */  //分配该页面的时候使用的gfp
+	pgoff_t pgoff;			/* Logical page offset based on vma */  //发生错误的地址位于vma的第几个页中（从0开始）
+	/* unsigned long 比较有意思，在32位系统上就是32b够用了，在64位系统上就是64b也够用了 */
+	unsigned long address;		/* Faulting virtual address */ //发生错误的物理地址
 	pmd_t *pmd;			/* Pointer to pmd entry matching
 					 * the 'address' */
 	pud_t *pud;			/* Pointer to pud entry matching
@@ -355,7 +357,8 @@ struct vm_fault {
 
 	struct page *cow_page;		/* Page handler may use for COW fault */
 	struct mem_cgroup *memcg;	/* Cgroup cow_page belongs to */
-	struct page *page;		/* ->fault handlers should return a
+	/* 在这里返回了page， 这样mmap映射的页面发生页面异常的时候就能够拿到真实的物理页面 */
+	struct page *page;		/* ->fault handlers should return a //补充的页面
 					 * page here, unless VM_FAULT_NOPAGE
 					 * is set (which is also implied by
 					 * VM_FAULT_ERROR).
@@ -395,6 +398,7 @@ struct vm_operations_struct {
 	void (*close)(struct vm_area_struct * area);
 	int (*split)(struct vm_area_struct * area, unsigned long addr);
 	int (*mremap)(struct vm_area_struct * area);
+	/* 自动触发的缺页异常会调用到这个函数的 */
 	vm_fault_t (*fault)(struct vm_fault *vmf);
 	vm_fault_t (*huge_fault)(struct vm_fault *vmf,
 			enum page_entry_size pe_size);

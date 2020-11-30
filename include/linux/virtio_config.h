@@ -1,3 +1,4 @@
+//virtio 配置空间相关的操作函数
 /* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _LINUX_VIRTIO_CONFIG_H
 #define _LINUX_VIRTIO_CONFIG_H
@@ -64,10 +65,10 @@ struct irq_affinity;
 typedef void vq_callback_t(struct virtqueue *);
 struct virtio_config_ops {
 	void (*get)(struct virtio_device *vdev, unsigned offset,
-		    void *buf, unsigned len);
+		    void *buf, unsigned len); //读取配置空间
 	void (*set)(struct virtio_device *vdev, unsigned offset,
-		    const void *buf, unsigned len);
-	u32 (*generation)(struct virtio_device *vdev);
+		    const void *buf, unsigned len); //写配置空间
+	u32 (*generation)(struct virtio_device *vdev); //
 	u8 (*get_status)(struct virtio_device *vdev);
 	void (*set_status)(struct virtio_device *vdev, u8 status);
 	void (*reset)(struct virtio_device *vdev);

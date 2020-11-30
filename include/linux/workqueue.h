@@ -36,7 +36,7 @@ enum {
 	WORK_STRUCT_STATIC_BIT	= 4,	/* static initializer (debugobjects) */
 	WORK_STRUCT_COLOR_SHIFT	= 5,	/* color for workqueue flushing */
 #else
-	WORK_STRUCT_COLOR_SHIFT	= 4,	/* color for workqueue flushing */
+	WORK_STRUCT_COLOR_SHIFT	= 4,	/* color for workqueue flushing */ //5位用来做flag，那么workqueue结构至少32B对齐？？？？
 #endif
 
 	WORK_STRUCT_COLOR_BITS	= 4,
@@ -98,11 +98,11 @@ enum {
 	/* maximum string length for set_worker_desc() */
 	WORKER_DESC_LEN		= 24,
 };
-
+ //data不再是func的参数了，现在需要获取func的参数，都是将work嵌入到某个结构中，通过container_of获取该结构，从而获取参数
 struct work_struct {
-	atomic_long_t data;
+	atomic_long_t data; //data不再是func的参数了，现在需要获取func的参数，都是将work嵌入到某个结构中，通过container_of获取该结构，从而获取参数
 	struct list_head entry;
-	work_func_t func;
+	work_func_t func; //该函数的参数是一个指针，指向用于提交工作的work_struct结构
 #ifdef CONFIG_LOCKDEP
 	struct lockdep_map lockdep_map;
 #endif
@@ -445,6 +445,7 @@ __alloc_workqueue_key(const char *fmt, unsigned int flags, int max_active,
 	alloc_workqueue(fmt, WQ_UNBOUND | __WQ_ORDERED |		\
 			__WQ_ORDERED_EXPLICIT | (flags), 1, ##args)
 
+//name参数是创建的线程名称
 #define create_workqueue(name)						\
 	alloc_workqueue("%s", __WQ_LEGACY | WQ_MEM_RECLAIM, 1, (name))
 #define create_freezable_workqueue(name)				\

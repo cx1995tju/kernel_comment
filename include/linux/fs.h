@@ -582,7 +582,7 @@ struct fsnotify_mark_connector;
  * of the 'struct inode'
  */
 struct inode {
-	umode_t			i_mode;
+	umode_t			i_mode; //访问权限,所有权
 	unsigned short		i_opflags;
 	kuid_t			i_uid;
 	kgid_t			i_gid;
@@ -602,6 +602,7 @@ struct inode {
 #endif
 
 	/* Stat data, not accessed from path walking */
+	/* 同一文件系统中，该no号是唯一 */
 	unsigned long		i_ino;
 	/*
 	 * Filesystems may only read i_nlink directly.  They shall use the
@@ -611,14 +612,14 @@ struct inode {
 	 *    inode_(inc|dec)_link_count
 	 */
 	union {
-		const unsigned int i_nlink;
+		const unsigned int i_nlink; //硬链接计数器
 		unsigned int __i_nlink;
 	};
 	dev_t			i_rdev;
-	loff_t			i_size;
-	struct timespec64	i_atime;
-	struct timespec64	i_mtime;
-	struct timespec64	i_ctime;
+	loff_t			i_size; //文件长度
+	struct timespec64	i_atime; //最后访问时间
+	struct timespec64	i_mtime; //最后修改文件时间
+	struct timespec64	i_ctime; //最后修改inode时间
 	spinlock_t		i_lock;	/* i_blocks, i_bytes, maybe i_size */
 	unsigned short          i_bytes;
 	u8			i_blkbits;
@@ -664,7 +665,7 @@ struct inode {
 	struct file_lock_context	*i_flctx;
 	struct address_space	i_data;
 	struct list_head	i_devices;
-	union {
+	union { 
 		struct pipe_inode_info	*i_pipe;
 		struct block_device	*i_bdev;
 		struct cdev		*i_cdev;

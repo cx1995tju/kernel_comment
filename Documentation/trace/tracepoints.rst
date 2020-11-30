@@ -20,7 +20,7 @@ connected to it) or "off" (no probe is attached). When a tracepoint is
 (checking a condition for a branch) and space penalty (adding a few
 bytes for the function call at the end of the instrumented function
 and adds a data structure in a separate section).  When a tracepoint
-is "on", the function you provide is called each time the tracepoint
+is "on", the function you provide is called each time the tracepoint    开启了某个tracepoint后，可以在改位置来执行自己的函数,当这个函数执行完成后，其又返回tracepoint点.
 is executed, in the execution context of the caller. When the function
 provided ends its execution, it returns to the caller (continuing from
 the tracepoint site).
@@ -95,6 +95,7 @@ probe (function to call) for the specific tracepoint through
 register_trace_subsys_eventname().  Removing a probe is done through
 unregister_trace_subsys_eventname(); it will remove the probe.
 
+********************************************
 tracepoint_synchronize_unregister() must be called before the end of
 the module exit function to make sure there is no caller left using
 the probe. This, and the fact that preemption is disabled around the

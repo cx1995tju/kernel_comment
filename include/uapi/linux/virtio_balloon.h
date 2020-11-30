@@ -30,7 +30,7 @@
 #include <linux/virtio_ids.h>
 #include <linux/virtio_config.h>
 
-/* The feature bitmap for virtio balloon */
+/* The feature bitmap for virtio balloon */ //balloon设备的一些feature位
 #define VIRTIO_BALLOON_F_MUST_TELL_HOST	0 /* Tell before reclaiming pages */
 #define VIRTIO_BALLOON_F_STATS_VQ	1 /* Memory Stats virtqueue */
 #define VIRTIO_BALLOON_F_DEFLATE_ON_OOM	2 /* Deflate balloon on OOM */
@@ -74,7 +74,7 @@ struct virtio_balloon_config {
 
 /*
  * Memory statistics structure.
- * Driver fills an array of these structures and passes to device.
+ * Driver fills an array of these structures and passes to device.    driver通过这个结构将统计信息告诉设备
  *
  * NOTE: fields are laid out in a way that would make compiler add padding
  * between and after fields, so we have to use compiler-specific attributes to

@@ -31,6 +31,19 @@ struct mempolicy;
  * parent, but "subdir" is empty for all non-directory entries).
  * subdir_node is used to build the rb tree "subdir" of the parent.
  */
+/* 这个结构更多的是保存一些信息，不需要向dentry inode等组织成层次化结构性的组织。
+ *
+ * 在内核中会用红黑树维护这些结构，后续路径查找的时候，会找到这个结构，从而根据需要创建dentry inode结构。
+ *
+ * 一旦dentry inode结构都有了,后续都是从文件系统的层次化来查找各种dentry inode结构。
+ *
+ * 而没有任何需要从proc_dir_entry结构反向查找dentry inode结构的需求。
+ *
+ *
+ * 以上是猜测
+ *
+ *
+ * */
 struct proc_dir_entry {
 	/*
 	 * number of callers into module in progress;
@@ -42,18 +55,18 @@ struct proc_dir_entry {
 	/* protects ->pde_openers and all struct pde_opener instances */
 	spinlock_t pde_unload_lock;
 	struct completion *pde_unload_completion;
-	const struct inode_operations *proc_iops;
+	const struct inode_operations *proc_iops; //vfs接口
 	const struct file_operations *proc_fops;
 	const struct dentry_operations *proc_dops;
 	union {
 		const struct seq_operations *seq_ops;
 		int (*single_show)(struct seq_file *, void *);
 	};
-	proc_write_t write;
+	proc_write_t write; //write函数
 	void *data;
 	unsigned int state_size;
-	unsigned int low_ino;
-	nlink_t nlink;
+	unsigned int low_ino; //inode编号
+	nlink_t nlink; //目录中子目录和符号链接的数目
 	kuid_t uid;
 	kgid_t gid;
 	loff_t size;
@@ -78,22 +91,24 @@ extern struct kmem_cache *proc_dir_entry_cache;
 void pde_free(struct proc_dir_entry *pde);
 
 union proc_op {
-	int (*proc_get_link)(struct dentry *, struct path *);
+	int (*proc_get_link)(struct dentry *, struct path *); //用于在虚拟文件系统中建立链接
 	int (*proc_show)(struct seq_file *m,
 		struct pid_namespace *ns, struct pid *pid,
 		struct task_struct *task);
 };
 
+//将独立于vfs的inode信息关联起来
 struct proc_inode {
 	struct pid *pid;
-	unsigned int fd;
+	unsigned int fd; //记录文件描述符，对应于/proc/<pid>/fd中的某个文件
 	union proc_op op;
-	struct proc_dir_entry *pde;
+	struct proc_dir_entry *pde //指向对应的proc dentry结构
 	struct ctl_table_header *sysctl;
 	struct ctl_table *sysctl_entry;
 	struct hlist_node sysctl_inodes;
 	const struct proc_ns_operations *ns_ops;
-	struct inode vfs_inode;
+	struct inode vfs_inode; //分配inode节点的时候，会直接分配一个proc_inode这么大的结构的
+	/* inode结构就是vfs_node从而索引到proc_inode结构，从而索引到proc_dir_entry结构*/
 } __randomize_layout;
 
 /*

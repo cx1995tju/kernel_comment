@@ -449,8 +449,9 @@ const struct inode_operations proc_link_inode_operations = {
 	.get_link	= proc_get_link,
 };
 
+/* 分配新的inode */
 struct inode *proc_get_inode(struct super_block *sb, struct proc_dir_entry *de)
-{
+{//inode结点能够索引到proc_dir_entry，但过来怎么索引, 使用i_ino么？没有指针直接指向
 	struct inode *inode = new_inode_pseudo(sb);
 
 	if (inode) {

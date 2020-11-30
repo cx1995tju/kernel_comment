@@ -766,7 +766,7 @@ struct pci_driver {
 	int  (*sriov_configure) (struct pci_dev *dev, int num_vfs); /* On PF */
 	const struct pci_error_handlers *err_handler;
 	const struct attribute_group **groups;
-	struct device_driver	driver;
+	struct device_driver	driver; //既然是继承，为什么不是放在最前面？？？？？？？？？？？？？？？, 不放在最前面怎么实现多态？？？？？？可能是这里不会使用到多态特征？？？？？
 	struct pci_dynids	dynids;
 };
 

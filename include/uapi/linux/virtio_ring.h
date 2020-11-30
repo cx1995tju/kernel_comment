@@ -42,16 +42,16 @@
 /* This marks a buffer as write-only (otherwise read-only). */
 #define VRING_DESC_F_WRITE	2
 /* This means the buffer contains a list of buffer descriptors. */
-#define VRING_DESC_F_INDIRECT	4
+#define VRING_DESC_F_INDIRECT	4 //间接，描述符指向的buffer中是包含了一连串的buffer描述符的
 
 /* The Host uses this in used->flags to advise the Guest: don't kick me when
  * you add a buffer.  It's unreliable, so it's simply an optimization.  Guest
  * will still kick if it's out of buffers. */
-#define VRING_USED_F_NO_NOTIFY	1
+#define VRING_USED_F_NO_NOTIFY	1 //抑制driver的kick off. 仅仅是建议啦，听不听是driver的事情。没有强制要求
 /* The Guest uses this in avail->flags to advise the Host: don't interrupt me
  * when you consume a buffer.  It's unreliable, so it's simply an
  * optimization.  */
-#define VRING_AVAIL_F_NO_INTERRUPT	1
+#define VRING_AVAIL_F_NO_INTERRUPT	1 //抑制设备的interrupt, 仅仅是建议，听不听是设备自己的事情，没有强制要求。
 
 /* We support indirect buffer descriptors */
 #define VIRTIO_RING_F_INDIRECT_DESC	28
@@ -76,8 +76,8 @@ struct vring_desc {
 
 struct vring_avail {
 	__virtio16 flags;
-	__virtio16 idx;
-	__virtio16 ring[];
+	__virtio16 idx; //head指针，ring中下一个可用位置，即driver可以填入的位置
+	__virtio16 ring[]; //ring中保存的是desc的index，16b，最大65535， spec限制了num最多才32678，所以够用。
 };
 
 /* u32 is used here for ids for padding reasons. */
@@ -85,23 +85,24 @@ struct vring_used_elem {
 	/* Index of start of used descriptor chain. */
 	__virtio32 id;
 	/* Total length of the descriptor chain which was used (written to) */
-	__virtio32 len;
+	__virtio32 len; //所以规定了一个desc的链包含的数据不超过4G, len的具体作用可以参考virtio spec
 };
 
 struct vring_used {
 	__virtio16 flags;
-	__virtio16 idx;
+	__virtio16 idx;  //head指针，下一个可用位置，device可能填入的位置。为什么没有尾指针？？？？？？ 因为描述符只有那么多个，不会被填满的
 	struct vring_used_elem ring[];
 };
 
-struct vring {
-	unsigned int num;
+//三个ring必须也要在==物理上连续==的
+struct vring { //这个结构是driver分配的，driver要确保对齐，连续等条件。
+	unsigned int num; //16b的queue size
 
-	struct vring_desc *desc;
+	struct vring_desc *desc; //descriptor table, 要保证guest 物理连续. 显然啦，要DMA. 总大小是num*16B
 
-	struct vring_avail *avail;
+	struct vring_avail *avail;  //指向一段连续物理内存，其中内容是available ring
 
-	struct vring_used *used;
+	struct vring_used *used; //同上
 };
 
 /* Alignment requirements for vring elements.

@@ -26,14 +26,14 @@ consumer - the task that reads from the buffer (same as reader)
 
 reader - same as consumer.
 
-reader_page - A page outside the ring buffer used solely (for the most part)
+reader_page - A page outside the ring buffer used solely (for the most part)    PAGE
     by the reader.
 
-head_page - a pointer to the page that the reader will use next
+head_page - a pointer to the page that the reader will use next     POINTER
 
-tail_page - a pointer to the page that will be written to next
+tail_page - a pointer to the page that will be written to next      POINTER
 
-commit_page - a pointer to the page with the last finished non-nested write.
+commit_page - a pointer to the page with the last finished non-nested write.    POINTER
 
 cmpxchg - hardware-assisted atomic transaction that performs the following:
 
@@ -54,11 +54,11 @@ producer/consumer mode.
 
 Producer/consumer mode is where if the producer were to fill up the
 buffer before the consumer could free up anything, the producer
-will stop writing to the buffer. This will lose most recent events.
+will stop writing to the buffer. This will lose most recent events.   丢失最新的事件    producer/consumer 模式
 
 Overwrite mode is where if the producer were to fill up the buffer
 before the consumer could free up anything, the producer will
-overwrite the older data. This will lose the oldest events.
+overwrite the older data. This will lose the oldest events.          丢失最旧的事件   overwrite模式
 
 No two writers can write at the same time (on the same per-cpu buffer),
 but a writer may interrupt another writer, but it must finish writing

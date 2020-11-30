@@ -18,7 +18,7 @@ config VIRTIO_PCI
 	---help---
 	  This driver provides support for virtio based paravirtual device
 	  drivers over PCI.  This requires that your VMM has appropriate PCI
-	  virtio backends.  Most QEMU based VMMs should support these devices
+	  virtio backends.  Most QEMU based VMMs should support these devices //VMM需要实现PCI virtio BE
 	  (like KVM or Xen).
 
 	  If unsure, say M.
@@ -42,7 +42,7 @@ config VIRTIO_PCI_LEGACY
 
 	  If unsure, say Y.
 
-config VIRTIO_BALLOON
+config VIRTIO_BALLOON 
 	tristate "Virtio balloon driver"
 	depends on VIRTIO
 	select MEMORY_BALLOON

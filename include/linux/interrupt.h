@@ -541,11 +541,11 @@ static inline struct task_struct *this_cpu_ksoftirqd(void)
 
 struct tasklet_struct
 {
-	struct tasklet_struct *next;
-	unsigned long state;
-	atomic_t count;
-	void (*func)(unsigned long);
-	unsigned long data;
+	struct tasklet_struct *next; //构建tasklet的链表
+	unsigned long state; //当前任务的状态
+	atomic_t count; //禁用已经调度的tasklet，如果其值不为0，那么接下来执行所有的tasklet的时候，都会忽略该tasklet
+	void (*func)(unsigned long); //执行的函数，
+	unsigned long data; //data是执行参数
 };
 
 #define DECLARE_TASKLET(name, func, data) \
@@ -585,9 +585,9 @@ static inline void tasklet_unlock_wait(struct tasklet_struct *t)
 
 extern void __tasklet_schedule(struct tasklet_struct *t);
 
-static inline void tasklet_schedule(struct tasklet_struct *t)
+static inline void tasklet_schedule(struct tasklet_struct *t) //注册tasklet
 {
-	if (!test_and_set_bit(TASKLET_STATE_SCHED, &t->state))
+	if (!test_and_set_bit(TASKLET_STATE_SCHED, &t->state)) //如果已经设置了tasklet，说明已经注册过了，会结束的, 顺利注册的话会将其挂入一个链表的头部的
 		__tasklet_schedule(t);
 }
 

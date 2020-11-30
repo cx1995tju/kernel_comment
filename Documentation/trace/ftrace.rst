@@ -18,17 +18,20 @@ Copyright 2008 Red Hat Inc.
 Introduction
 ------------
 
+/* debug 性能分析*/
 Ftrace is an internal tracer designed to help out developers and
 designers of systems to find what is going on inside the kernel.
 It can be used for debugging or analyzing latencies and
 performance issues that take place outside of user-space.
 
+不仅仅能够跟踪函数，其实能够跟踪很多事件的
 Although ftrace is typically considered the function tracer, it
 is really a frame work of several assorted tracing utilities.
 There's latency tracing to examine what occurs between interrupts
 disabled and enabled, as well as for preemption and from a time
 a task is woken to the task is actually scheduled in.
 
+事件跟踪，在内核中有好几百了静态的事件点, 可以通过ftrace来跟踪
 One of the most common uses of ftrace is the event tracing.
 Through out the kernel is hundreds of static event points that
 can be enabled via the tracefs file system to see what is
@@ -46,6 +49,7 @@ See :doc:`ftrace-design` for details for arch porters and such.
 The File System
 ---------------
 
+通过tracefs来提供控制接口
 Ftrace uses the tracefs file system to hold the control files as
 well as the files to display output.
 
@@ -866,7 +870,7 @@ occurred. (ps pid: 6143).
 The start and stop (the functions in which the interrupts were
 disabled and enabled respectively) that caused the latencies:
 
-  - __lock_task_sighand is where the interrupts were disabled.
+  - __lock_task_sighand is where the interrupts were disabled.                  可以找到中断开启关闭的时间点。
   - _raw_spin_unlock_irqrestore is where they were enabled again.
 
 The next lines after the header are the trace itself. The header
@@ -902,7 +906,7 @@ explains which is which.
 The above is mostly meaningful for kernel developers.
 
   time:
-	When the latency-format option is enabled, the trace file
+	When the latency-format option is enabled, the trace file   打印的是相对时间
 	output includes a timestamp relative to the start of the
 	trace. This differs from the output when latency-format
 	is disabled, which includes an absolute timestamp.
@@ -2136,7 +2140,7 @@ See the "ftrace_enabled" section below.
   [...]
 
 
-Note: function tracer uses ring buffers to store the above
+Note: function tracer uses ring buffers to store the above                                      如果要追踪函数，一般不会手动去操作debugfs，而是在你的程序中直接开启关闭.
 entries. The newest data may overwrite the oldest data.
 Sometimes using echo to stop the trace is not sufficient because
 the tracing could have overwritten the data that you wanted to
@@ -2159,7 +2163,7 @@ something like following code snippet can be used::
 	}
 
 
-Single thread tracing
+Single thread tracing                                                                           可以追踪某个线程
 ---------------------
 
 By writing into set_ftrace_pid you can trace a

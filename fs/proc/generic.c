@@ -201,6 +201,7 @@ static DEFINE_IDA(proc_inum_ida);
  * Return an inode number between PROC_DYNAMIC_FIRST and
  * 0xffffffff, or zero on failure.
  */
+/* 分配i_ino*/
 int proc_alloc_inum(unsigned int *inum)
 {
 	int i;
@@ -243,16 +244,21 @@ static const struct dentry_operations proc_misc_dentry_ops = {
  * Don't create negative dentries here, return -ENOENT by hand
  * instead.
  */
+/* proc create 的时候创建了pentry结构*/
+/* 寻找并设置dentry结构，其中包括分配inode结构, 应该是dentry->inode为空才会调用到这里  */
 struct dentry *proc_lookup_de(struct inode *dir, struct dentry *dentry,
 			      struct proc_dir_entry *de)
 {
 	struct inode *inode;
 
 	read_lock(&proc_subdir_lock);
+	/* 红黑树组织的，找到了proc dentry结构 */
+	/* proc entry 结构 能够能够与dentry结构匹配上， 我们设置这个dentry结构，并分配一个新的inode结构 */
 	de = pde_subdir_find(de, dentry->d_name.name, dentry->d_name.len);
 	if (de) {
 		pde_get(de);
 		read_unlock(&proc_subdir_lock);
+		/* 分配一个新的inode， 并且用proc来赋值, 包括i_ino */
 		inode = proc_get_inode(dir->i_sb, de);
 		if (!inode)
 			return ERR_PTR(-ENOMEM);
@@ -380,6 +386,7 @@ static struct proc_dir_entry *__proc_create(struct proc_dir_entry **parent,
 	const char *fn;
 	struct qstr qstr;
 
+	/* 会生成完整路径名(/proc)的 */
 	if (xlate_proc_name(name, parent, &fn) != 0)
 		goto out;
 	qstr.name = fn;

@@ -63,7 +63,7 @@ struct vring_desc_state {
 struct vring_virtqueue {
 	struct virtqueue vq;
 
-	/* Actual memory layout for this queue */
+	/* Actual memory layout for this queue */ //是spec中描述的split virtqueue结构
 	struct vring vring;
 
 	/* Can we use weak barriers? */

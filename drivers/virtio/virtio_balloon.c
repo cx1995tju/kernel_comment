@@ -44,10 +44,10 @@
 #ifdef CONFIG_BALLOON_COMPACTION
 static struct vfsmount *balloon_mnt;
 #endif
-
+//该设备的一些独特信息，可以绑定到device结构中
 struct virtio_balloon {
-	struct virtio_device *vdev;
-	struct virtqueue *inflate_vq, *deflate_vq, *stats_vq;
+	struct virtio_device *vdev; //这个device结构是从哪里来的？
+	struct virtqueue *inflate_vq, *deflate_vq, *stats_vq; //气球膨胀的queue，气球缩小的queue，统计用的queue
 
 	/* The balloon servicing is delegated to a freezable workqueue. */
 	struct work_struct update_balloon_stats_work;
@@ -58,34 +58,34 @@ struct virtio_balloon {
 	bool stop_update;
 
 	/* Waiting for host to ack the pages we released. */
-	wait_queue_head_t acked;
+	wait_queue_head_t acked; //睡眠entity挂在这个队列上
 
 	/* Number of balloon pages we've told the Host we're not using. */
-	unsigned int num_pages;
+	unsigned int num_pages; 
 	/*
 	 * The pages we've told the Host we're not using are enqueued
 	 * at vb_dev_info->pages list.
 	 * Each page on this list adds VIRTIO_BALLOON_PAGES_PER_PAGE
 	 * to num_pages above.
 	 */
-	struct balloon_dev_info vb_dev_info;
+	struct balloon_dev_info vb_dev_info; //balloon设备相关的信息
 
 	/* Synchronize access/update to this struct virtio_balloon elements */
 	struct mutex balloon_lock;
 
 	/* The array of pfns we tell the Host about. */
 	unsigned int num_pfns;
-	__virtio32 pfns[VIRTIO_BALLOON_ARRAY_PFNS_MAX];
+	__virtio32 pfns[VIRTIO_BALLOON_ARRAY_PFNS_MAX]; //pfn的数组, 32位就够了？？？？？？？？
 
 	/* Memory statistics */
-	struct virtio_balloon_stat stats[VIRTIO_BALLOON_S_NR];
+	struct virtio_balloon_stat stats[VIRTIO_BALLOON_S_NR]; //统计信息
 
 	/* To register a shrinker to shrink memory upon memory pressure */
 	struct shrinker shrinker;
 };
 
-static struct virtio_device_id id_table[] = {
-	{ VIRTIO_ID_BALLOON, VIRTIO_DEV_ANY_ID },
+static struct virtio_device_id id_table[] = { //qemu里面描述设备的结构
+	{ VIRTIO_ID_BALLOON, VIRTIO_DEV_ANY_ID }, //vendor id + device id
 	{ 0 },
 };
 
@@ -136,7 +136,7 @@ static void set_page_pfns(struct virtio_balloon *vb,
 }
 
 static unsigned fill_balloon(struct virtio_balloon *vb, size_t num)
-{
+{ //气球膨胀
 	unsigned num_allocated_pages;
 	unsigned num_pfns;
 	struct page *page;
@@ -558,6 +558,7 @@ static int virtio_balloon_register_shrinker(struct virtio_balloon *vb)
 	return register_shrinker(&vb->shrinker);
 }
 
+/* 驱动和设备match之后就会调用这个函数的 */
 static int virtballoon_probe(struct virtio_device *vdev)
 {
 	struct virtio_balloon *vb;
@@ -569,18 +570,20 @@ static int virtballoon_probe(struct virtio_device *vdev)
 		return -EINVAL;
 	}
 
+	//将virtio_balloon_device结构与virtio_balloon结构关联起来
 	vdev->priv = vb = kzalloc(sizeof(*vb), GFP_KERNEL);
 	if (!vb) {
 		err = -ENOMEM;
 		goto out;
 	}
 
+	//各种virtio_balloon device的成员初始化
 	INIT_WORK(&vb->update_balloon_stats_work, update_balloon_stats_func);
 	INIT_WORK(&vb->update_balloon_size_work, update_balloon_size_func);
 	spin_lock_init(&vb->stop_update_lock);
 	mutex_init(&vb->balloon_lock);
 	init_waitqueue_head(&vb->acked);
-	vb->vdev = vdev;
+	vb->vdev = vdev; //将vb结构反向
 
 	balloon_devinfo_init(&vb->vb_dev_info);
 
@@ -705,10 +708,10 @@ static unsigned int features[] = {
 	VIRTIO_BALLOON_F_DEFLATE_ON_OOM,
 };
 
-static struct virtio_driver virtio_balloon_driver = {
+static struct virtio_driver virtio_balloon_driver = { 
 	.feature_table = features,
 	.feature_table_size = ARRAY_SIZE(features),
-	.driver.name =	KBUILD_MODNAME,
+	.driver.name =	KBUILD_MODNAME, //仅仅初始化了部分driver结构成员，各种函数指针都没有初始化都还会空。
 	.driver.owner =	THIS_MODULE,
 	.id_table =	id_table,
 	.validate =	virtballoon_validate,
@@ -721,7 +724,7 @@ static struct virtio_driver virtio_balloon_driver = {
 #endif
 };
 
-module_virtio_driver(virtio_balloon_driver);
+module_virtio_driver(virtio_balloon_driver); //这个宏定义了module_init module_exit以及相关函数
 MODULE_DEVICE_TABLE(virtio, id_table);
 MODULE_DESCRIPTION("Virtio balloon driver");
 MODULE_LICENSE("GPL");

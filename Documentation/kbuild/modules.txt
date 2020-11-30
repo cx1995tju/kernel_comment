@@ -10,7 +10,7 @@ This document describes how to build an out-of-tree kernel module.
 	   --- 2.2 Options
 	   --- 2.3 Targets
 	   --- 2.4 Building Separate Files
-	=== 3. Creating a Kbuild File for an External Module
+	=== 3. Creating a Kbuild File for an External Module 
 	   --- 3.1 Shared Makefile
 	   --- 3.2 Separate Kbuild file and Makefile
 	   --- 3.3 Binary Blobs
@@ -28,6 +28,8 @@ This document describes how to build an out-of-tree kernel module.
 	   --- 6.3 Symbols From Another External Module
 	=== 7. Tips & Tricks
 	   --- 7.1 Testing for CONFIG_FOO_BAR
+
+与一般的Makefile有不少不同的.
 
 
 
@@ -69,7 +71,7 @@ executed to make module versioning work.
 
 	The command to build an external module is:
 
-		$ make -C <path_to_kernel_src> M=$PWD
+		$ make -C <path_to_kernel_src> M=$PWD    最最最基本的指令 //并不符合Docopt格式
 
 	The kbuild system knows that an external module is being built
 	due to the "M=<dir>" option given in the command.
@@ -81,7 +83,7 @@ executed to make module versioning work.
 	Then to install the module(s) just built, add the target
 	"modules_install" to the command:
 
-		$ make -C /lib/modules/`uname -r`/build M=$PWD modules_install
+		$ make -C /lib/modules/`uname -r`/build M=$PWD modules_install //modules_install 被称作target
 
 --- 2.2 Options
 
@@ -114,12 +116,12 @@ executed to make module versioning work.
 	precondition that a successful "make" has been executed for the
 	kernel.
 
-	modules
+	modules 默认target
 		The default target for external modules. It has the
 		same functionality as if no target was specified. See
 		description above.
 
-	modules_install
+	modules_install 安装外部模块，默认位置是， 可以使用INSTALL_MOD_PATH更改
 		Install the external module(s). The default location is
 		/lib/modules/<kernel_release>/extra/, but a prefix may
 		be added with INSTALL_MOD_PATH (discussed in section 5).
@@ -137,12 +139,13 @@ executed to make module versioning work.
 	external modules.
 
 	Example (The module foo.ko, consist of bar.o and baz.o):
-		make -C $KDIR M=$PWD bar.lst
+		make -C $KDIR M=$PWD bar.lst //这个文件是target
 		make -C $KDIR M=$PWD baz.o
 		make -C $KDIR M=$PWD foo.ko
 		make -C $KDIR M=$PWD /
 
 
+		Kbuild文件
 === 3. Creating a Kbuild File for an External Module
 
 In the last section we saw the command to build a module for the
@@ -151,15 +154,15 @@ build file is required. Contained in this file will be the name of
 the module(s) being built, along with the list of requisite source
 files. The file may be as simple as a single line:
 
-	obj-m := <module_name>.o
+	obj-m := <module_name>.o //这种功能是Kbuild系统提供的，与传统makefile最大不同之处
 
 The kbuild system will build <module_name>.o from <module_name>.c,
-and, after linking, will result in the kernel module <module_name>.ko.
+and, after linking, will result in the kernel module <module_name>.ko. //这种linking还不是加载后的动态linking
 The above line can be put in either a "Kbuild" file or a "Makefile."
 When the module is built from multiple sources, an additional line is
 needed listing the files:
 
-	<module_name>-y := <src1>.o <src2>.o ...
+	<module_name>-y := <src1>.o <src2>.o ...  //同时提供多个源
 
 NOTE: Further documentation describing the syntax used by kbuild is
 located in Documentation/kbuild/makefiles.txt.
@@ -209,10 +212,10 @@ module 8123.ko, which is built from the following files:
 	line; the second pass is by the kbuild system, which is
 	initiated by the parameterized "make" in the default target.
 
---- 3.2 Separate Kbuild File and Makefile
+--- 3.2 Separate Kbuild File and Makefile   前文说过obj-m的功能是Kbuild提供了，所以可以将Kbuild文件
 
 	In newer versions of the kernel, kbuild will first look for a
-	file named "Kbuild," and only if that is not found, will it
+	file named "Kbuild," and only if that is not found, will it   Kbuild系统会首先搜寻Kbuild文件，找不到的话，就进一步找Makefile文件
 	then look for a makefile. Utilizing a "Kbuild" file allows us
 	to split up the makefile from example 1 into two files:
 
@@ -330,7 +333,7 @@ according to the following rule:
 	External modules tend to place header files in a separate
 	include/ directory where their source is located, although this
 	is not the usual kernel style. To inform kbuild of the
-	directory, use either ccflags-y or CFLAGS_<filename>.o.
+	directory, use either ccflags-y or CFLAGS_<filename>.o.				ccflags-y    CFLAGS_<filename>.o
 
 	Using the example from section 3, if we moved 8123_if.h to a
 	subdirectory named include, the resulting kbuild file would
@@ -343,7 +346,7 @@ according to the following rule:
 		8123-y := 8123_if.o 8123_pci.o 8123_bin.o
 
 	Note that in the assignment there is no space between -I and
-	the path. This is a limitation of kbuild: there must be no
+	the path. This is a limitation of kbuild: there must be no				-I后必须no space
 	space present.
 
 --- 4.3 Several Subdirectories
@@ -366,7 +369,7 @@ according to the following rule:
 
 		--> filename: Kbuild
 		obj-m := complex.o
-		complex-y := src/complex_main.o
+		complex-y := src/complex_main.o							指定不同目录的源文件，没有VPATH使用，必须要逐个指定
 		complex-y += src/hal/hardwareif.o
 
 		ccflags-y := -I$(src)/include
@@ -380,7 +383,7 @@ according to the following rule:
 	For the header files, kbuild must be explicitly told where to
 	look. When kbuild executes, the current directory is always the
 	root of the kernel tree (the argument to "-C") and therefore an
-	absolute path is needed. $(src) provides the absolute path by
+	absolute path is needed. $(src) provides the absolute path by                      $(src)来提供绝对路径，不要用.. .来提供相对路径
 	pointing to the directory where the currently executing kbuild
 	file is located.
 
@@ -390,11 +393,11 @@ according to the following rule:
 Modules which are included in the kernel are installed in the
 directory:
 
-	/lib/modules/$(KERNELRELEASE)/kernel/
+	/lib/modules/$(KERNELRELEASE)/kernel/   内建在内核的模块安装维护
 
 And external modules are installed in:
 
-	/lib/modules/$(KERNELRELEASE)/extra/
+	/lib/modules/$(KERNELRELEASE)/extra/ 外部模块安装位置
 
 --- 5.1 INSTALL_MOD_PATH
 
@@ -402,7 +405,7 @@ And external modules are installed in:
 	customization is possible. A prefix can be added to the
 	installation path using the variable INSTALL_MOD_PATH:
 
-		$ make INSTALL_MOD_PATH=/frodo modules_install
+		$ make INSTALL_MOD_PATH=/frodo modules_install    安装模块
 		=> Install dir: /frodo/lib/modules/$(KERNELRELEASE)/kernel/
 
 	INSTALL_MOD_PATH may be set as an ordinary shell variable or,
@@ -432,7 +435,7 @@ CRC values contained in the kernel are compared with similar values in
 the module; if they are not equal, the kernel refuses to load the
 module.
 
-Module.symvers contains a list of all exported symbols from a kernel
+Module.symvers contains a list of all exported symbols from a kernel               Module.symvers文件
 build.
 
 --- 6.1 Symbols From the Kernel (vmlinux + modules)
@@ -456,17 +459,17 @@ build.
 
 --- 6.2 Symbols and External Modules
 
-	When building an external module, the build system needs access
+	When building an external module, the build system needs access    构建外部模块的时候，必须能够在Modules.symvers文件中找到对应的符号
 	to the symbols from the kernel to check if all external symbols
-	are defined. This is done in the MODPOST step. modpost obtains
-	the symbols by reading Module.symvers from the kernel source
+	are defined. This is done in the MODPOST step. modpost obtains      在MODPOST步骤完成的, modpost通过读取该文件，获取到所有符号
+	the symbols by reading Module.symvers from the kernel source        结束后会生成外部模块的Moudules.symvers文件
 	tree. If a Module.symvers file is present in the directory
 	where the external module is being built, this file will be
 	read too. During the MODPOST step, a new Module.symvers file
 	will be written containing all exported symbols that were not
 	defined in the kernel.
 
---- 6.3 Symbols From Another External Module
+--- 6.3 Symbols From Another External Module					包含其他外部模块的符号，KBUILD_EXTRA_SYMBOLS, 或者使用top-level makefile
 
 	Sometimes, an external module uses exported symbols from
 	another external module. kbuild needs to have full knowledge of
@@ -498,7 +501,7 @@ build.
 		will then do the expected and compile both modules with
 		full knowledge of symbols from either module.
 
-	Use an extra Module.symvers file
+	Use an extra Module.symvers file					直接拷贝一份Modules.symvers文件来使用
 		When an external module is built, a Module.symvers file
 		is generated containing all exported symbols which are
 		not defined in the kernel. To get access to symbols
