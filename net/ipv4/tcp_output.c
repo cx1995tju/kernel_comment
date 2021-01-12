@@ -3192,7 +3192,7 @@ struct sk_buff *tcp_make_synack(const struct sock *sk, struct dst_entry *dst,
 	struct tcphdr *th;
 	int mss;
 
-	skb = alloc_skb(MAX_TCP_HEADER, GFP_ATOMIC);
+	skb = alloc_skb(MAX_TCP_HEADER, GFP_ATOMIC); /* 构造包 */
 	if (unlikely(!skb)) {
 		dst_release(dst);
 		return NULL;
@@ -3542,7 +3542,7 @@ void tcp_send_delayed_ack(struct sock *sk)
 
 	if (ato > TCP_DELACK_MIN) {
 		const struct tcp_sock *tp = tcp_sk(sk);
-		int max_ato = HZ / 2;
+		int max_ato = HZ / 2; //0.5s
 
 		if (icsk->icsk_ack.pingpong ||
 		    (icsk->icsk_ack.pending & ICSK_ACK_PUSHED))

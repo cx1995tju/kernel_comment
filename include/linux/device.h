@@ -275,7 +275,7 @@ enum probe_type {
  * of any specific device.
  */
 struct device_driver {
-	const char		*name;
+	const char		*name; /* 一般总线会使用name来匹配driver 与 device */
 	struct bus_type		*bus;
 
 	struct module		*owner;
@@ -287,7 +287,7 @@ struct device_driver {
 	const struct of_device_id	*of_match_table;
 	const struct acpi_device_id	*acpi_match_table;
 
-	int (*probe) (struct device *dev);
+	int (*probe) (struct device *dev); /* 设备通过总线与driver match后，就调用probe函数，某种意义上说，是驱动的真正的入口程序 */
 	int (*remove) (struct device *dev);
 	void (*shutdown) (struct device *dev);
 	int (*suspend) (struct device *dev, pm_message_t state);
@@ -960,14 +960,17 @@ struct dev_links_info {
  * instead, that structure, like kobject structures, is usually embedded within
  * a higher-level representation of the device.
  */
+ /* 设备总线驱动之间存在某种所属，匹配的关系，我们都可以借助于kobject kset ktype等来表达
+  * 通过其还能实现引用计数，析构函数等功能。
+  * */
 struct device {
 	struct device		*parent;
 
-	struct device_private	*p;
+	struct device_private	*p; /* 私有指针了，linux中的老套路 */
 
 	struct kobject kobj;
 	const char		*init_name; /* initial name of the device */
-	const struct device_type *type;
+	const struct device_type *type; /* 这个设备的”类型“ 其中包含了析构函数 */
 
 	struct mutex		mutex;	/* mutex to synchronize calls to
 					 * its driver.
@@ -1023,7 +1026,7 @@ struct device {
 	struct device_node	*of_node; /* associated device tree node */
 	struct fwnode_handle	*fwnode; /* firmware device node */
 
-	dev_t			devt;	/* dev_t, creates the sysfs "dev" */
+	dev_t			devt;	/* dev_t, creates the sysfs "dev" */ /* 如果需要通过设备节点的方式向用户空间提供接口，可以作为设备号使用，主要是用于sysfs中，每个具有设备号的设备，在/sys/dev/下有相应目录 */
 	u32			id;	/* device instance */
 
 	spinlock_t		devres_lock;

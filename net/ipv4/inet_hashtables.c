@@ -393,6 +393,8 @@ struct sock *__inet_lookup_established(struct net *net,
 				  const __be32 daddr, const u16 hnum,
 				  const int dif, const int sdif)
 {
+	/* syn_recv 状态的也在这里了 */
+
 	INET_ADDR_COOKIE(acookie, saddr, daddr);
 	const __portpair ports = INET_COMBINED_PORTS(sport, hnum);
 	struct sock *sk;

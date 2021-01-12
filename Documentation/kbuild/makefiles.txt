@@ -56,7 +56,7 @@ This document describes the Linux kernel Makefiles.
 
 === 1 Overview
 
-The Makefiles have five parts:
+The Makefiles have five parts:   5部分构成
 
 	Makefile		the top Makefile.
 	.config			the kernel configuration file.
@@ -64,9 +64,16 @@ The Makefiles have five parts:
 	scripts/Makefile.*	common rules etc. for all kbuild Makefiles.
 	kbuild Makefiles	there are about 500 of these.
 
+最顶层makefile
 The top Makefile reads the .config file, which comes from the kernel
 configuration process.
 
+底层makefile构建下述内容：
+1. vmlinux
+2. 模块文件
+
+构建方式：
+	向下递归到内核源码树的子目录中构建
 The top Makefile is responsible for building two major products: vmlinux
 (the resident kernel image) and modules (any module files).
 It builds these goals by recursively descending into the subdirectories of
@@ -76,11 +83,13 @@ configuration. The top Makefile textually includes an arch Makefile
 with the name arch/$(ARCH)/Makefile. The arch Makefile supplies
 architecture-specific information to the top Makefile.
 
+每个子目录都有一个kbuild文件，
 Each subdirectory has a kbuild Makefile which carries out the commands
 passed down from above. The kbuild Makefile uses information from the
 .config file to construct various file lists used by kbuild to build
 any built-in or modular targets.
 
+scrpts/Makefile.* 中包含了各种基本定义和规则
 scripts/Makefile.* contains all the definitions/rules etc. that
 are used to build the kernel based on the kbuild makefiles.
 
@@ -115,6 +124,8 @@ This document is aimed towards normal developers and arch developers.
 Most Makefiles within the kernel are kbuild Makefiles that use the
 kbuild infrastructure. This chapter introduces the syntax used in the
 kbuild makefiles.
+
+kbuild file指的就是Makefile文件
 The preferred name for the kbuild files are 'Makefile' but 'Kbuild' can
 be used and if both a 'Makefile' and a 'Kbuild' file exists, then the 'Kbuild'
 file will be used.
@@ -123,6 +134,9 @@ Section 3.1 "Goal definitions" is a quick intro, further chapters provide
 more details, with real examples.
 
 --- 3.1 Goal definitions
+两种目标定义：
+	obj-y
+	obj-m
 
 	Goal definitions are the main part (heart) of the kbuild Makefile.
 	These lines define the files to be built, any special compilation
@@ -152,11 +166,14 @@ more details, with real examples.
 	in the $(obj-y) lists.  These lists depend on the kernel
 	configuration.
 
+Kbuild会编译所有的$(obj-y) 文件,随后调用$(AR)将所有文件合并成一个built-in.a的静态库.
+该文件是没有符号表的，无法被linker使用
 	Kbuild compiles all the $(obj-y) files.  It then calls
 	"$(AR) rcSTP" to merge these files into one built-in.a file.
 	This is a thin archive without a symbol table, which makes it
 	unsuitable as a linker input.
 
+scripts/link-vmlinux.sh会收集相关信息，最后生产符号表和索引
 	The scripts/link-vmlinux.sh script later makes an aggregate
 	built-in.a with "${AR} rcsTP", which creates the thin archive
 	with a symbol table and an index, making it a valid input for
@@ -237,6 +254,8 @@ more details, with real examples.
 
 --- 3.5 Library file goals - lib-y
 
+第三种文件目标-lib-y
+
 	Objects listed with obj-* are used for modules, or
 	combined in a built-in.a for that specific directory.
 	There is also the possibility to list objects that will
@@ -292,6 +311,7 @@ more details, with real examples.
 
 --- 3.7 Compilation flags
 
+编译的flag
     ccflags-y, asflags-y and ldflags-y
 	These three flags apply only to the kbuild makefile in which they
 	are assigned. They are used for all the normal cc, as and ld

@@ -130,12 +130,12 @@ static inline int inet_request_bound_dev_if(const struct sock *sk,
 	return sk->sk_bound_dev_if;
 }
 
-struct inet_cork {
+struct inet_cork { //UDP或原始IP发送时缓存的一些临时信息，譬如UDP数据包分片大小
 	unsigned int		flags;
 	__be32			addr;
 	struct ip_options	*opt;
 	unsigned int		fragsize;
-	int			length; /* Total length of all frames */
+	int			length; /* Total length of all frames */ //当前发送数据报大小
 	struct dst_entry	*dst;
 	u8			tx_flags;
 	__u8			ttl;
@@ -147,7 +147,7 @@ struct inet_cork {
 
 struct inet_cork_full {
 	struct inet_cork	base;
-	struct flowi		fl;
+	struct flowi		fl; //缓存目的地址等, 目的段欧，构造UDP的时候从这里取
 };
 
 struct ip_mc_socklist;
@@ -159,50 +159,51 @@ struct rtable;
  * @sk - ancestor class
  * @pinet6 - pointer to IPv6 control block
  * @inet_daddr - Foreign IPv4 addr
- * @inet_rcv_saddr - Bound local IPv4 addr
+ * @inet_rcv_saddr - Bound local IPv4 addr 本地local地址 
  * @inet_dport - Destination port
- * @inet_num - Local port
+ * @inet_num - Local port 本地端口号
  * @inet_saddr - Sending source
- * @uc_ttl - Unicast TTL
+ * @uc_ttl - Unicast TTL 单播TTL
  * @inet_sport - Source port
  * @inet_id - ID counter for DF pkts
- * @tos - TOS
- * @mc_ttl - Multicasting TTL
+ * @tos - TOS TOS域
+ * @mc_ttl - Multicasting TTL 组播TTL 
  * @is_icsk - is this an inet_connection_sock?
  * @uc_index - Unicast outgoing device index
- * @mc_index - Multicast device index
- * @mc_list - Group array
+ * @mc_index - Multicast device index 组播使用的本地设备接口索引 
+ * @mc_list - Group array 
  * @cork - info to build ip hdr on each ip frag while socket is corked
  */
+/* ipv4协议专用的sock结构， 扩充了ipv4协议专有的一些属性，TTL，组播列表，IP地址等 */
 struct inet_sock {
 	/* sk and pinet6 has to be the first two members of inet_sock */
 	struct sock		sk;
 #if IS_ENABLED(CONFIG_IPV6)
-	struct ipv6_pinfo	*pinet6;
+	struct ipv6_pinfo	*pinet6; //指向ipv6
 #endif
 	/* Socket demultiplex comparisons on incoming packets. */
-#define inet_daddr		sk.__sk_common.skc_daddr
-#define inet_rcv_saddr		sk.__sk_common.skc_rcv_saddr
+#define inet_daddr		sk.__sk_common.skc_daddr 
+#define inet_rcv_saddr		sk.__sk_common.skc_rcv_saddr //本地地址
 #define inet_dport		sk.__sk_common.skc_dport
-#define inet_num		sk.__sk_common.skc_num
+#define inet_num		sk.__sk_common.skc_num //本地端口
 
 	__be32			inet_saddr;
-	__s16			uc_ttl;
-	__u16			cmsg_flags;
-	__be16			inet_sport;
-	__u16			inet_id;
+	__s16			uc_ttl; //ttl，TTL的值首先从这里获取
+	__u16			cmsg_flags; //IPPROTO_IP级别的一些选项值
+	__be16			inet_sport; //网络字节序源端口
+	__u16			inet_id; //一个单调递增的值，用来给ip头部id域赋值
 
-	struct ip_options_rcu __rcu	*inet_opt;
-	int			rx_dst_ifindex;
+	struct ip_options_rcu __rcu	*inet_opt; //指向ip数据报选项的指针
+	int			rx_dst_ifindex; /* device index */
 	__u8			tos;
 	__u8			min_ttl;
 	__u8			mc_ttl;
-	__u8			pmtudisc;
+	__u8			pmtudisc; //是否启动路径MTU发现功能
 	__u8			recverr:1,
-				is_icsk:1,
-				freebind:1,
-				hdrincl:1,
-				mc_loop:1,
+				is_icsk:1, //是否是基于连接的
+				freebind:1, //是否允许绑定非主机地址
+				hdrincl:1, //ip头部是否是用户数据构建
+				mc_loop:1, /*　组播是否发向回路标志 */
 				transparent:1,
 				mc_all:1,
 				nodefrag:1;

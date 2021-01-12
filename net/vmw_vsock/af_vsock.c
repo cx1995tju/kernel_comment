@@ -16,7 +16,7 @@
 /* Implementation notes:
  *
  * - There are two kinds of sockets: those created by user action (such as
- * calling socket(2)) and those created by incoming connection request packets.
+ * calling socket(2)) and those created by incoming connection request packets.		accept() create struct socket, and incoming connect trigger the creating of struct sock. (in softirq)
  *
  * - There are two "global" tables, one for bound sockets (sockets that have
  * specified an address that they are responsible for) and one for connected
@@ -247,6 +247,9 @@ static struct sock *__vsock_find_bound_socket(struct sockaddr_vm *addr)
 {
 	struct vsock_sock *vsk;
 
+	/* 这个addr对应的hash链, 这里hash的计算就是简单的用port % (CONST)
+	 * 这里对地址的检测，本质就是对port的检测了，因为每个VM最多只能有一个固定的cid，所以addr有意义的只有port了
+	 * */
 	list_for_each_entry(vsk, vsock_bound_sockets(addr), bound_table) //pos head member， 从head->next开始， pos是member所在宿主结构
 		if (addr->svm_port == vsk->local_addr.svm_port)
 			return sk_vsock(vsk);
@@ -408,6 +411,8 @@ void vsock_remove_pending(struct sock *listener, struct sock *pending)
 }
 EXPORT_SYMBOL_GPL(vsock_remove_pending);
 
+/* 在有connect请求过来的时候会调用这个函数的 */
+/* connected 是listener生的蛋 */
 void vsock_enqueue_accept(struct sock *listener, struct sock *connected)
 {
 	struct vsock_sock *vlistener;
@@ -517,6 +522,7 @@ static int __vsock_bind_stream(struct vsock_sock *vsk,
 	static u32 port = LAST_RESERVED_PORT + 1;
 	struct sockaddr_vm new_addr;
 
+	/* 如果cid是VMADDR_CID_ANY， 在这个init函数中都会被赋值好的 */
 	vsock_addr_init(&new_addr, addr->svm_cid, addr->svm_port); //为什么要使用这个new_addr, 因为可能要修改addr的svm_port
 
 	if (addr->svm_port == VMADDR_PORT_ANY) { //自动分配
@@ -530,7 +536,7 @@ static int __vsock_bind_stream(struct vsock_sock *vsk,
 			new_addr.svm_port = port++;
 
 			if (!__vsock_find_bound_socket(&new_addr)) {
-				found = true; //这个端口没有被使用，也就是可以分配了
+				found = true; //这个地址没有被使用，也就是可以分配了
 				break;
 			}
 		}
@@ -584,7 +590,7 @@ static int __vsock_bind(struct sock *sk, struct sockaddr_vm *addr)
 	 * cases), we only allow binding to the local CID.
 	 */
 	cid = transport->get_local_cid(); //vsock模块中, 在虚拟机中这里获得的值应该不是2
-	if (addr->svm_cid != cid && addr->svm_cid != VMADDR_CID_ANY)
+	if (addr->svm_cid != cid && addr->svm_cid != VMADDR_CID_ANY) /* vsock中cid都是固定分配的且只有一个， 所以cid必须要检查的 */
 		return -EADDRNOTAVAIL;
 
 	switch (sk->sk_socket->type) { //sock socket	一一对应
@@ -608,6 +614,10 @@ static int __vsock_bind(struct sock *sk, struct sockaddr_vm *addr)
 
 static void vsock_connect_timeout(struct work_struct *work);
 
+/* 在virtio_transport_common.c中recv listen中会使用这个函数来创建sock结构的
+ * 
+ * vsock基本的处理逻辑是收包，根据socket状态进行处理
+ * */
 struct sock *__vsock_create(struct net *net,
 			    struct socket *sock,
 			    struct sock *parent,
@@ -1307,12 +1317,12 @@ out:
 }
 
 static int vsock_accept(struct socket *sock, struct socket *newsock, int flags,
-			bool kern) //4个参数，只有阻塞式，猜测：非阻塞式的话，控制流不会进入这个函数就返回了，应该在vfs层面就处理掉了， 这里的参数已经不是accept系统调用的参数了
+			bool kern) //4个参数，只有阻塞式，
 { //the new socket-sock pair, the socket struct is created by accept, and the sock struct is created by client and transfer to server. client establish this sock struct's pair with
 	//the original sock-socket in client(connect()'s first argment)
 	struct sock *listener;
 	int err;
-	struct sock *connected; //客户端传过来的
+	struct sock *connected; //客户端传过来的, 或者是知道客户端的请求到来创建的，传入的newsock匹配
 	struct vsock_sock *vconnected;
 	long timeout;
 	DEFINE_WAIT(wait); //初始化一个wait entry， 其中包含的是current
@@ -1339,7 +1349,7 @@ static int vsock_accept(struct socket *sock, struct socket *newsock, int flags,
 	prepare_to_wait(sk_sleep(listener), &wait, TASK_INTERRUPTIBLE); //休眠
 
 	while ((connected = vsock_dequeue_accept(listener)) == NULL && //接收到了来自client端的数据vsock_sock结构，创建连接？？？循环从accept queue上取数据，取不到的时候就会被睡眠。从队列上ccept_queue取一个vsock_sock结构下来了
-	       listener->sk_err == 0) {
+			listener->sk_err == 0) {
 		release_sock(listener);
 		timeout = schedule_timeout(timeout); //调度走，超时肯定会唤醒，定时器机制
 		finish_wait(sk_sleep(listener), &wait); //这个sk_sleep千万注意

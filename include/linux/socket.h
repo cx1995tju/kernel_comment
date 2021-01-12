@@ -269,15 +269,15 @@ struct ucred {
  */
 
 #define MSG_OOB		1
-#define MSG_PEEK	2
-#define MSG_DONTROUTE	4
+#define MSG_PEEK	2 //查看数据，不会移动走
+#define MSG_DONTROUTE	4 //不需要路由查找，目的地在本地子网
 #define MSG_TRYHARD     4       /* Synonym for MSG_DONTROUTE for DECnet */
-#define MSG_CTRUNC	8
-#define MSG_PROBE	0x10	/* Do not send. Only probe path f.e. for MTU */
-#define MSG_TRUNC	0x20
+#define MSG_CTRUNC	8 //本地空间不足，有些控制数据已经丢弃了
+#define MSG_PROBE	0x10	/* Do not send. Only probe path f.e. for MTU, 探测MTU */
+#define MSG_TRUNC	0x20 //只返回包的真实长度，其他数据丢弃
 #define MSG_DONTWAIT	0x40	/* Nonblocking io		 */
 #define MSG_EOR         0x80	/* End of record */
-#define MSG_WAITALL	0x100	/* Wait for a full request */
+#define MSG_WAITALL	0x100	/* Wait for a full request */ //必须一直等待，知道数据填充满用户空间的缓冲区
 #define MSG_FIN         0x200
 #define MSG_SYN		0x400
 #define MSG_CONFIRM	0x800	/* Confirm path validity */

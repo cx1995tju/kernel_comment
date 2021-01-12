@@ -909,7 +909,7 @@ struct file {
 	void			*f_security;
 #endif
 	/* needed for tty driver, and maybe others */
-	void			*private_data;
+	void			*private_data; /* 具体io对象相关的结构， 譬如：socket结构 */
 
 #ifdef CONFIG_EPOLL
 	/* Used by fs/eventpoll.c to link all the hooks to this file */

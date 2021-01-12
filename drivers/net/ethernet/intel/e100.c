@@ -537,6 +537,7 @@ struct params {
 	struct param_range cbs;
 };
 
+/* e100的私有结构 */
 struct nic {
 	/* Begin: frequently used values: keep adjacent for cache effect */
 	u32 msg_enable				____cacheline_aligned;
@@ -2060,7 +2061,7 @@ static void e100_rx_clean(struct nic *nic, unsigned int *work_done,
 
 	/* Indicate newly arrived packets */
 	for (rx = nic->rx_to_clean; rx->skb; rx = nic->rx_to_clean = rx->next) {
-		err = e100_rx_indicate(nic, rx, work_done, work_to_do);
+		err = e100_rx_indicate(nic, rx, work_done, work_to_do); /* 调用了核心的netif_receive_skb(), 从这里进入到网络层 */
 		/* Hit quota or no more to clean */
 		if (-EAGAIN == err || -ENODATA == err)
 			break;
@@ -2209,9 +2210,9 @@ static irqreturn_t e100_intr(int irq, void *dev_id)
 	if (stat_ack & stat_ack_rnr)
 		nic->ru_running = RU_SUSPENDED;
 
-	if (likely(napi_schedule_prep(&nic->napi))) {
-		e100_disable_irq(nic);
-		__napi_schedule(&nic->napi);
+	if (likely(napi_schedule_prep(&nic->napi))) { /* napi的处理 */
+		e100_disable_irq(nic); //关中断
+		__napi_schedule(&nic->napi); //激活软中断等操作
 	}
 
 	return IRQ_HANDLED;
@@ -2222,7 +2223,7 @@ static int e100_poll(struct napi_struct *napi, int budget)
 	struct nic *nic = container_of(napi, struct nic, napi);
 	unsigned int work_done = 0;
 
-	e100_rx_clean(nic, &work_done, budget);
+	e100_rx_clean(nic, &work_done, budget); //从具体网络设备读报文，然后调用netif_receive_skb函数
 	e100_tx_clean(nic);
 
 	/* If budget not fully consumed, exit the polling mode */

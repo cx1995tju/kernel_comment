@@ -174,6 +174,9 @@ out:
  *	Buffers may only be allocated from interrupts using a @gfp_mask of
  *	%GFP_ATOMIC.
  */
+/* 从缓冲区分配一个sk_buff结构，还需要分配数据缓冲区
+ *
+ * */
 struct sk_buff *__alloc_skb(unsigned int size, gfp_t gfp_mask,
 			    int flags, int node)
 {
@@ -184,16 +187,16 @@ struct sk_buff *__alloc_skb(unsigned int size, gfp_t gfp_mask,
 	bool pfmemalloc;
 
 	cache = (flags & SKB_ALLOC_FCLONE)
-		? skbuff_fclone_cache : skbuff_head_cache;
+		? skbuff_fclone_cache : skbuff_head_cache; /* 确定从哪个高速缓冲区分配sk_buff, 详见skb_init中初始化的两个高速缓冲区 */
 
 	if (sk_memalloc_socks() && (flags & SKB_ALLOC_RX))
 		gfp_mask |= __GFP_MEMALLOC;
 
 	/* Get the HEAD */
-	skb = kmem_cache_alloc_node(cache, gfp_mask & ~__GFP_DMA, node);
+	skb = kmem_cache_alloc_node(cache, gfp_mask & ~__GFP_DMA, node); /* 分配sk_buff结构, 不要从DMA区域分配 */
 	if (!skb)
 		goto out;
-	prefetchw(skb);
+	prefetchw(skb); /* 将地址处的cache-line 预取到L1中 */
 
 	/* We do our best to align skb_shared_info on a separate cache
 	 * line. It usually works because kmalloc(X > SMP_CACHE_BYTES) gives
@@ -201,8 +204,8 @@ struct sk_buff *__alloc_skb(unsigned int size, gfp_t gfp_mask,
 	 * Both skb->head and skb_shared_info are cache line aligned.
 	 */
 	size = SKB_DATA_ALIGN(size);
-	size += SKB_DATA_ALIGN(sizeof(struct skb_shared_info));
-	data = kmalloc_reserve(size, gfp_mask, node, &pfmemalloc);
+	size += SKB_DATA_ALIGN(sizeof(struct skb_shared_info)); /* 数据缓冲区的分配要对齐，for 性能 */
+	data = kmalloc_reserve(size, gfp_mask, node, &pfmemalloc); /* 分配数据缓冲区 */
 	if (!data)
 		goto nodata;
 	/* kmalloc(size) might give us more room than requested.
@@ -217,7 +220,7 @@ struct sk_buff *__alloc_skb(unsigned int size, gfp_t gfp_mask,
 	 * actually initialise below. Hence, don't put any more fields after
 	 * the tail pointer in struct sk_buff!
 	 */
-	memset(skb, 0, offsetof(struct sk_buff, tail));
+	memset(skb, 0, offsetof(struct sk_buff, tail)); /* 各种初始化 */
 	/* Account for allocated memory : skb + skb->head */
 	skb->truesize = SKB_TRUESIZE(size);
 	skb->pfmemalloc = pfmemalloc;
@@ -234,7 +237,7 @@ struct sk_buff *__alloc_skb(unsigned int size, gfp_t gfp_mask,
 	memset(shinfo, 0, offsetof(struct skb_shared_info, dataref));
 	atomic_set(&shinfo->dataref, 1);
 
-	if (flags & SKB_ALLOC_FCLONE) {
+	if (flags & SKB_ALLOC_FCLONE) { /* 设置是否允许克隆的标识位 */
 		struct sk_buff_fclones *fclones;
 
 		fclones = container_of(skb, struct sk_buff_fclones, skb1);
@@ -387,6 +390,9 @@ EXPORT_SYMBOL(napi_alloc_frag);
  *
  *	%NULL is returned if there is no free memory.
  */
+/* 也是分配skb，但是这一般是收方向上，由设备驱动在中断上下文中使用的。
+ *
+ * */
 struct sk_buff *__netdev_alloc_skb(struct net_device *dev, unsigned int len,
 				   gfp_t gfp_mask)
 {
@@ -435,7 +441,7 @@ struct sk_buff *__netdev_alloc_skb(struct net_device *dev, unsigned int len,
 	skb->head_frag = 1;
 
 skb_success:
-	skb_reserve(skb, NET_SKB_PAD);
+	skb_reserve(skb, NET_SKB_PAD); /* 预留的头部用于mac层帧头， 16B， 以太网就是14B */
 	skb->dev = dev;
 
 skb_fail:
@@ -1713,6 +1719,9 @@ EXPORT_SYMBOL(skb_put);
  *	start. If this would exceed the total buffer headroom the kernel will
  *	panic. A pointer to the first byte of the extra data is returned.
  */
+/* 在数据缓冲区头部增加数据，本质仅仅是移动指针，数据的复制其他函数完成，
+ * 增加头部，MAC层向TCP层传输的时候，需要增加头部空间的。(底层向高层)
+ * */
 void *skb_push(struct sk_buff *skb, unsigned int len)
 {
 	skb->data -= len;
@@ -1733,6 +1742,9 @@ EXPORT_SYMBOL(skb_push);
  *	is returned. Once the data has been pulled future pushes will overwrite
  *	the old data.
  */
+/* 减小头部 
+ *
+ * */
 void *skb_pull(struct sk_buff *skb, unsigned int len)
 {
 	return skb_pull_inline(skb, len);
@@ -3937,15 +3949,16 @@ EXPORT_SYMBOL_GPL(skb_gro_receive);
 
 void __init skb_init(void)
 {
+	/* slab 中分配专用的缓冲区了, 这里的初始化函数肯定是系统启动的时候调用的 */
 	skbuff_head_cache = kmem_cache_create_usercopy("skbuff_head_cache",
-					      sizeof(struct sk_buff),
+					      sizeof(struct sk_buff), /* 一般的用于管理sk_buff的缓冲区结构 */
 					      0,
 					      SLAB_HWCACHE_ALIGN|SLAB_PANIC,
 					      offsetof(struct sk_buff, cb),
 					      sizeof_field(struct sk_buff, cb),
 					      NULL);
 	skbuff_fclone_cache = kmem_cache_create("skbuff_fclone_cache",
-						sizeof(struct sk_buff_fclones),
+						sizeof(struct sk_buff_fclones), /* 这里的缓冲区管理的对象大小是两个sk_buff,专门用来克隆的一对父子sk_buff */
 						0,
 						SLAB_HWCACHE_ALIGN|SLAB_PANIC,
 						NULL);
@@ -5258,7 +5271,7 @@ struct sk_buff *alloc_skb_with_frags(unsigned long header_len,
 				     int *errcode,
 				     gfp_t gfp_mask)
 {
-	int npages = (data_len + (PAGE_SIZE - 1)) >> PAGE_SHIFT;
+	int npages = (data_len + (PAGE_SIZE - 1)) >> PAGE_SHIFT; /* 非线性缓冲区大小 */
 	unsigned long chunk;
 	struct sk_buff *skb;
 	struct page *page;
@@ -5272,7 +5285,7 @@ struct sk_buff *alloc_skb_with_frags(unsigned long header_len,
 		return NULL;
 
 	*errcode = -ENOBUFS;
-	skb = alloc_skb(header_len, gfp_mask);
+	skb = alloc_skb(header_len, gfp_mask); /* 分配sb的线性部分, 包括sk_buff结构的分配，以及指向的线性缓冲区部分 */ 
 	if (!skb)
 		return NULL;
 
@@ -5281,6 +5294,7 @@ struct sk_buff *alloc_skb_with_frags(unsigned long header_len,
 	for (i = 0; npages > 0; i++) {
 		int order = max_page_order;
 
+		/* 精妙的位操作 */
 		while (order) {
 			if (npages >= 1 << order) {
 				page = alloc_pages((gfp_mask & ~__GFP_DIRECT_RECLAIM) |

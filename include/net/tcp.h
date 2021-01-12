@@ -794,6 +794,7 @@ static inline u32 tcp_skb_timestamp(const struct sk_buff *skb)
  * This is 44 bytes if IPV6 is enabled.
  * If this grows please adjust skbuff.h:skbuff->cb[xxx] size appropriately.
  */
+/* 保存在sk_buff的cb成员中的传输层的私有数据（到达别的层后，cb会保存其他层的私有数据）*/
 struct tcp_skb_cb {
 	__u32		seq;		/* Starting sequence number	*/
 	__u32		end_seq;	/* SEQ + FIN + SYN + datalen	*/

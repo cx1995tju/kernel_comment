@@ -218,7 +218,7 @@ int inet_listen(struct socket *sock, int backlog)
 		 * because the socket was in TCP_LISTEN state previously but
 		 * was shutdown() rather than close().
 		 */
-		tcp_fastopen = sock_net(sk)->ipv4.sysctl_tcp_fastopen;
+		tcp_fastopen = sock_net(sk)->ipv4.sysctl_tcp_fastopen; /* 是否支持fastopen，允许应用在连接建立的握手阶段交换数据，但是可能会导致一些问题，协议是默认禁止的，应用想使用的话，要自己处理 */
 		if ((tcp_fastopen & TFO_SERVER_WO_SOCKOPT1) &&
 		    (tcp_fastopen & TFO_SERVER_ENABLE) &&
 		    !inet_csk(sk)->icsk_accept_queue.fastopenq.max_qlen) {
@@ -304,7 +304,7 @@ lookup_protocol:
 			else
 				request_module("net-pf-%d-proto-%d",
 					       PF_INET, protocol);
-			goto lookup_protocol;
+			goto lookup_protocol; /* 为什么不使用loop，而是用goto往回跳 */
 		} else
 			goto out_rcu_unlock;
 	}
@@ -327,21 +327,21 @@ lookup_protocol:
 		goto out;
 
 	err = 0;
-	if (INET_PROTOSW_REUSE & answer_flags)
+	if (INET_PROTOSW_REUSE & answer_flags) /* 是否可以重用地址或端口 */
 		sk->sk_reuse = SK_CAN_REUSE;
 
 	inet = inet_sk(sk);
-	inet->is_icsk = (INET_PROTOSW_ICSK & answer_flags) != 0;
+	inet->is_icsk = (INET_PROTOSW_ICSK & answer_flags) != 0; /* 是否是面向连接的传输控制块 */
 
 	inet->nodefrag = 0;
 
-	if (SOCK_RAW == sock->type) {
+	if (SOCK_RAW == sock->type) { /* 如果是raw_socket的话 */
 		inet->inet_num = protocol;
 		if (IPPROTO_RAW == protocol)
 			inet->hdrincl = 1;
 	}
 
-	if (net->ipv4.sysctl_ip_no_pmtu_disc)
+	if (net->ipv4.sysctl_ip_no_pmtu_disc) /* 是否支持PMTU */
 		inet->pmtudisc = IP_PMTUDISC_DONT;
 	else
 		inet->pmtudisc = IP_PMTUDISC_WANT;
@@ -350,7 +350,7 @@ lookup_protocol:
 
 	sock_init_data(sock, sk);
 
-	sk->sk_destruct	   = inet_sock_destruct;
+	sk->sk_destruct	   = inet_sock_destruct; /* sk_free 会调用到这个函数的 */
 	sk->sk_protocol	   = protocol;
 	sk->sk_backlog_rcv = sk->sk_prot->backlog_rcv;
 
@@ -364,7 +364,7 @@ lookup_protocol:
 
 	sk_refcnt_debug_inc(sk);
 
-	if (inet->inet_num) {
+	if (inet->inet_num) { /* 如果已经设置了端口号, 当然要加入到具体的协议的hash表中管理了，譬如tcp_hash， 问：什么时候会在创建socket之前就绑定了端口号. SOCK_RAW  */
 		/* It assumes that any protocol which allows
 		 * the user to assign a number at socket
 		 * creation time automatically
@@ -442,7 +442,7 @@ int inet_bind(struct socket *sock, struct sockaddr *uaddr, int addr_len)
 
 	/* If the socket has its own bind function then use it. (RAW) */
 	if (sk->sk_prot->bind) {
-		return sk->sk_prot->bind(sk, uaddr, addr_len);
+		return sk->sk_prot->bind(sk, uaddr, addr_len); /* 传输层是否要处理bind操作 目前只有RAW_SOCKET实现了这种操作raw_bind() */
 	}
 	if (addr_len < sizeof(struct sockaddr_in))
 		return -EINVAL;
@@ -490,16 +490,16 @@ int __inet_bind(struct sock *sk, struct sockaddr *uaddr, int addr_len,
 	 *  is temporarily down)
 	 */
 	err = -EADDRNOTAVAIL;
-	if (!inet_can_nonlocal_bind(net, inet) &&
+	if (!inet_can_nonlocal_bind(net, inet) && /* 各种校验，判断能否进行这种地址和端口的绑定 */
 	    addr->sin_addr.s_addr != htonl(INADDR_ANY) &&
 	    chk_addr_ret != RTN_LOCAL &&
 	    chk_addr_ret != RTN_MULTICAST &&
 	    chk_addr_ret != RTN_BROADCAST)
 		goto out;
 
-	snum = ntohs(addr->sin_port);
+	snum = ntohs(addr->sin_port); /* 端口合法性检查 */
 	err = -EACCES;
-	if (snum && snum < inet_prot_sock(net) &&
+	if (snum && snum < inet_prot_sock(net) && //端口不能越界
 	    !ns_capable(net->user_ns, CAP_NET_BIND_SERVICE))
 		goto out;
 
@@ -518,14 +518,14 @@ int __inet_bind(struct sock *sk, struct sockaddr *uaddr, int addr_len,
 	if (sk->sk_state != TCP_CLOSE || inet->inet_num)
 		goto out_release_sock;
 
-	inet->inet_rcv_saddr = inet->inet_saddr = addr->sin_addr.s_addr;
+	inet->inet_rcv_saddr = inet->inet_saddr = addr->sin_addr.s_addr; /* 保存好地址 */
 	if (chk_addr_ret == RTN_MULTICAST || chk_addr_ret == RTN_BROADCAST)
 		inet->inet_saddr = 0;  /* Use device */
 
 	/* Make sure we are allowed to bind here. */
 	if (snum || !(inet->bind_address_no_port ||
 		      force_bind_address_no_port)) {
-		if (sk->sk_prot->get_port(sk, snum)) {
+		if (sk->sk_prot->get_port(sk, snum)) { /* 更具体的传输层端口绑定，譬如:tcp udp, tcp_v4_get_port() udp_v4_get_port()*/
 			inet->inet_saddr = inet->inet_rcv_saddr = 0;
 			err = -EADDRINUSE;
 			goto out_release_sock;
@@ -676,6 +676,7 @@ int __inet_stream_connect(struct socket *sock, struct sockaddr *uaddr,
 				goto out;
 		}
 
+		/* tcp_connect */
 		err = sk->sk_prot->connect(sk, uaddr, addr_len);
 		if (err < 0)
 			goto out;
@@ -1914,6 +1915,7 @@ static struct packet_type ip_packet_type __read_mostly = {
 	.list_func = ip_list_rcv,
 };
 
+/* inet域的初始化函数，主要是四个传输层协议:ICMP IGMP TCP UDP*/
 static int __init inet_init(void)
 {
 	struct inet_protosw *q;
@@ -1922,7 +1924,7 @@ static int __init inet_init(void)
 
 	sock_skb_cb_check_size(sizeof(struct inet_skb_parm));
 
-	rc = proto_register(&tcp_prot, 1);
+	rc = proto_register(&tcp_prot, 1); //四大协议的slab注册
 	if (rc)
 		goto out;
 
@@ -1942,7 +1944,7 @@ static int __init inet_init(void)
 	 *	Tell SOCKET that we are alive...
 	 */
 
-	(void)sock_register(&inet_family_ops);
+	(void)sock_register(&inet_family_ops); //套接口层的注册
 
 #ifdef CONFIG_SYSCTL
 	ip_static_sysctl_init();
@@ -1952,11 +1954,11 @@ static int __init inet_init(void)
 	 *	Add all the base protocols.
 	 */
 
-	if (inet_add_protocol(&icmp_protocol, IPPROTO_ICMP) < 0)
+	if (inet_add_protocol(&icmp_protocol, IPPROTO_ICMP) < 0) //加入到inet_protocol数组中，从网络层来的报文通过这个数组索引到传输层
 		pr_crit("%s: Cannot add ICMP protocol\n", __func__);
 	if (inet_add_protocol(&udp_protocol, IPPROTO_UDP) < 0)
 		pr_crit("%s: Cannot add UDP protocol\n", __func__);
-	if (inet_add_protocol(&tcp_protocol, IPPROTO_TCP) < 0)
+	if (inet_add_protocol(&tcp_protocol, IPPROTO_TCP) < 0) /* netprotocol结构关连到ipv4层 */
 		pr_crit("%s: Cannot add TCP protocol\n", __func__);
 #ifdef CONFIG_IP_MULTICAST
 	if (inet_add_protocol(&igmp_protocol, IPPROTO_IGMP) < 0)
@@ -1964,7 +1966,7 @@ static int __init inet_init(void)
 #endif
 
 	/* Register the socket-side information for inet_create. */
-	for (r = &inetsw[0]; r < &inetsw[SOCK_MAX]; ++r)
+	for (r = &inetsw[0]; r < &inetsw[SOCK_MAX]; ++r) //inetsw数组的初始化
 		INIT_LIST_HEAD(r);
 
 	for (q = inetsw_array; q < &inetsw_array[INETSW_ARRAY_LEN]; ++q)
@@ -2017,11 +2019,11 @@ static int __init inet_init(void)
 	if (init_ipv4_mibs())
 		pr_crit("%s: Cannot init ipv4 mibs\n", __func__);
 
-	ipv4_proc_init();
+	ipv4_proc_init(); //对应的proc文件系统的初始化
 
 	ipfrag_init();
 
-	dev_add_pack(&ip_packet_type);
+	dev_add_pack(&ip_packet_type); //inet协议组的packet type注册，设备层到网络层的关键结构
 
 	ip_tunnel_core_init();
 

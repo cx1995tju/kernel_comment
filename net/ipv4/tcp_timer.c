@@ -657,7 +657,7 @@ static void tcp_keepalive_timer (struct timer_list *t)
 	bh_lock_sock(sk);
 	if (sock_owned_by_user(sk)) {
 		/* Try again later. */
-		inet_csk_reset_keepalive_timer (sk, HZ/20);
+		inet_csk_reset_keepalive_timer (sk, HZ/20); //0.05s后
 		goto out;
 	}
 
@@ -754,10 +754,11 @@ static enum hrtimer_restart tcp_compressed_ack_kick(struct hrtimer *timer)
 	return HRTIMER_NORESTART;
 }
 
+/* tcp定时器初始化, 创建套接口的时候调用, tcp_sock的时候调用 */
 void tcp_init_xmit_timers(struct sock *sk)
 {
 	inet_csk_init_xmit_timers(sk, &tcp_write_timer, &tcp_delack_timer,
-				  &tcp_keepalive_timer);
+				  &tcp_keepalive_timer);  /* keepalive_timer是三个定时器的合体，连接建立，保活，FIN_WAIT_2状态 */
 	hrtimer_init(&tcp_sk(sk)->pacing_timer, CLOCK_MONOTONIC,
 		     HRTIMER_MODE_ABS_PINNED_SOFT);
 	tcp_sk(sk)->pacing_timer.function = tcp_pace_kick;

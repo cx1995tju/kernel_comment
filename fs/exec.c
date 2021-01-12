@@ -1695,7 +1695,7 @@ static int exec_binprm(struct linux_binprm *bprm)
 	ret = search_binary_handler(bprm);
 	if (ret >= 0) {
 		audit_bprm(bprm);
-		trace_sched_process_exec(current, old_pid, bprm);
+		trace_sched_process_exec(current, old_pid, bprm); //标记跟踪点位置
 		ptrace_event(PTRACE_EVENT_EXEC, old_vpid);
 		proc_exec_connector(current);
 	}

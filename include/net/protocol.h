@@ -38,6 +38,7 @@
 #define MAX_INET_PROTOS		256
 
 /* This is used to register protocols. */
+/* 重要结构，网络数据报从网络层流向传输层的时候，会调用这些函数handler,这里的传输层是广义的，包括ICMP IGMP协议 */
 struct net_protocol {
 	int			(*early_demux)(struct sk_buff *skb);
 	int			(*early_demux_handler)(struct sk_buff *skb);
@@ -84,6 +85,7 @@ struct inet_protosw {
 	unsigned short	 type;	   /* This is the 2nd argument to socket(2). */
 	unsigned short	 protocol; /* This is the L4 protocol number.  */
 
+	/* proto是传输层到网络层的关键转换， proto_ops是socket层到传输层的关键转换，在inet中使用inet_protosw将其组织到一起了 */
 	struct proto	 *prot;
 	const struct proto_ops *ops;
   

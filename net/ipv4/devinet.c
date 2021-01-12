@@ -237,6 +237,7 @@ void in_dev_finish_destroy(struct in_device *idev)
 }
 EXPORT_SYMBOL(in_dev_finish_destroy);
 
+/* 分配in_device结构，并与net_device关联起来 */
 static struct in_device *inetdev_init(struct net_device *dev)
 {
 	struct in_device *in_dev;
@@ -247,7 +248,7 @@ static struct in_device *inetdev_init(struct net_device *dev)
 	in_dev = kzalloc(sizeof(*in_dev), GFP_KERNEL);
 	if (!in_dev)
 		goto out;
-	memcpy(&in_dev->cnf, dev_net(dev)->ipv4.devconf_dflt,
+	memcpy(&in_dev->cnf, dev_net(dev)->ipv4.devconf_dflt, //一些ipv4的默认配置
 			sizeof(in_dev->cnf));
 	in_dev->cnf.sysctl = NULL;
 	in_dev->dev = dev;
@@ -256,20 +257,20 @@ static struct in_device *inetdev_init(struct net_device *dev)
 		goto out_kfree;
 	if (IPV4_DEVCONF(in_dev->cnf, FORWARDING))
 		dev_disable_lro(dev);
-	/* Reference in_dev->dev */
+	/* Reference in_dev->dev */ //增加引用计数
 	dev_hold(dev);
 	/* Account for reference dev->ip_ptr (below) */
 	refcount_set(&in_dev->refcnt, 1);
 
-	err = devinet_sysctl_register(in_dev);
+	err = devinet_sysctl_register(in_dev); //注册相关系统参数
 	if (err) {
 		in_dev->dead = 1;
 		in_dev_put(in_dev);
 		in_dev = NULL;
 		goto out;
 	}
-	ip_mc_init_dev(in_dev);
-	if (dev->flags & IFF_UP)
+	ip_mc_init_dev(in_dev); //IGMP模块
+	if (dev->flags & IFF_UP) //网络设备如果已经启用了，那么初始化网络设备上的组播信息
 		ip_mc_up(in_dev);
 
 	/* we can receive as soon as ip_ptr is set -- do this last */
@@ -288,6 +289,7 @@ static void in_dev_rcu_put(struct rcu_head *head)
 	in_dev_put(idev);
 }
 
+/* inetdev_init相对的destroy操作 */
 static void inetdev_destroy(struct in_device *in_dev)
 {
 	struct in_ifaddr *ifa;
@@ -315,6 +317,7 @@ static void inetdev_destroy(struct in_device *in_dev)
 	call_rcu(&in_dev->rcu_head, in_dev_rcu_put);
 }
 
+/* 检查两个地址是否在同一个子网，根据in_dev来判断 */
 int inet_addr_onlink(struct in_device *in_dev, __be32 a, __be32 b)
 {
 	rcu_read_lock();
@@ -599,6 +602,8 @@ static int ip_mc_config(struct sock *sk, bool join, const struct in_ifaddr *ifa)
 	return ret;
 }
 
+/* netlink的RTM_DELADDR的时候会进入到这个函数，删除ip地址
+ */
 static int inet_rtm_deladdr(struct sk_buff *skb, struct nlmsghdr *nlh,
 			    struct netlink_ext_ack *extack)
 {
@@ -611,6 +616,7 @@ static int inet_rtm_deladdr(struct sk_buff *skb, struct nlmsghdr *nlh,
 
 	ASSERT_RTNL();
 
+	//解析netlink报文，获取配置参数
 	err = nlmsg_parse(nlh, sizeof(*ifm), tb, IFA_MAX, ifa_ipv4_policy,
 			  extack);
 	if (err < 0)
@@ -877,6 +883,11 @@ static struct in_ifaddr *find_matching_ifa(struct in_ifaddr *ifa)
 	return NULL;
 }
 
+/* ifconfig工具是通过ioctl来对网络设备操作配置的，IPROUTE2包则是通过netlink来操作的
+ *	netlink消息是RTM_NEWADDR的时候，调用到这个函数，添加ip地址
+ *
+ *	ioctl 参见devinet_ioctl
+ */
 static int inet_rtm_newaddr(struct sk_buff *skb, struct nlmsghdr *nlh,
 			    struct netlink_ext_ack *extack)
 {
@@ -958,6 +969,7 @@ static int inet_abc_len(__be32 addr)
 }
 
 
+/* ifconfig的操作走ioctl， IROUTER2走netlink接口操作 */
 int devinet_ioctl(struct net *net, unsigned int cmd, struct ifreq *ifr)
 {
 	struct sockaddr_in sin_orig;
@@ -1243,6 +1255,14 @@ static __be32 in_dev_select_addr(const struct in_device *in_dev,
 	return 0;
 }
 
+/* 发送报文的时候如果没有指定源地址，会调用这个函数选择一个地址
+ *	选择scope指定范围内的主ip地址
+ * scope:
+ *	RT_SCOPE_HOST 报文发送到本地
+ *	RT_SCOPE_LINK 报文发送到本地链路有意义的地址，广播，本地组播等
+ *	RT_SCOPE_UNIVERSE 发送到远程非直连地址
+ *
+ * */
 __be32 inet_select_addr(const struct net_device *dev, __be32 dst, int scope)
 {
 	__be32 addr = 0;
@@ -1255,10 +1275,11 @@ __be32 inet_select_addr(const struct net_device *dev, __be32 dst, int scope)
 	if (!in_dev)
 		goto no_in_dev;
 
+	/* 遍历所有ip地址列表，选择第一个满足条件的 */
 	for_primary_ifa(in_dev) {
 		if (ifa->ifa_scope > scope)
 			continue;
-		if (!dst || inet_ifa_match(dst, ifa)) {
+		if (!dst || inet_ifa_match(dst, ifa)) { //本地的
 			addr = ifa->ifa_local;
 			break;
 		}
@@ -1297,7 +1318,7 @@ no_in_dev:
 			continue;
 
 		addr = in_dev_select_addr(in_dev, scope);
-		if (addr)
+		if (addr) //找到了地址，返回了
 			goto out_unlock;
 	}
 out_unlock:
@@ -1347,20 +1368,22 @@ static __be32 confirm_addr_indev(struct in_device *in_dev, __be32 dst,
  * Confirm that local IP address exists using wildcards:
  * - net: netns to check, cannot be NULL
  * - in_dev: only on this interface, NULL=any interface
- * - dst: only in the same subnet as dst, 0=any dst
+ * - dst: only in the same subnet as dst, 0=any dst, dst非0的时候，查找的地址必须与该地址在同一个子网中
  * - local: address, 0=autoselect the local address
  * - scope: maximum allowed scope value for the local address
  */
+/* 确认参数中指定的本地地址是否存在 */
 __be32 inet_confirm_addr(struct net *net, struct in_device *in_dev,
 			 __be32 dst, __be32 local, int scope)
 {
 	__be32 addr = 0;
 	struct net_device *dev;
 
-	if (in_dev)
+	if (in_dev) //指定了设备的话，就在这个设备上查找
 		return confirm_addr_indev(in_dev, dst, local, scope);
 
 	rcu_read_lock();
+	/* 尝试从所有网络设备上查找 */
 	for_each_netdev_rcu(net, dev) {
 		in_dev = __in_dev_get_rcu(dev);
 		if (in_dev) {

@@ -54,6 +54,7 @@ struct qdisc_skb_head {
 	spinlock_t	lock;
 };
 
+/* 排队策略, queueing discipline */
 struct Qdisc {
 	int 			(*enqueue)(struct sk_buff *skb,
 					   struct Qdisc *sch,

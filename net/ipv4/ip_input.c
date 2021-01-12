@@ -397,6 +397,7 @@ drop_error:
 	goto drop;
 }
 
+/* 通过inet_protos 找到对应传输层的net_protocol结构，从而进入传输层 */
 static int ip_rcv_finish(struct net *net, struct sock *sk, struct sk_buff *skb)
 {
 	struct net_device *dev = skb->dev;

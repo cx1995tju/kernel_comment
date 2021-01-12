@@ -411,7 +411,7 @@ void tcp_init_sock(struct sock *sk)
 
 	tp->out_of_order_queue = RB_ROOT;
 	sk->tcp_rtx_queue = RB_ROOT;
-	tcp_init_xmit_timers(sk);
+	tcp_init_xmit_timers(sk); //定时器机制初始化
 	INIT_LIST_HEAD(&tp->tsq_node);
 	INIT_LIST_HEAD(&tp->tsorted_sent_queue);
 
@@ -1741,6 +1741,8 @@ int tcp_set_rcvlowat(struct sock *sk, int val)
 EXPORT_SYMBOL(tcp_set_rcvlowat);
 
 #ifdef CONFIG_MMU
+/* 所有函数操作集合都是空，特别是vm_fault为空，那么执行mmap是会成功的，但是直接访问相关内存
+ * 触发页面异常会得到一个segmentation fault */
 static const struct vm_operations_struct tcp_vm_ops = {
 };
 
@@ -1932,6 +1934,7 @@ static int tcp_inq_hint(struct sock *sk)
  *	Probably, code can be easily improved even more.
  */
 
+/* TCP层的报文接收函数,是应用主动调用的方向，不是tcp_v4_rcv函数 */
 int tcp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int nonblock,
 		int flags, int *addr_len)
 {
@@ -1952,16 +1955,15 @@ int tcp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int nonblock,
 	if (unlikely(flags & MSG_ERRQUEUE))
 		return inet_recv_error(sk, msg, len, addr_len);
 
-	if (sk_can_busy_loop(sk) && skb_queue_empty(&sk->sk_receive_queue) &&
+	if (sk_can_busy_loop(sk) && skb_queue_empty(&sk->sk_receive_queue) && //没有数据的时候可以busy looping的时间
 	    (sk->sk_state == TCP_ESTABLISHED))
-		sk_busy_loop(sk, nonblock);
+		sk_busy_loop(sk, nonblock); /* 会调用到具体设备的NAPI POLL函数, 譬如：e100_poll */
 
 	lock_sock(sk);
 
 	err = -ENOTCONN;
 	if (sk->sk_state == TCP_LISTEN)
 		goto out;
-
 	has_cmsg = tp->recvmsg_inq;
 	timeo = sock_rcvtimeo(sk, nonblock);
 
@@ -2007,7 +2009,7 @@ int tcp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int nonblock,
 
 		/* Next get a buffer. */
 
-		last = skb_peek_tail(&sk->sk_receive_queue);
+		last = skb_peek_tail(&sk->sk_receive_queue); /* 挂载skb的接收队列 */
 		skb_queue_walk(&sk->sk_receive_queue, skb) {
 			last = skb;
 			/* Now that we have two receive queues this
@@ -2120,7 +2122,7 @@ int tcp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int nonblock,
 		}
 
 		if (!(flags & MSG_TRUNC)) {
-			err = skb_copy_datagram_msg(skb, offset, msg, used);
+			err = skb_copy_datagram_msg(skb, offset, msg, used); /* skb的copy位置 */
 			if (err) {
 				/* Exception. Bailout! */
 				if (!copied)
@@ -2167,7 +2169,7 @@ skip_copy:
 	 */
 
 	/* Clean up data we have read: This will do ACK frames. */
-	tcp_cleanup_rbuf(sk, copied);
+	tcp_cleanup_rbuf(sk, copied); /* 可能需要发送ack, 譬如此时需要通告窗口非0 */
 
 	release_sock(sk);
 
@@ -2328,6 +2330,7 @@ bool tcp_check_oom(struct sock *sk, int shift)
 	return too_many_orphans || out_of_socket_memory;
 }
 
+/* timeout 来自于linger值 */
 void tcp_close(struct sock *sk, long timeout)
 {
 	struct sk_buff *skb;
@@ -3074,7 +3077,7 @@ int tcp_setsockopt(struct sock *sk, int level, int optname, char __user *optval,
 	const struct inet_connection_sock *icsk = inet_csk(sk);
 
 	if (level != SOL_TCP)
-		return icsk->icsk_af_ops->setsockopt(sk, level, optname,
+		return icsk->icsk_af_ops->setsockopt(sk, level, optname, //tcp的icsk_af_ops结构是ipv4_specific
 						     optval, optlen);
 	return do_tcp_setsockopt(sk, level, optname, optval, optlen);
 }
@@ -3845,7 +3848,7 @@ void __init tcp_init(void)
 	unsigned int i;
 
 	BUILD_BUG_ON(sizeof(struct tcp_skb_cb) >
-		     FIELD_SIZEOF(struct sk_buff, cb));
+		     FIELD_SIZEOF(struct sk_buff, cb)); //skb的cb成员一定要比tcp_skb_cb大，因为TCP层会在这里存放该结构
 
 	percpu_counter_init(&tcp_sockets_allocated, 0, GFP_KERNEL);
 	percpu_counter_init(&tcp_orphan_count, 0, GFP_KERNEL);
@@ -3855,7 +3858,7 @@ void __init tcp_init(void)
 			    0, 64 * 1024);
 	tcp_hashinfo.bind_bucket_cachep =
 		kmem_cache_create("tcp_bind_bucket",
-				  sizeof(struct inet_bind_bucket), 0,
+				  sizeof(struct inet_bind_bucket), 0, //在slab中分配一个管理区
 				  SLAB_HWCACHE_ALIGN|SLAB_PANIC, NULL);
 
 	/* Size and allocate the main established and bind bucket
@@ -3864,7 +3867,7 @@ void __init tcp_init(void)
 	 * The methodology is similar to that of the buffer cache.
 	 */
 	tcp_hashinfo.ehash =
-		alloc_large_system_hash("TCP established",
+		alloc_large_system_hash("TCP established", //分配一个hash表，用于管理状态为established的tcp_sock结构
 					sizeof(struct inet_ehash_bucket),
 					thash_entries,
 					17, /* one slot per 128 KB of memory */
@@ -3879,7 +3882,7 @@ void __init tcp_init(void)
 	if (inet_ehash_locks_alloc(&tcp_hashinfo))
 		panic("TCP: failed to alloc ehash_locks");
 	tcp_hashinfo.bhash =
-		alloc_large_system_hash("TCP bind",
+		alloc_large_system_hash("TCP bind", //已绑定端口hash表
 					sizeof(struct inet_bind_hashbucket),
 					tcp_hashinfo.ehash_mask + 1,
 					17, /* one slot per 128 KB of memory */
@@ -3904,7 +3907,7 @@ void __init tcp_init(void)
 	max_wshare = min(4UL*1024*1024, limit);
 	max_rshare = min(6UL*1024*1024, limit);
 
-	init_net.ipv4.sysctl_tcp_wmem[0] = SK_MEM_QUANTUM;
+	init_net.ipv4.sysctl_tcp_wmem[0] = SK_MEM_QUANTUM; //初始化各种系统控制参数
 	init_net.ipv4.sysctl_tcp_wmem[1] = 16*1024;
 	init_net.ipv4.sysctl_tcp_wmem[2] = max(64*1024, max_wshare);
 
@@ -3917,6 +3920,6 @@ void __init tcp_init(void)
 
 	tcp_v4_init();
 	tcp_metrics_init();
-	BUG_ON(tcp_register_congestion_control(&tcp_reno) != 0);
+	BUG_ON(tcp_register_congestion_control(&tcp_reno) != 0); //注册默认拥塞算法
 	tcp_tasklet_init();
 }

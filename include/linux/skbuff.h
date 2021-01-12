@@ -314,7 +314,7 @@ typedef struct skb_frag_struct skb_frag_t;
 
 struct skb_frag_struct {
 	struct {
-		struct page *p;
+		struct page *p; /* 分散的页 */
 	} page;
 #if (BITS_PER_LONG > 32) || (PAGE_SIZE >= 65536)
 	__u32 page_offset;
@@ -490,15 +490,26 @@ int skb_zerocopy_iter_stream(struct sock *sk, struct sk_buff *skb,
 /* This data is invariant across clones and lives at
  * the end of the header data, ie. at skb->end.
  */
+/* 紧跟着sk_buff->end指向的位置
+ * */
+/* 可以在这里支持分散聚合功能.
+ *
+ * */
 struct skb_shared_info {
 	__u8		__unused;
 	__u8		meta_len;
 	__u8		nr_frags;
 	__u8		tx_flags;
-	unsigned short	gso_size;
+	unsigned short	gso_size; /* 可能传递一个GSO段给网络设备，让其帮助处理, SKB_GSO_TCPV4 */
 	/* Warning: this field is not always filled in (UFO)! */
 	unsigned short	gso_segs;
-	struct sk_buff	*frag_list;
+	struct sk_buff	*frag_list; /* 分散聚合sk_buff, 如果网口支持分散聚合功能，我们可以直接将多个sk_buff丢过去 */
+					/* 还可以基于此来实现zero-copy功能 */
+	/* frag_list的使用方法：
+	 *	1. 接收分片组后链接成一个完整的ip数据报
+	 *	2. UDP数据报的输出中，将待分片的SKB链接到第一个SKB中，在输出过程中可以快速分片
+	 *	3. 配合网络设备实现分散聚合
+	 * */
 	struct skb_shared_hwtstamps hwtstamps;
 	unsigned int	gso_type;
 	u32		tskey;
@@ -506,7 +517,7 @@ struct skb_shared_info {
 	/*
 	 * Warning : all fields before dataref are cleared in __alloc_skb()
 	 */
-	atomic_t	dataref;
+	atomic_t	dataref; /* sk_buff指向的数据缓冲区的引用次数，不是sk_buff的引用次数, 譬如：克隆一个SKB */
 
 	/* Intermediate layers must ensure that destructor_arg
 	 * remains valid until skb destructor */
@@ -514,6 +525,8 @@ struct skb_shared_info {
 
 	/* must be last field, see pskb_expand_head() */
 	skb_frag_t	frags[MAX_SKB_FRAGS];
+
+	/* frag_list 可以聚合多个sk_buff, frags可以聚合多个内存缓冲区 */
 };
 
 /* We divide dataref into two halves.  The higher 16 bits hold references
@@ -532,9 +545,9 @@ struct skb_shared_info {
 
 
 enum {
-	SKB_FCLONE_UNAVAILABLE,	/* skb has no fclone (from head_cache) */
-	SKB_FCLONE_ORIG,	/* orig skb (from fclone_cache) */
-	SKB_FCLONE_CLONE,	/* companion fclone skb (from fclone_cache) */
+	SKB_FCLONE_UNAVAILABLE,	/* skb has no fclone (from head_cache), 没有被克隆 */
+	SKB_FCLONE_ORIG,	/* orig skb (from fclone_cache), 可以被克隆，在skbuff_fclone_cache上分配的父SKB */
+	SKB_FCLONE_CLONE,	/* companion fclone skb (from fclone_cache), 在skbuff_fclone_cache上分配的子SKB，从父SKB克隆得到的 */
 };
 
 enum {
@@ -599,7 +612,7 @@ typedef unsigned char *sk_buff_data_t;
  *	@_skb_refdst: destination entry (with norefcount bit)
  *	@sp: the security path, used for xfrm
  *	@len: Length of actual data
- *	@data_len: Data length
+ *	@data_len: Data length, 聚合分散区中的数据长度
  *	@mac_len: Length of link layer header
  *	@hdr_len: writable header length of cloned skb
  *	@csum: Checksum (must include start/offset pair)
@@ -662,15 +675,34 @@ typedef unsigned char *sk_buff_data_t;
  *	@users: User count - see {datagram,tcp}.c
  */
 //核心想法：通过操作指针来增删协议头部
+/* SKB是两部分：
+ *	1. sk_buff结构
+ *	2. sk_buff中各种指针指向的一个连续的数据缓冲区
+ * */
+
+/* sk_buff的成员分成四类：
+ *	1. sk_buff自身的组织(next prev双向链表, 红黑树管理)
+ *	2. 数据存储相关成员
+ *	3. 通用的一些成员变量（net device等，time stamp）
+ *	4. 各种标志
+ *
+ *
+ *
+ * */
 struct sk_buff {
 	union {
 		struct {
 			/* These two members must be first. */
-			struct sk_buff		*next; //next buffer
+			struct sk_buff		*next; //next buffer, GSO分段后就是通过这个链接的
 			struct sk_buff		*prev; //prev buffer
 
 			union {
 				struct net_device	*dev; //通过该设备到达或离开
+				/* 有些网络设备驱动在启动的时候，会分配初始化好一个sk_buff的接收缓存队列，
+				 * 然后将指针指向这个设备，接收数据的时候的sk_buff就是这么来的。
+				 *
+				 * 发送的时候则是要指向发送的设备，设置过程就会很复杂, 详见ip协议的路由了
+				 * */
 				/* Some protocols might use this space to store information,
 				 * while device pointer would be NULL.
 				 * UDP receive path is one user.
@@ -702,7 +734,7 @@ struct sk_buff {
 	union {
 		struct {
 			unsigned long	_skb_refdst;//暂时出口路由缓存,避免重复查找路由
-			void		(*destructor)(struct sk_buff *skb);
+			void		(*destructor)(struct sk_buff *skb); /* sk buff结构的析构函数 */
 		};
 		struct list_head	tcp_tsorted_anchor;
 	};
@@ -718,7 +750,7 @@ struct sk_buff {
 #endif
 	unsigned int		len,// 实际数据长度
 				data_len;
-	__u16			mac_len,
+	__u16			mac_len, 
 				hdr_len;
 
 	/* Following fields are _not_ copied in __copy_skb_header()
@@ -735,9 +767,9 @@ struct sk_buff {
 #define CLONED_OFFSET()		offsetof(struct sk_buff, __cloned_offset)
 
 	__u8			__cloned_offset[0];
-	__u8			cloned:1,
-				nohdr:1,
-				fclone:2,
+	__u8			cloned:1, //是否已经克隆
+				nohdr:1, //payload是否被单独引用，如果的实话，不能再修改协议首部了，也不能使用skb->data来访问协议首部
+				fclone:2, //当前克隆状态 SKB_FCLONE_ORIG, 克隆skb的话，多个sk_buff指向的缓冲区是一个
 				peeked:1,
 				head_frag:1,
 				xmit_more:1,
@@ -759,8 +791,8 @@ struct sk_buff {
 #define PKT_TYPE_OFFSET()	offsetof(struct sk_buff, __pkt_type_offset)
 
 	__u8			__pkt_type_offset[0];
-	__u8			pkt_type:3;
-	__u8			ignore_df:1;
+	__u8			pkt_type:3; //帧类型, 2层目的地址决定
+	__u8			ignore_df:1; //是否允许本地分片
 	__u8			nf_trace:1;
 	__u8			ip_summed:2;
 	__u8			ooo_okay:1;
@@ -811,7 +843,7 @@ struct sk_buff {
 			__u16	csum_offset;
 		};
 	};
-	__u32			priority;
+	__u32			priority; /* for QoS, 如果是本地生成的包，socket层设置，如果是转发包，则是rt_tos2priority设置 */
 	int			skb_iif;
 	__u32			hash;
 	__be16			vlan_proto;
@@ -840,9 +872,9 @@ struct sk_buff {
 	__u16			inner_network_header;
 	__u16			inner_mac_header;
 
-	__be16			protocol;
+	__be16			protocol; /* 2层设备看到的三层协议：ip ipv6 ARP, 完整列表见if_ether.h */
 	__u16			transport_header;
-	__u16			network_header;
+	__u16			network_header; /* 是偏移， 基于head计算 */
 	__u16			mac_header;
 
 	/* private: */
@@ -850,12 +882,14 @@ struct sk_buff {
 	/* public: */
 
 	/* These elements must be at the end, see alloc_skb() for details.  */
+	/* head end 指向整个完整的包的头尾， data指向overload的开始，tail指向overload的结尾 */
 	sk_buff_data_t		tail;
 	sk_buff_data_t		end;
 	unsigned char		*head, //数据
 				*data;
-	unsigned int		truesize;
-	refcount_t		users;
+	unsigned int		truesize; /* alloc_skb(x)的时候，会将truesize初始化为x + sizeof(sk_buff) + sizeof(sharde_info) */
+					/* 整合数据缓冲区的大小，包括sk_buff， 线性数据区，非线性数据区 */
+	refcount_t		users; /* 引用计数，合适时机释放该结构, 仅仅保护的是该结构，不保护缓冲区，缓冲区的保护见skb_shared_info结构 */
 };
 
 #ifdef __KERNEL__
@@ -1007,7 +1041,7 @@ struct sk_buff_fclones {
 
 	struct sk_buff	skb2;
 
-	refcount_t	fclone_ref;
+	refcount_t	fclone_ref; /* 0 or 1 or 2, skb1 skb2中有几个被使用, 一对用于克隆的sk_buff，会指向同一个缓冲区的 */
 };
 
 /**
@@ -2193,6 +2227,10 @@ static inline int skb_availroom(const struct sk_buff *skb)
  *	Increase the headroom of an empty &sk_buff by reducing the tail
  *	room. This is only allowed for an empty buffer.
  */
+/* 用于预留出一部分协议头空间，高层协议向下传递sk_buff的时候，必须使用这个函数预留出头部空间
+ *
+ * */
+/* 只能作用于空的SKB, 向高地址移动，本质就是保留头部，增加headroom */
 static inline void skb_reserve(struct sk_buff *skb, int len)
 {
 	skb->data += len;
@@ -2639,6 +2677,7 @@ struct sk_buff *__netdev_alloc_skb(struct net_device *dev, unsigned int length,
 static inline struct sk_buff *netdev_alloc_skb(struct net_device *dev,
 					       unsigned int length)
 {
+	/* 原子标识位，表示不可中断 */
 	return __netdev_alloc_skb(dev, length, GFP_ATOMIC);
 }
 
@@ -3055,6 +3094,7 @@ static inline bool skb_can_coalesce(struct sk_buff *skb, int i,
 	return false;
 }
 
+/* skb分片线性化， 会涉及到copy */
 static inline int __skb_linearize(struct sk_buff *skb)
 {
 	return __pskb_pull_tail(skb, skb->data_len) ? 0 : -ENOMEM;
@@ -3069,6 +3109,7 @@ static inline int __skb_linearize(struct sk_buff *skb)
  */
 static inline int skb_linearize(struct sk_buff *skb)
 {
+	/* 是否存在分散缓冲区 */
 	return skb_is_nonlinear(skb) ? __skb_linearize(skb) : 0;
 }
 

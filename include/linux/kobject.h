@@ -69,7 +69,7 @@ struct kobject {
 	struct kset		*kset;//该kobject属于的kset结构
 	struct kobj_type	*ktype;//该kobject属于的ktype结构，其中包含了各种函数
 	struct kernfs_node	*sd; /* sysfs directory entry */
-	struct kref		kref;
+	struct kref		kref; /* 引用计数为0后，自动调用ktype中的析构函数 */
 #ifdef CONFIG_DEBUG_KOBJECT_RELEASE
 	struct delayed_work	release;
 #endif
@@ -137,7 +137,7 @@ static inline bool kobject_has_children(struct kobject *kobj)
 }
 
 struct kobj_type { //和kobject相关的各种函数
-	void (*release)(struct kobject *kobj);
+	void (*release)(struct kobject *kobj); /* 析构函数 */
 	const struct sysfs_ops *sysfs_ops;
 	struct attribute **default_attrs;
 	const struct kobj_ns_type_operations *(*child_ns_type)(struct kobject *kobj);

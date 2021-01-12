@@ -424,6 +424,7 @@ int skb_copy_datagram_iter(const struct sk_buff *skb, int offset,
 
 	trace_skb_copy_datagram_iovec(skb, len);
 
+	/* skb结构的复杂性，导致copy变得复杂, skb的分散聚合结构 */
 	/* Copy header. */
 	if (copy > 0) {
 		if (copy > len)

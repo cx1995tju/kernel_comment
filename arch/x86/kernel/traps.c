@@ -623,6 +623,7 @@ dotraplinkage void notrace do_int3(struct pt_regs *regs, long error_code)
 exit:
 	ist_exit(regs);
 }
+/* KPROBE黑名单 */
 NOKPROBE_SYMBOL(do_int3);
 
 #ifdef CONFIG_X86_64

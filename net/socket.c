@@ -241,6 +241,10 @@ static struct inode *sock_alloc_inode(struct super_block *sb)
 	struct socket_alloc *ei;
 	struct socket_wq *wq;
 
+	/* 这里同时分配了一个inode节点和一个socket结构， 两者就联系到一起了
+	 * 在2.4.0版本中，是直接在inode中使用union包含socket的，显然那种方式如果支持的文件系统太多
+	 * 会导致inode结构特别乱。使用这种方式，各个文件系统自己将inode结构于自己独特的结构(譬如：socket)组织到一起，使得inode结构更加单纯
+	 * */
 	ei = kmem_cache_alloc(sock_inode_cachep, GFP_KERNEL);
 	if (!ei)
 		return NULL;
@@ -426,7 +430,9 @@ static int sock_map_fd(struct socket *sock, int flags)
 
 struct socket *sock_from_file(struct file *file, int *err)
 {
+	/* file结构的private中保存了socket结构 */
 	if (file->f_op == &socket_file_ops)
+
 		return file->private_data;	/* set in sock_map_fd */
 
 	*err = -ENOTSOCK;
@@ -581,7 +587,7 @@ static void __sock_release(struct socket *sock, struct inode *inode)
 		if (inode)
 			inode_unlock(inode);
 		sock->ops = NULL;
-		module_put(owner);
+		module_put(owner); /* 为什么要put， 在哪里get了？？？ create的时候get的 */
 	}
 
 	if (sock->wq->fasync_list)
@@ -989,6 +995,9 @@ struct ns_common *get_net_ns(struct ns_common *ns)
 }
 EXPORT_SYMBOL_GPL(get_net_ns);
 
+/* 应用程序可以通过对套接字的ioctl到达这个函数，随后到达dev_ioctl inet_ioctl 完成对网络设备的一些操作 */
+//相关操作的参数或请求总是封装成ifreq结构
+//这里有点奇怪，通过socket来设置device，socket与device根本不是一个层次的东西. 我觉得更合适的方法是在proc中暴露接口来设置
 static long sock_ioctl(struct file *file, unsigned cmd, unsigned long arg)
 {
 	struct socket *sock;
@@ -1152,6 +1161,7 @@ static int sock_close(struct inode *inode, struct file *filp)
  *	   or under socket lock
  */
 
+/* 应用调用fcntl(set fasync)的时候会来到这里， 参见：https://www.cnblogs.com/xiaojiang1025/p/6376561.html */
 static int sock_fasync(int fd, struct file *filp, int on)
 {
 	struct socket *sock = filp->private_data;
@@ -1163,7 +1173,7 @@ static int sock_fasync(int fd, struct file *filp, int on)
 
 	lock_sock(sk);
 	wq = sock->wq;
-	fasync_helper(fd, filp, on, &wq->fasync_list);
+	fasync_helper(fd, filp, on, &wq->fasync_list); //这个是最核心咯
 
 	if (!wq->fasync_list)
 		sock_reset_flag(sk, SOCK_FASYNC);
@@ -1204,6 +1214,7 @@ EXPORT_SYMBOL(sock_wake_async);
 
 int __sock_create(struct net *net, int family, int type, int protocol,
 			 struct socket **res, int kern) //第一变量是网络命名空间，用来隔离网络资源的，从current中获取的, current->nsproxy->net_ns
+	/* kern表示是应用程序还是内核创建 */
 {//socket结构在这里分配初始化，sock结构则不是
 	int err;
 	struct socket *sock;
@@ -1289,7 +1300,7 @@ int __sock_create(struct net *net, int family, int type, int protocol,
 	 * Now that we're done with the ->create function, the [loadable]
 	 * module can have its refcnt decremented
 	 */
-	module_put(pf->owner);
+	module_put(pf->owner); /* module put */
 	err = security_socket_post_create(sock, family, type, protocol, kern);
 	if (err)
 		goto out_sock_release;
@@ -1508,7 +1519,7 @@ int __sys_listen(int fd, int backlog)
 
 	sock = sockfd_lookup_light(fd, &err, &fput_needed);
 	if (sock) {
-		somaxconn = sock_net(sock->sk)->core.sysctl_somaxconn;
+		somaxconn = sock_net(sock->sk)->core.sysctl_somaxconn; /* 上限检查，backlog最大值 */
 		if ((unsigned int)backlog > somaxconn)
 			backlog = somaxconn;
 
@@ -1546,6 +1557,8 @@ int __sys_accept4(int fd, struct sockaddr __user *upeer_sockaddr,
 	int err, len, newfd, fput_needed;
 	struct sockaddr_storage address;
 
+	/* 若含有SOCK_CLOEXEC | SOCK_NONBLOCK之外的标志的话，ERROR */
+	/* 这个flag是给新的socket准备的 */
 	if (flags & ~(SOCK_CLOEXEC | SOCK_NONBLOCK))
 		return -EINVAL;
 
@@ -1557,6 +1570,7 @@ int __sys_accept4(int fd, struct sockaddr __user *upeer_sockaddr,
 		goto out;
 
 	err = -ENFILE;
+	/* socekt结构作为inode结构中的一个union成员，其回收工作可能是伴随inode的回收完成的 */
 	newsock = sock_alloc(); //分配一个新的socket sock了
 	if (!newsock)
 		goto out_put;
@@ -2686,6 +2700,7 @@ bool sock_is_registered(int family)
 
 static int __init sock_init(void)
 {
+	/* 初始化套接口层 */
 	int err;
 	/*
 	 *      Initialize the network sysctl infrastructure.
@@ -2697,18 +2712,18 @@ static int __init sock_init(void)
 	/*
 	 *      Initialize skbuff SLAB cache
 	 */
-	skb_init();
+	skb_init(); /* skb缓冲区的初始化 */
 
 	/*
 	 *      Initialize the protocols module.
 	 */
 
-	init_inodecache();
+	init_inodecache(); /* sockfs的初始化 */
 
-	err = register_filesystem(&sock_fs_type);
+	err = register_filesystem(&sock_fs_type); /* sockfs的注册 */
 	if (err)
 		goto out_fs;
-	sock_mnt = kern_mount(&sock_fs_type);
+	sock_mnt = kern_mount(&sock_fs_type); /* sockfs的挂载 */
 	if (IS_ERR(sock_mnt)) {
 		err = PTR_ERR(sock_mnt);
 		goto out_mount;
@@ -2734,6 +2749,7 @@ out_fs:
 	goto out;
 }
 
+/* 在系统启动的时候比较早期进行的初始化 */
 core_initcall(sock_init);	/* early initcall */
 
 #ifdef CONFIG_PROC_FS

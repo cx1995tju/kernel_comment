@@ -942,6 +942,7 @@ virtio_transport_recv_listen(struct sock *sk, struct virtio_vsock_pkt *pkt)
 			le32_to_cpu(pkt->hdr.src_port));
 
 	vsock_insert_connected(vchild);
+	/* 为什么叫child， 因为这个sock结构是listen生出来的，鸡生蛋 */
 	vsock_enqueue_accept(sk, child);
 	virtio_transport_send_response(vchild, pkt);
 

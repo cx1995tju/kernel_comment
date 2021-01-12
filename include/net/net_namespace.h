@@ -48,11 +48,12 @@ struct netns_ipvs;
 #define NETDEV_HASHBITS    8
 #define NETDEV_HASHENTRIES (1 << NETDEV_HASHBITS)
 
+//namespace
 struct net {
 	refcount_t		passive;	/* To decided when the network
 						 * namespace should be freed.
 						 */
-	refcount_t		count;		/* To decided when the network
+	refcount_t		count;		/* To decided when the network 该命名空间的引用计数
 						 *  namespace should be shut down.
 						 */
 	spinlock_t		rules_mod_lock;
@@ -60,7 +61,7 @@ struct net {
 	u32			hash_mix;
 	atomic64_t		cookie_gen;
 
-	struct list_head	list;		/* list of network namespaces */
+	struct list_head	list;		/* list of network namespaces, 所有命名空间都链起来 */
 	struct list_head	exit_list;	/* To linked to call pernet exit
 						 * methods on dead net (
 						 * pernet_ops_rwsem read locked),
@@ -76,8 +77,8 @@ struct net {
 
 	struct ns_common	ns;
 
-	struct proc_dir_entry 	*proc_net;
-	struct proc_dir_entry 	*proc_net_stat;
+	struct proc_dir_entry 	*proc_net; /* /proc/net */
+	struct proc_dir_entry 	*proc_net_stat; /* /proc/net_stats */
 
 #ifdef CONFIG_SYSCTL
 	struct ctl_table_set	sysctls;
@@ -88,7 +89,7 @@ struct net {
 
 	struct uevent_sock	*uevent_sock;		/* uevent socket */
 
-	struct list_head 	dev_base_head;
+	struct list_head 	dev_base_head;  /* 网络设备使用net_device表示, 所有的串在这里 */
 	struct hlist_head 	*dev_name_head;
 	struct hlist_head	*dev_index_head;
 	unsigned int		dev_base_seq;	/* protected by rtnl_mutex */
@@ -101,7 +102,7 @@ struct net {
 	struct list_head	fib_notifier_ops;  /* Populated by
 						    * register_pernet_subsys()
 						    */
-	struct net_device       *loopback_dev;          /* The loopback */
+	struct net_device       *loopback_dev;          /* The loopback, 每个命名空间都可以有loopback设备 */
 	struct netns_core	core;
 	struct netns_mib	mib;
 	struct netns_packet	packet;

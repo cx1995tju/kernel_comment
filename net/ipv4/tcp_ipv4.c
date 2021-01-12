@@ -275,6 +275,7 @@ int tcp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 	 * lock select source port, enter ourselves into the hash tables and
 	 * complete initialization after this.
 	 */
+	/* 自动绑定端口 */
 	tcp_set_state(sk, TCP_SYN_SENT);
 	err = inet_hash_connect(tcp_death_row, sk);
 	if (err)
@@ -896,8 +897,8 @@ static void tcp_v4_timewait_ack(struct sock *sk, struct sk_buff *skb)
 static void tcp_v4_reqsk_send_ack(const struct sock *sk, struct sk_buff *skb,
 				  struct request_sock *req)
 {
-	/* sk->sk_state == TCP_LISTEN -> for regular TCP_SYN_RECV
-	 * sk->sk_state == TCP_SYN_RECV -> for Fast Open.
+	/* sk->sk_state == TCP_LISTEN -> for regular TCP_SYN_RECV ,正常状态下，第三次握手的ack包是索引到父socket，所以是TCP_LISTEN状态
+	 * sk->sk_state == TCP_SYN_RECV -> for Fast Open. FTO状态下，索引到子socket
 	 */
 	u32 seq = (sk->sk_state == TCP_LISTEN) ? tcp_rsk(req)->snt_isn + 1 :
 					     tcp_sk(sk)->snd_nxt;
@@ -939,7 +940,7 @@ static int tcp_v4_send_synack(const struct sock *sk, struct dst_entry *dst,
 	if (!dst && (dst = inet_csk_route_req(sk, &fl4, req)) == NULL)
 		return -1;
 
-	skb = tcp_make_synack(sk, dst, req, foc, synack_type);
+	skb = tcp_make_synack(sk, dst, req, foc, synack_type); /* 制造一个synack包 */
 
 	if (skb) {
 		__tcp_v4_send_check(skb, ireq->ir_loc_addr, ireq->ir_rmt_addr);
@@ -947,7 +948,7 @@ static int tcp_v4_send_synack(const struct sock *sk, struct dst_entry *dst,
 		rcu_read_lock();
 		err = ip_build_and_send_pkt(skb, sk, ireq->ir_loc_addr,
 					    ireq->ir_rmt_addr,
-					    rcu_dereference(ireq->ireq_opt));
+					    rcu_dereference(ireq->ireq_opt)); /* 发送拉 */
 		rcu_read_unlock();
 		err = net_xmit_eval(err);
 	}
@@ -1379,7 +1380,7 @@ static const struct tcp_request_sock_ops tcp_request_sock_ipv4_ops = {
 int tcp_v4_conn_request(struct sock *sk, struct sk_buff *skb)
 {
 	/* Never answer to SYNs send to broadcast or multicast */
-	if (skb_rtable(skb)->rt_flags & (RTCF_BROADCAST | RTCF_MULTICAST))
+	if (skb_rtable(skb)->rt_flags & (RTCF_BROADCAST | RTCF_MULTICAST)) /* 广播和组播的SYN包 */
 		goto drop;
 
 	return tcp_conn_request(&tcp_request_sock_ops,
@@ -1396,6 +1397,7 @@ EXPORT_SYMBOL(tcp_v4_conn_request);
  * The three way handshake has completed - we got a valid synack -
  * now create the new socket.
  */
+/* 三次握手成功后，创建真的sock结构了，而不是reqsock结构 */
 struct sock *tcp_v4_syn_recv_sock(const struct sock *sk, struct sk_buff *skb,
 				  struct request_sock *req,
 				  struct dst_entry *dst,
@@ -1516,35 +1518,37 @@ static struct sock *tcp_v4_cookie_check(struct sock *sk, struct sk_buff *skb)
  * This is because we cannot sleep with the original spinlock
  * held.
  */
+/* 从网络层过来的包都通过这个接收函数处理，然后根据不同的socket状态分发到不同的函数 */
 int tcp_v4_do_rcv(struct sock *sk, struct sk_buff *skb)
 {
 	struct sock *rsk;
 
 	if (sk->sk_state == TCP_ESTABLISHED) { /* Fast path */
-		struct dst_entry *dst = sk->sk_rx_dst;
+		struct dst_entry *dst = sk->sk_rx_dst; /* 之前接收方向多路分解的时候使用的路由 */
 
 		sock_rps_save_rxhash(sk, skb);
 		sk_mark_napi_id(sk, skb);
-		if (dst) {
+		if (dst) { /* 更新入口缓存 */
 			if (inet_sk(sk)->rx_dst_ifindex != skb->skb_iif ||
 			    !dst->ops->check(dst, 0)) {
 				dst_release(dst);
 				sk->sk_rx_dst = NULL;
 			}
 		}
-		tcp_rcv_established(sk, skb);
+		tcp_rcv_established(sk, skb); /* 正常流程中的收发状态 */
 		return 0;
 	}
 
 	if (tcp_checksum_complete(skb))
 		goto csum_err;
 
-	if (sk->sk_state == TCP_LISTEN) {
-		struct sock *nsk = tcp_v4_cookie_check(sk, skb);
+	if (sk->sk_state == TCP_LISTEN) { /* 三次握手阶段 */
+		struct sock *nsk = tcp_v4_cookie_check(sk, skb); /* syn cookie 的处理 */
+		/* 在上述函数中，如果skb不是syn包，就会区检查syn cookies */
 
 		if (!nsk)
 			goto discard;
-		if (nsk != sk) {
+		if (nsk != sk) { /* cookies 错误 */
 			if (tcp_child_process(sk, nsk, skb)) {
 				rsk = nsk;
 				goto reset;
@@ -1554,7 +1558,7 @@ int tcp_v4_do_rcv(struct sock *sk, struct sk_buff *skb)
 	} else
 		sock_rps_save_rxhash(sk, skb);
 
-	if (tcp_rcv_state_process(sk, skb)) {
+	if (tcp_rcv_state_process(sk, skb)) { /* 其他状态, server端第一个握手的处理会落入到这里，第三次不一定，如果是syn cookie则在前面被处理了 */
 		rsk = sk;
 		goto reset;
 	}
@@ -1683,6 +1687,9 @@ static void tcp_v4_fill_cb(struct sk_buff *skb, const struct iphdr *iph,
  *	From tcp_input.c
  */
 
+/*软中断访问sock结构的时候时候，不会直接使用这个锁的，而是先用sock_owend_by_user检测是否被进程锁定，
+ * 如果没有就直接访问，因为软中断优先级高，不会被进程打断的，见tcp_v4_rcv
+ * */
 int tcp_v4_rcv(struct sk_buff *skb)
 {
 	struct net *net = dev_net(skb->dev);
@@ -1720,6 +1727,7 @@ int tcp_v4_rcv(struct sk_buff *skb)
 	th = (const struct tcphdr *)skb->data;
 	iph = ip_hdr(skb);
 lookup:
+	/* 通过skb反向索引到sk结构, 所有的sk结构都在散列表中被管理着，通过五元组索引  */
 	sk = __inet_lookup_skb(&tcp_hashinfo, skb, __tcp_hdrlen(th), th->source,
 			       th->dest, sdif, &refcounted);
 	if (!sk)
@@ -1729,7 +1737,7 @@ process:
 	if (sk->sk_state == TCP_TIME_WAIT)
 		goto do_time_wait;
 
-	if (sk->sk_state == TCP_NEW_SYN_RECV) {
+	if (sk->sk_state == TCP_NEW_SYN_RECV) {  /* 见4.4版本的commit就知道现在，syn_recv状态也在ehahs中，第三次握手的ack来的时候，会直接找到子sock，而不是父sock了 */
 		struct request_sock *req = inet_reqsk(sk);
 		bool req_stolen = false;
 		struct sock *nsk;
@@ -1758,7 +1766,7 @@ process:
 			th = (const struct tcphdr *)skb->data;
 			iph = ip_hdr(skb);
 			tcp_v4_fill_cb(skb, iph, th);
-			nsk = tcp_check_req(sk, skb, req, false, &req_stolen);
+			nsk = tcp_check_req(sk, skb, req, false, &req_stolen); /* 处理第三次握手的ack, nsk == newsk */
 		}
 		if (!nsk) {
 			reqsk_put(req);
@@ -1915,6 +1923,7 @@ void inet_sk_rx_dst_set(struct sock *sk, const struct sk_buff *skb)
 }
 EXPORT_SYMBOL(inet_sk_rx_dst_set);
 
+/* TCP的一个操作接口集合，在tcp_v4_init_sock()中将inet_connection_sock的icsk_af_ops成员设置为这个 */
 const struct inet_connection_sock_af_ops ipv4_specific = {
 	.queue_xmit	   = ip_queue_xmit,
 	.send_check	   = tcp_v4_send_check,
@@ -2460,7 +2469,7 @@ struct proto tcp_prot = {
 	.release_cb		= tcp_release_cb,
 	.hash			= inet_hash,
 	.unhash			= inet_unhash,
-	.get_port		= inet_csk_get_port,
+	.get_port		= inet_csk_get_port, /* 端口绑定 */
 	.enter_memory_pressure	= tcp_enter_memory_pressure,
 	.leave_memory_pressure	= tcp_leave_memory_pressure,
 	.stream_memory_free	= tcp_stream_memory_free,

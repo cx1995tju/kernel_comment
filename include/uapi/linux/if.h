@@ -1,4 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0+ WITH Linux-syscall-note */
+
 /*
  * INET		An implementation of the TCP/IP protocol suite for the LINUX
  *		operating system.  INET is implemented using the  BSD Socket
@@ -232,23 +233,23 @@ struct ifreq {
 #define IFHWADDRLEN	6
 	union
 	{
-		char	ifrn_name[IFNAMSIZ];		/* if name, e.g. "en0" */
+		char	ifrn_name[IFNAMSIZ];		/* if name, e.g. "en0" */ //网络设备名，ioctl(SIOCGIFNAME) 的时候存储获得的设备名，其他命令的时候，使用这个设备名来查找网络设备
 	} ifr_ifrn;
 	
 	union {
-		struct	sockaddr ifru_addr;
-		struct	sockaddr ifru_dstaddr;
+		struct	sockaddr ifru_addr; //set get 广播地址，点对点地址，本地地址，网络掩码
+		struct	sockaddr ifru_dstaddr; //set get 点对点地址
 		struct	sockaddr ifru_broadaddr;
 		struct	sockaddr ifru_netmask;
-		struct  sockaddr ifru_hwaddr;
-		short	ifru_flags;
-		int	ifru_ivalue;
-		int	ifru_mtu;
-		struct  ifmap ifru_map;
+		struct  sockaddr ifru_hwaddr; //硬件地址 mac地址
+		short	ifru_flags; //set get网络设备标志
+		int	ifru_ivalue; //set get 索引号，网络设备输出队列长度等
+		int	ifru_mtu; //set get MTU
+		struct  ifmap ifru_map; //set get 网络设备的一些硬件参数，譬如:net_device中的mem_start mem_end base_addr irq等
 		char	ifru_slave[IFNAMSIZ];	/* Just fits the size */
-		char	ifru_newname[IFNAMSIZ];
-		void __user *	ifru_data;
-		struct	if_settings ifru_settings;
+		char	ifru_newname[IFNAMSIZ]; //设备网络设备新名字
+		void __user *	ifru_data; //SIOCETHTOOL的时候对应不同的结构，参见dev_ethtool
+		struct	if_settings ifru_settings; //一些高级setting
 	} ifr_ifru;
 };
 #endif /* __UAPI_DEF_IF_IFREQ */
@@ -256,7 +257,7 @@ struct ifreq {
 #define ifr_name	ifr_ifrn.ifrn_name	/* interface name 	*/
 #define ifr_hwaddr	ifr_ifru.ifru_hwaddr	/* MAC address 		*/
 #define	ifr_addr	ifr_ifru.ifru_addr	/* address		*/
-#define	ifr_dstaddr	ifr_ifru.ifru_dstaddr	/* other end of p-p lnk	*/
+#define	ifr_dstaddr	ifr_ifru.ifru_dstaddr	/* other end of p-p lnk	*/ //直连的时候使用
 #define	ifr_broadaddr	ifr_ifru.ifru_broadaddr	/* broadcast address	*/
 #define	ifr_netmask	ifr_ifru.ifru_netmask	/* interface net mask	*/
 #define	ifr_flags	ifr_ifru.ifru_flags	/* flags		*/

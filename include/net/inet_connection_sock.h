@@ -66,7 +66,7 @@ struct inet_connection_sock_af_ops {
 
 /** inet_connection_sock - INET connection oriented sock
  *
- * @icsk_accept_queue:	   FIFO of established children , 完成3次握手的accept队列？？？
+ * @icsk_accept_queue:	   FIFO of established children , 完成3次握手的accept队列？？？ 如果是FAST OPEN，那么没有完成也会挂上来
  * @icsk_bind_hash:	   Bind node
  * @icsk_timeout:	   Timeout
  * @icsk_retransmit_timer: Resend (no ack)
@@ -92,14 +92,14 @@ struct inet_connection_sock {
 	/* inet_sock has to be the first member! */
 	struct inet_sock	  icsk_inet;
 	struct request_sock_queue icsk_accept_queue;
-	struct inet_bind_bucket	  *icsk_bind_hash;
+	struct inet_bind_bucket	  *icsk_bind_hash; //绑定的端口信息
 	unsigned long		  icsk_timeout;
  	struct timer_list	  icsk_retransmit_timer;
  	struct timer_list	  icsk_delack_timer;
 	__u32			  icsk_rto;
 	__u32			  icsk_pmtu_cookie;
 	const struct tcp_congestion_ops *icsk_ca_ops;
-	const struct inet_connection_sock_af_ops *icsk_af_ops;
+	const struct inet_connection_sock_af_ops *icsk_af_ops;  //向网络层发送的接口，tcp的该成员是ipv4_specific
 	const struct tcp_ulp_ops  *icsk_ulp_ops;
 	void			  *icsk_ulp_data;
 	void (*icsk_clean_acked)(struct sock *sk, u32 acked_seq);

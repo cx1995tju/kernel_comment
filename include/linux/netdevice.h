@@ -1738,19 +1738,20 @@ enum netdev_priv_flags {
  *	FIXME: cleanup struct net_device such that network protocol info
  *	moves out.
  */
+ //不涉及网络层
 
 struct net_device {
 	char			name[IFNAMSIZ]; //设备名
-	struct hlist_node	name_hlist; //用于设备名散列表使用
+	struct hlist_node	name_hlist; //用于设备名散列表使用, 通过网络设备名散列组织到dev_name_head散列表中
 	struct dev_ifalias	__rcu *ifalias;
 	/*
 	 *	I/O specific fields
 	 *	FIXME: Merge these and struct ifmap into one
 	 */
-	unsigned long		mem_end; //共享内存结束位置
+	unsigned long		mem_end; //网络设备共享内存结束位置
 	unsigned long		mem_start; //共享内存开始位置
-	unsigned long		base_addr; //设备IO地址
-	int			irq; //设备IRQ编号
+	unsigned long		base_addr; //设备IO地址, 探测设备的时候初始化，ifconfig可以显示和修改当前值
+	int			irq; //设备IRQ编号, 设备初始化的时候初始化
 
 	/*
 	 *	Some hardware also needs these fields (state,dev_list,
@@ -1758,7 +1759,7 @@ struct net_device {
 	 *	part of the usual set specified in Space.c.
 	 */
 
-	unsigned long		state;
+	unsigned long		state; //设备状态，也包含QoS排队规则状态
 
 	struct list_head	dev_list;
 	struct list_head	napi_list;
@@ -1772,7 +1773,7 @@ struct net_device {
 		struct list_head lower;
 	} adj_list;
 
-	netdev_features_t	features;
+	netdev_features_t	features; //这个接口支持的各种features
 	netdev_features_t	hw_features;
 	netdev_features_t	wanted_features;
 	netdev_features_t	vlan_features;
@@ -1783,7 +1784,7 @@ struct net_device {
 	int			ifindex; //接口索引，设备的唯一标识符
 	int			group;
 
-	struct net_device_stats	stats;
+	struct net_device_stats	stats; //统计信息
 
 	atomic_long_t		rx_dropped;
 	atomic_long_t		tx_dropped;
@@ -1797,8 +1798,8 @@ struct net_device {
 	const struct iw_handler_def *wireless_handlers;
 	struct iw_public_data	*wireless_data;
 #endif
-	const struct net_device_ops *netdev_ops;
-	const struct ethtool_ops *ethtool_ops;
+	const struct net_device_ops *netdev_ops; //各种网络设备相关函数都在这里
+	const struct ethtool_ops *ethtool_ops; //ethtool的操作接口
 #ifdef CONFIG_NET_SWITCHDEV
 	const struct switchdev_ops *switchdev_ops;
 #endif
@@ -1819,7 +1820,7 @@ struct net_device {
 
 	const struct header_ops *header_ops; //硬件首部描述
 
-	unsigned int		flags;
+	unsigned int		flags; //各种flags
 	unsigned int		priv_flags;
 
 	unsigned short		gflags;
@@ -1828,13 +1829,13 @@ struct net_device {
 	unsigned char		operstate;
 	unsigned char		link_mode;
 
-	unsigned char		if_port;
-	unsigned char		dma;
+	unsigned char		if_port; //多端口设备上指定使用哪个端口
+	unsigned char		dma; //为设备分配的dma通道
 
 	unsigned int		mtu; //接口mtu值
 	unsigned int		min_mtu;
 	unsigned int		max_mtu;
-	unsigned short		type;
+	unsigned short		type; //接口硬件类型，
 	unsigned short		hard_header_len;
 	unsigned char		min_header_len;
 
@@ -1842,7 +1843,7 @@ struct net_device {
 	unsigned short		needed_tailroom;
 
 	/* Interface address info. */ //接口地址信息
-	unsigned char		perm_addr[MAX_ADDR_LEN];
+	unsigned char		perm_addr[MAX_ADDR_LEN]; //mac地址，一搬在初始化的时候从硬件读取
 	unsigned char		addr_assign_type;
 	unsigned char		addr_len;
 	unsigned short		neigh_priv_len;
@@ -1876,7 +1877,7 @@ struct net_device {
 #if IS_ENABLED(CONFIG_IRDA) || IS_ENABLED(CONFIG_ATALK)
 	void 			*atalk_ptr;
 #endif
-	struct in_device __rcu	*ip_ptr;
+	struct in_device __rcu	*ip_ptr; //指向网络层相关信息，譬如ip地址等
 #if IS_ENABLED(CONFIG_DECNET)
 	struct dn_dev __rcu     *dn_ptr;
 #endif
@@ -1925,7 +1926,7 @@ struct net_device {
 	struct netdev_queue	*_tx ____cacheline_aligned_in_smp;
 	unsigned int		num_tx_queues;
 	unsigned int		real_num_tx_queues;
-	struct Qdisc		*qdisc;
+	struct Qdisc		*qdisc; //排队规则
 #ifdef CONFIG_NET_SCHED
 	DECLARE_HASHTABLE	(qdisc_hash, 4);
 #endif
@@ -2159,6 +2160,8 @@ void dev_net_set(struct net_device *dev, struct net *net)
  */
 static inline void *netdev_priv(const struct net_device *dev)
 {
+	/* 参见net_device结构的padd成员 */
+	/* 将net_device的大小向上与 2^5 对齐, 本质就是私有数据紧挨着net_device结构，但是会padding，然后对齐的 */
 	return (char *)dev + ALIGN(sizeof(struct net_device), NETDEV_ALIGN);
 }
 
@@ -2321,13 +2324,16 @@ static inline struct sk_buff *call_gro_receive_sk(gro_receive_sk_t cb,
 	return cb(sk, head, skb);
 }
 
+/* 网络层输入的接口，是链路层到网络层的桥梁结构, softnet_data结构也是 */
+/* per-PF 的结构，报文从设备接收到接口层(softnet-data结构)的时候后续会调用netif_receive_skb(), 然后根据skb遍历ptype_base表，找到对应的packet_type结构，从而提交到对应的网络层 */
+/* ip协议的是ip_packet_type */
 struct packet_type {
 	__be16			type;	/* This is really htons(ether_type). */
 	struct net_device	*dev;	/* NULL is wildcarded here	     */
-	int			(*func) (struct sk_buff *,
-					 struct net_device *,
-					 struct packet_type *,
-					 struct net_device *);
+	int			(*func) (struct sk_buff *, //报文, 具体网络层的报文接收函数，譬如ip_rcv
+					 struct net_device *, //当前处理设备
+					 struct packet_type *, //
+					 struct net_device *); //原始的处理设备
 	void			(*list_func) (struct list_head *,
 					      struct packet_type *,
 					      struct net_device *);
@@ -2338,7 +2344,7 @@ struct packet_type {
 };
 
 struct offload_callbacks {
-	struct sk_buff		*(*gso_segment)(struct sk_buff *skb,
+	struct sk_buff		*(*gso_segment)(struct sk_buff *skb, //网络设备如果不支持GSO功能的话，通过这个接口调用到传输层的GSO函数
 						netdev_features_t features);
 	struct sk_buff		*(*gro_receive)(struct list_head *head,
 						struct sk_buff *skb);
@@ -2870,6 +2876,7 @@ static inline void skb_gro_flush_final_remcsum(struct sk_buff *skb,
 }
 #endif
 
+/* 根据硬件信息，创建硬件首部 */
 static inline int dev_hard_header(struct sk_buff *skb, struct net_device *dev,
 				  unsigned short type,
 				  const void *daddr, const void *saddr,
@@ -2935,8 +2942,15 @@ extern int netdev_flow_limit_table_len;
 /*
  * Incoming packets are placed on per-CPU queues
  */
+/* 描述了与网络软中断处理相关的报文输入输出队列，每个CPU有一个独立的softnet_data， 所以操作的时候不需要加锁
+ *
+ * 该结构是网络层与接口层之间的
+ *
+ *	什么poll_list等结构就在这里
+ */
 struct softnet_data {
-	struct list_head	poll_list;
+	struct list_head	poll_list; //网络设备轮询队列，处于rx接收状态的网络设备链接到这个队列上, rx软中断中遍历这个队列, 是否将发送的数据包链接到这个队列中，与具体执行环境有关
+					//
 	struct sk_buff_head	process_queue;
 
 	/* stats */
@@ -2944,14 +2958,14 @@ struct softnet_data {
 	unsigned int		time_squeeze;
 	unsigned int		received_rps;
 #ifdef CONFIG_RPS
-	struct softnet_data	*rps_ipi_list;
+	struct softnet_data	*rps_ipi_list; //软件模拟的RSS
 #endif
 #ifdef CONFIG_NET_FLOW_LIMIT
 	struct sd_flow_limit __rcu *flow_limit;
 #endif
-	struct Qdisc		*output_queue;
+	struct Qdisc		*output_queue; /* 数据包tx软中断中会轮询这个网络设备队列。 处于报文rx状态的网络设备就添加到这个队列，*/
 	struct Qdisc		**output_queue_tailp;
-	struct sk_buff		*completion_queue;
+	struct sk_buff		*completion_queue; /* tx完成后的数据包链接在这个队列上，等待被释放, tx软中断中会检测 */
 #ifdef CONFIG_XFRM_OFFLOAD
 	struct sk_buff_head	xfrm_backlog;
 #endif
@@ -2968,7 +2982,8 @@ struct softnet_data {
 	unsigned int		input_queue_tail;
 #endif
 	unsigned int		dropped;
-	struct sk_buff_head	input_pkt_queue;
+	struct sk_buff_head	input_pkt_queue; /* 非NAPI的接口层报文缓冲队列，对于非NAPI的话，都是在硬中断或者轮询中读豹纹，调用netif_rx()将
+	报文传递到上层，即先将报文缓存到这个队列，然后产生一个rx软中断，软中断将报文向上层传递。 队列上限是netdev_max_backlog  */
 	struct napi_struct	backlog;
 
 };
@@ -3580,7 +3595,7 @@ int dev_get_phys_port_name(struct net_device *dev,
 			   char *name, size_t len);
 int dev_change_proto_down(struct net_device *dev, bool proto_down);
 struct sk_buff *validate_xmit_skb_list(struct sk_buff *skb, struct net_device *dev, bool *again);
-struct sk_buff *dev_hard_start_xmit(struct sk_buff *skb, struct net_device *dev,
+struct sk_buff *dev_hard_start_xmit(struct sk_buff *skb, struct net_device *dev, //驱动提供给上一层的数据包发送接口
 				    struct netdev_queue *txq, int *ret);
 
 typedef int (*bpf_op_t)(struct net_device *dev, struct netdev_bpf *bpf);
@@ -3992,6 +4007,8 @@ struct net_device *alloc_netdev_mqs(int sizeof_priv, const char *name,
 int dev_get_valid_name(struct net *net, struct net_device *dev,
 		       const char *name);
 
+/* 分配net_device结构，setup函数是关键，参见ether_setup函数 */
+/* sizeof_priv是紧挨net_device结构的不同网卡的私有数据， */
 #define alloc_netdev(sizeof_priv, name, name_assign_type, setup) \
 	alloc_netdev_mqs(sizeof_priv, name, name_assign_type, setup, 1, 1)
 

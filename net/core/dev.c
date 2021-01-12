@@ -3729,7 +3729,7 @@ struct netdev_queue *netdev_pick_tx(struct net_device *dev,
  *	@skb: buffer to transmit
  *	@sb_dev: suboordinate device used for L2 forwarding offload
  *
- *	Queue a buffer for transmission to a network device. The caller must
+ *	Queue a buffer for transmission to a network device. The caller must   网络层到接口层，然后在TX软中断中，通过网卡硬件发送出去
  *	have set the device and priority and built the buffer before calling
  *	this function. The function can be called from an interrupt.
  *
@@ -3760,7 +3760,7 @@ static int __dev_queue_xmit(struct sk_buff *skb, struct net_device *sb_dev)
 
 	skb_reset_mac_header(skb);
 
-	if (unlikely(skb_shinfo(skb)->tx_flags & SKBTX_SCHED_TSTAMP))
+	if (unlikely(skb_shinfo(skb)->tx_flags & SKBTX_SCHED_TSTAMP)) //如果需要生成软件时间戳的话，就去生成.参见TCP时间戳选项
 		__skb_tstamp_tx(skb, NULL, skb->sk, SCM_TSTAMP_SCHED);
 
 	/* Disable soft irqs for various locks below. Also
@@ -3770,7 +3770,7 @@ static int __dev_queue_xmit(struct sk_buff *skb, struct net_device *sb_dev)
 
 	skb_update_prio(skb);
 
-	qdisc_pkt_len_init(skb);
+	qdisc_pkt_len_init(skb); //主体部分
 #ifdef CONFIG_NET_CLS_ACT
 	skb->tc_at_ingress = 0;
 # ifdef CONFIG_NET_EGRESS
@@ -3915,8 +3915,9 @@ EXPORT_SYMBOL(dev_direct_xmit);
 int netdev_max_backlog __read_mostly = 1000;
 EXPORT_SYMBOL(netdev_max_backlog);
 
+/* 一些重要的系统参数 */
 int netdev_tstamp_prequeue __read_mostly = 1;
-int netdev_budget __read_mostly = 300;
+int netdev_budget __read_mostly = 300; //在数据包rx软中断中，所有设备可以读取的报文总配额, 这是默认值
 unsigned int __read_mostly netdev_budget_usecs = 2000;
 int weight_p __read_mostly = 64;           /* old backlog weight */
 int dev_weight_rx_bias __read_mostly = 1;  /* bias for backlog weight */
@@ -3929,7 +3930,7 @@ static inline void ____napi_schedule(struct softnet_data *sd,
 				     struct napi_struct *napi)
 {
 	list_add_tail(&napi->poll_list, &sd->poll_list);
-	__raise_softirq_irqoff(NET_RX_SOFTIRQ);
+	__raise_softirq_irqoff(NET_RX_SOFTIRQ); //激活软中断, 参见net_dev_init() net_rx_action()
 }
 
 #ifdef CONFIG_RPS
@@ -4495,6 +4496,7 @@ static int netif_rx_internal(struct sk_buff *skb)
  *
  */
 
+/* 非NAPI接收报文 */
 int netif_rx(struct sk_buff *skb)
 {
 	trace_netif_rx_entry(skb);
@@ -4915,7 +4917,7 @@ static int __netif_receive_skb_one_core(struct sk_buff *skb, bool pfmemalloc)
 
 	ret = __netif_receive_skb_core(skb, pfmemalloc, &pt_prev);
 	if (pt_prev)
-		ret = pt_prev->func(skb, skb->dev, pt_prev, orig_dev);
+		ret = pt_prev->func(skb, skb->dev, pt_prev, orig_dev); //这里就调用到具体网络层的rcv函数，譬如:ip_rcv
 	return ret;
 }
 
@@ -5882,7 +5884,7 @@ void __napi_schedule(struct napi_struct *n)
 	unsigned long flags;
 
 	local_irq_save(flags);
-	____napi_schedule(this_cpu_ptr(&softnet_data), n);
+	____napi_schedule(this_cpu_ptr(&softnet_data), n); //激活软中断等操作, 从这里进入NAPI的逻辑
 	local_irq_restore(flags);
 }
 EXPORT_SYMBOL(__napi_schedule);
@@ -6261,7 +6263,7 @@ static int napi_poll(struct napi_struct *n, struct list_head *repoll)
 	 */
 	work = 0;
 	if (test_bit(NAPI_STATE_SCHED, &n->state)) {
-		work = n->poll(n, weight);
+		work = n->poll(n, weight); //具体设备的poll函数， 譬如:e100_poll
 		trace_napi_poll(n, work, weight);
 	}
 
@@ -6304,20 +6306,22 @@ out_unlock:
 	return work;
 }
 
+/* rx 软中断函数 */
 static __latent_entropy void net_rx_action(struct softirq_action *h)
 {
-	struct softnet_data *sd = this_cpu_ptr(&softnet_data);
+	struct softnet_data *sd = this_cpu_ptr(&softnet_data); //核心结构, per-cpu的结构
 	unsigned long time_limit = jiffies +
-		usecs_to_jiffies(netdev_budget_usecs);
-	int budget = netdev_budget;
+		usecs_to_jiffies(netdev_budget_usecs); //单个软中断的运行时间不能太长
+	int budget = netdev_budget; //预算, 获取本次软中断的配额, 单个软中断处理的包数目要有限
 	LIST_HEAD(list);
-	LIST_HEAD(repoll);
+	LIST_HEAD(repoll); //声明并初始化一个节点
 
-	local_irq_disable();
-	list_splice_init(&sd->poll_list, &list);
+	local_irq_disable(); //关local中断，softnetdata是per-cpu结构
+	list_splice_init(&sd->poll_list, &list); //将两个list JOIN到一起，然后重新初始化前者
 	local_irq_enable();
 
 	for (;;) {
+		/* 遍历网络设备接收报文 */
 		struct napi_struct *n;
 
 		if (list_empty(&list)) {
@@ -6326,15 +6330,15 @@ static __latent_entropy void net_rx_action(struct softirq_action *h)
 			break;
 		}
 
-		n = list_first_entry(&list, struct napi_struct, poll_list);
-		budget -= napi_poll(n, &repoll);
+		n = list_first_entry(&list, struct napi_struct, poll_list); //从 poll_list中获取第一个节点, 没有取下来的
+		budget -= napi_poll(n, &repoll); //取节点，调用到具体的poll函数
 
 		/* If softirq window is exhausted then punt.
 		 * Allow this to run for 2 jiffies since which will allow
 		 * an average latency of 1.5/HZ.
 		 */
 		if (unlikely(budget <= 0 ||
-			     time_after_eq(jiffies, time_limit))) {
+			     time_after_eq(jiffies, time_limit))) { //配额用完了，或者这次软中断超时了
 			sd->time_squeeze++;
 			break;
 		}
@@ -8627,6 +8631,7 @@ EXPORT_SYMBOL_GPL(init_dummy_netdev);
  *	and expands the device name if you passed a format string to
  *	alloc_netdev.
  */
+/* 不仅仅是简单的挂链操作， 完成注册后，会发送NETDEV_REGISTER消息广播到netdev_chain通知链上，所有对设备注册感兴趣的模块都可以接收消息 */
 int register_netdev(struct net_device *dev)
 {
 	int err;
@@ -9585,21 +9590,22 @@ static struct pernet_operations __net_initdata default_device_ops = {
  *       This is called single threaded during boot, so no need
  *       to take the rtnl semaphore.
  */
+/* 在初始的时候的初始化级别是subsys_initcall */
 static int __init net_dev_init(void)
 {
 	int i, rc = -ENOMEM;
 
 	BUG_ON(!dev_boot_phase);
 
-	if (dev_proc_init())
+	if (dev_proc_init()) //注册记录统计信息的proc接口 /proc/net/dev /proc/net/softnet_data
 		goto out;
 
-	if (netdev_kobject_init())
+	if (netdev_kobject_init()) //sys文件系统接口
 		goto out;
 
-	INIT_LIST_HEAD(&ptype_all);
+	INIT_LIST_HEAD(&ptype_all); //ptype_all散列表
 	for (i = 0; i < PTYPE_HASH_SIZE; i++)
-		INIT_LIST_HEAD(&ptype_base[i]);
+		INIT_LIST_HEAD(&ptype_base[i]); //ptype_base散列表
 
 	INIT_LIST_HEAD(&offload_base);
 
@@ -9610,6 +9616,7 @@ static int __init net_dev_init(void)
 	 *	Initialise the packet receive queues.
 	 */
 
+	//初始化每个CPU的softnet_data
 	for_each_possible_cpu(i) {
 		struct work_struct *flush = per_cpu_ptr(&flush_works, i);
 		struct softnet_data *sd = &per_cpu(softnet_data, i);
@@ -9651,7 +9658,7 @@ static int __init net_dev_init(void)
 	if (register_pernet_device(&default_device_ops))
 		goto out;
 
-	open_softirq(NET_TX_SOFTIRQ, net_tx_action);
+	open_softirq(NET_TX_SOFTIRQ, net_tx_action); //注册软中断
 	open_softirq(NET_RX_SOFTIRQ, net_rx_action);
 
 	rc = cpuhp_setup_state_nocalls(CPUHP_NET_DEV_DEAD, "net/dev:dead",

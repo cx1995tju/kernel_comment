@@ -1607,6 +1607,7 @@ static int pci_dma_configure(struct device *dev)
 	return ret;
 }
 
+/* PCI BUS的全局变量，初始化的时候会注册到内核, bus_register(&pci_bus_type) */
 struct bus_type pci_bus_type = {
 	.name		= "pci",
 	.match		= pci_bus_match,

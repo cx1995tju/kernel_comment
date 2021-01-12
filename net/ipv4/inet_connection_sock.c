@@ -186,7 +186,7 @@ inet_csk_find_open_port(struct sock *sk, struct inet_bind_bucket **tb_ret, int *
 
 	attempt_half = (sk->sk_reuse == SK_CAN_REUSE) ? 1 : 0;
 other_half_scan:
-	inet_get_local_port_range(net, &low, &high);
+	inet_get_local_port_range(net, &low, &high); //端口要在范围内
 	high++; /* [32768, 60999] -> [32768, 61000[ */
 	if (high - low < 4)
 		attempt_half = 0;
@@ -287,11 +287,12 @@ static inline int sk_reuseport_match(struct inet_bind_bucket *tb,
 int inet_csk_get_port(struct sock *sk, unsigned short snum)
 {
 	bool reuse = sk->sk_reuse && sk->sk_state != TCP_LISTEN;
-	struct inet_hashinfo *hinfo = sk->sk_prot->h.hashinfo;
+	struct inet_hashinfo *hinfo = sk->sk_prot->h.hashinfo; /* tcp的hashinfo是 tcp_hashinfo */
 	int ret = 1, port = snum;
-	struct inet_bind_hashbucket *head;
+	struct inet_bind_hashbucket *head; //散列表的一个槽
 	struct net *net = sock_net(sk);
-	struct inet_bind_bucket *tb = NULL;
+	struct inet_bind_bucket *tb = NULL; //链到散列表的结构，对应着某个端口，如果在端口复用的情况下，可能略有不同，不是一一对应
+	/* 冲突判断函数？？？？？ inet_csk_bind_conflict */
 	kuid_t uid = sock_i_uid(sk);
 
 	if (!port) {

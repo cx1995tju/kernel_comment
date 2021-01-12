@@ -22,13 +22,14 @@
 #include <asm/byteorder.h>
 #include <linux/socket.h>
 
+/* 20Bytes */
 struct tcphdr {
-	__be16	source;
-	__be16	dest;
-	__be32	seq;
-	__be32	ack_seq;
+	__be16	source; //源端口
+	__be16	dest; 
+	__be32	seq; //序列号,该报文的首字节序列号
+	__be32	ack_seq; //确认号, 期待对方发送的下一个序列号
 #if defined(__LITTLE_ENDIAN_BITFIELD)
-	__u16	res1:4,
+	__u16	res1:4, 
 		doff:4,
 		fin:1,
 		syn:1,
@@ -39,22 +40,22 @@ struct tcphdr {
 		ece:1,
 		cwr:1;
 #elif defined(__BIG_ENDIAN_BITFIELD)
-	__u16	doff:4,
+	__u16	doff:4, //头部长度
 		res1:4,
-		cwr:1,
-		ece:1,
-		urg:1,
-		ack:1,
-		psh:1,
-		rst:1,
-		syn:1,
+		cwr:1, //拥塞窗口减, 拥塞控制中，发送方用于降低发送速率
+		ece:1, //ECN回显, 发送方接收到了一个更早的拥塞通告
+		urg:1, //紧急，表示紧急指针有效
+		ack:1, //确认
+		psh:1, //推送
+		rst:1, //重置链接
+		syn:1, 
 		fin:1;
 #else
 #error	"Adjust your <asm/byteorder.h> defines"
 #endif	
-	__be16	window;
-	__sum16	check;
-	__be16	urg_ptr;
+	__be16	window; //窗口大小
+	__sum16	check;//校验和
+	__be16	urg_ptr; //紧急指针
 };
 
 /*

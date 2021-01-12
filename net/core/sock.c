@@ -1596,6 +1596,7 @@ void sk_destruct(struct sock *sk)
 		__sk_destruct(&sk->sk_rcu);
 }
 
+/* sock put 会到这个函数，这个函数会调用sk_destruct */
 static void __sk_free(struct sock *sk)
 {
 	if (likely(sk->sk_net_refcnt))
@@ -1796,6 +1797,7 @@ EXPORT_SYMBOL_GPL(sk_setup_caps);
 /*
  * Write buffer destructor automatically called from kfree_skb.
  */
+/* tx方向的skb的销毁 */
 void sock_wfree(struct sk_buff *skb)
 {
 	struct sock *sk = skb->sk;
@@ -1830,6 +1832,7 @@ void __sock_wfree(struct sk_buff *skb)
 		__sk_free(sk);
 }
 
+/* 将skb关联到sk上 */
 void skb_set_owner_w(struct sk_buff *skb, struct sock *sk)
 {
 	skb_orphan(skb);
@@ -1841,7 +1844,7 @@ void skb_set_owner_w(struct sk_buff *skb, struct sock *sk)
 		return;
 	}
 #endif
-	skb->destructor = sock_wfree;
+	skb->destructor = sock_wfree; //设置了skb的销毁函数
 	skb_set_hash_from_sk(skb, sk);
 	/*
 	 * We used to take a refcount on sk, but following operation
@@ -1928,6 +1931,8 @@ EXPORT_SYMBOL(sock_i_ino);
 /*
  * Allocate a skb from the socket's send buffer.
  */
+/* 也是分配发送缓存，在TCP中，仅仅在构造SYN+ACK的时候使用
+ */
 struct sk_buff *sock_wmalloc(struct sock *sk, unsigned long size, int force,
 			     gfp_t priority)
 {
@@ -1972,6 +1977,9 @@ struct sk_buff *sock_omalloc(struct sock *sk, unsigned long size,
 /*
  * Allocate a memory block from the socket's option memory buffer.
  */
+/* 各种围绕socket的辅助缓存的分配 , 会判断是否超过了sysctl_optmem_max的限制
+ *
+ * */
 void *sock_kmalloc(struct sock *sk, int size, gfp_t priority)
 {
 	if ((unsigned int)size <= sysctl_optmem_max &&
@@ -2021,6 +2029,8 @@ EXPORT_SYMBOL(sock_kzfree_s);
 /* It is almost wait_for_tcp_memory minus release_sock/lock_sock.
    I think, these locks should be removed for datagram sockets.
  */
+/* 等待分配可以用于tx的内存
+ */
 static long sock_wait_for_wmem(struct sock *sk, long timeo)
 {
 	DEFINE_WAIT(wait);
@@ -2050,8 +2060,8 @@ static long sock_wait_for_wmem(struct sock *sk, long timeo)
  *	Generic send/receive buffer handlers
  */
 
-struct sk_buff *sock_alloc_send_pskb(struct sock *sk, unsigned long header_len,
-				     unsigned long data_len, int noblock,
+struct sk_buff *sock_alloc_send_pskb(struct sock *sk, unsigned long header_len, /* 待分配skb线性数据区大小 */
+				     unsigned long data_len, int noblock, /* data_len 待分配的skb的分散聚合IO区大小 */
 				     int *errcode, int max_page_order)
 {
 	struct sk_buff *skb;
@@ -2080,6 +2090,7 @@ struct sk_buff *sock_alloc_send_pskb(struct sock *sk, unsigned long header_len,
 			goto interrupted;
 		timeo = sock_wait_for_wmem(sk, timeo);
 	}
+	/* 详见skb的分散聚合概念 */
 	skb = alloc_skb_with_frags(header_len, data_len, max_page_order,
 				   errcode, sk->sk_allocation);
 	if (skb)
@@ -2094,6 +2105,7 @@ failure:
 }
 EXPORT_SYMBOL(sock_alloc_send_pskb);
 
+/* 一般是UDP分配用于tx的skb使用 */
 struct sk_buff *sock_alloc_send_skb(struct sock *sk, unsigned long size,
 				    int noblock, int *errcode)
 {
@@ -2327,7 +2339,7 @@ void __release_sock(struct sock *sk)
 	while ((skb = sk->sk_backlog.head) != NULL) {
 		sk->sk_backlog.head = sk->sk_backlog.tail = NULL;
 
-		spin_unlock_bh(&sk->sk_lock.slock);
+		spin_unlock_bh(&sk->sk_lock.slock); //如果后备队列中还有skb，就通过sk_backlog_rcv进行处理
 
 		do {
 			next = skb->next;
@@ -2708,6 +2720,7 @@ static void sock_def_write_space(struct sock *sk)
 	/* Do not wake up a writer until he can make "significant"
 	 * progress.  --DaveM
 	 */
+	/* 有唤醒的意义的时候才唤醒，不要瞎唤醒，所以要检测buffer大小信息, 至少腾出了一半空间 */
 	if ((refcount_read(&sk->sk_wmem_alloc) << 1) <= sk->sk_sndbuf) {
 		wq = rcu_dereference(sk->sk_wq);
 		if (skwq_has_sleeper(wq))
@@ -2726,6 +2739,7 @@ static void sock_def_destruct(struct sock *sk)
 {
 }
 
+/* 有带外数据到来的时候，通知等待处理带外数据的套接口fasync_list队列 */
 void sk_send_sigurg(struct sock *sk)
 {
 	if (sk->sk_socket && sk->sk_socket->file)
@@ -2749,6 +2763,7 @@ void sk_stop_timer(struct sock *sk, struct timer_list* timer)
 }
 EXPORT_SYMBOL(sk_stop_timer);
 
+/* sock sk结构最基本的一些初始化，反正调用它总没错，需要独特的地方再修改 */
 void sock_init_data(struct socket *sock, struct sock *sk)
 {
 	sk_init_common(sk);
@@ -2833,7 +2848,7 @@ EXPORT_SYMBOL(sock_init_data);
 void lock_sock_nested(struct sock *sk, int subclass)
 {
 	might_sleep();
-	spin_lock_bh(&sk->sk_lock.slock);
+	spin_lock_bh(&sk->sk_lock.slock); //这里锁住了软中断的，因为报文处理总是在软中断中出现的
 	if (sk->sk_lock.owned) //sk_Lock被获取了
 		__lock_sock(sk);
 	sk->sk_lock.owned = 1;
@@ -3258,9 +3273,10 @@ static int req_prot_init(const struct proto *prot)
 	return 0;
 }
 
+//注册到proto_list上挂起来 cat /proc/net/protocols, 传输层协议注册
 int proto_register(struct proto *prot, int alloc_slab)
 {
-	if (alloc_slab) {
+	if (alloc_slab) { /* 在slab机制中注册了 */
 		prot->slab = kmem_cache_create_usercopy(prot->name,
 					prot->obj_size, 0,
 					SLAB_HWCACHE_ALIGN | SLAB_ACCOUNT |
@@ -3274,7 +3290,7 @@ int proto_register(struct proto *prot, int alloc_slab)
 			goto out;
 		}
 
-		if (req_prot_init(prot))
+		if (req_prot_init(prot)) /* 深层分配 */
 			goto out_free_request_sock_slab;
 
 		if (prot->twsk_prot != NULL) {
@@ -3296,7 +3312,7 @@ int proto_register(struct proto *prot, int alloc_slab)
 	}
 
 	mutex_lock(&proto_list_mutex);
-	list_add(&prot->node, &proto_list);
+	list_add(&prot->node, &proto_list); /* 链起来 */
 	assign_proto_idx(prot);
 	mutex_unlock(&proto_list_mutex);
 	return 0;

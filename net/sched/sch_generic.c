@@ -368,6 +368,7 @@ bool sch_direct_xmit(struct sk_buff *skb, struct Qdisc *q,
  *				>0 - queue is not empty.
  *
  */
+/* 从排队规则中获取一个可以输出的报文，然后将其输出到网络设备（调用与具体的网络设备相关的输出函数）*/
 static inline bool qdisc_restart(struct Qdisc *q, int *packets)
 {
 	spinlock_t *root_lock = NULL;
@@ -630,7 +631,7 @@ static int pfifo_fast_enqueue(struct sk_buff *skb, struct Qdisc *qdisc,
 
 	err = skb_array_produce(q, skb);
 
-	if (unlikely(err))
+	if (unlikely(err)) //队列满了，挂不上了，丢数据包
 		return qdisc_drop_cpu(skb, qdisc, to_free);
 
 	qdisc_qstats_atomic_qlen_inc(qdisc);

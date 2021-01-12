@@ -141,18 +141,19 @@ struct nested_calls {
  *
  * 每个该类型成员就是表示一个epoll机制监听项
  */
+/* 该结构的初始化发生在epoll_ctl(ADD) -> ep_insert()  */
 struct epitem {
 	/* eventpoll会使用一颗红黑树来管理所有的其监听的epitem对象 */
 	union {
 		/* RB tree node links this structure to the eventpoll RB tree */
-		struct rb_node rbn;
+		struct rb_node rbn; /* 链入到eventpoll的红黑树中，被其管理起来 */
 		/* Used to free the struct epitem */
 		struct rcu_head rcu;
 	};
 
 	/* List header used to link this structure to the eventpoll ready list */
 	/* 链入ready list */
-	struct list_head rdllink;
+	struct list_head rdllink; /* 链入到eventpoll的就绪队列中 */
 
 	/*
 	 * Works together "struct eventpoll"->ovflist in keeping the
@@ -170,12 +171,12 @@ struct epitem {
 	int nwait;
 
 	/* List containing poll wait queues */
-	/* 会将eppoll_entry结构链入到这个表中*/
+	/* 会将eppoll_entry结构链入到这个表中, 详见ep_ptable_queue_proc() */
 	struct list_head pwqlist;
 
 	/* The "container" of this item */
 	/* 显然，指向eventpoll结构的 */
-	struct eventpoll *ep;
+	struct eventpoll *ep;  /* 表示监听的事件 */
 
 	/* List header used to link this item to the "struct file" items list */
 	/* 链入到对应的file结构的，这样就可以通过file结构索引到epitem结构的 */
@@ -216,10 +217,10 @@ struct eventpoll {
 	wait_queue_head_t poll_wait;
 
 	/* List of ready file descriptors */
-	struct list_head rdllist; //就绪的fd
+	struct list_head rdllist; //就绪的fd, 所有就绪的fd的list
 
 	/* RB tree root used to store monitored fd structs */
-	struct rb_root_cached rbr; //红黑树组织所有被监听的fd
+	struct rb_root_cached rbr; //红黑树组织所有被监听的fd, 所有被监听的fd组织成红黑树
 
 	/*
 	 * This is a single linked list that chains all the "struct epitem" that
@@ -237,7 +238,7 @@ struct eventpoll {
 	/* The user that created the eventpoll descriptor */
 	struct user_struct *user;
 
-	struct file *file;
+	struct file *file; /* 该eventpoll本身也被vfs管理，这是对应的file结构，file->private 就是指向的该eventpoll结构 */
 
 	/* used to optimize loop detection check */
 	int visited;
@@ -258,7 +259,7 @@ struct eventpoll {
  *
  * 唤醒的时候直接，wake_up(sk_wq)就会执行epoll_callback函数，然后通过eventpoll唤醒对应的进程。
  * */
-struct eppoll_entry {
+struct eppoll_entry {  /* 挂入socekt wait list的结构 */
 	/* List header used to link this structure to the "struct epitem" */
 	/* 链入到epitem结构中pwqlist成员的 */
 	struct list_head llink;
@@ -280,7 +281,7 @@ struct eppoll_entry {
 };
 
 /* Wrapper struct used by poll queueing */
-/* 一般来说，是一个临时的辅助结构 */
+/* 一般来说，是一个临时的辅助结构, 将一个函数与一个epi项暂时关联起来 */
 struct ep_pqueue {
 	poll_table pt; //指向一个函数
 	struct epitem *epi; //一个事件项
@@ -734,7 +735,7 @@ static __poll_t ep_scan_ready_list(struct eventpoll *ep,
 	spin_unlock_irq(&ep->wq.lock);
 
 	/*
-	 * Now call the callback function.
+	 * Now call the callback function. ep_send_events_proc()
 	 */
 	res = (*sproc)(ep, &txlist, priv);
 
@@ -921,7 +922,8 @@ static __poll_t ep_item_poll(const struct epitem *epi, poll_table *pt,
 	pt->_key = epi->event.events; //设置了_key
 	if (!is_file_epoll(epi->ffd.file)) //对于这个事件关联的文件不是epoll文件都来到了这里，也就是说大部分场景是来到了这里。
 		return vfs_poll(epi->ffd.file, pt) & epi->event.events; //返回产生的事件项, 一定要与业务端要求监听的事件有交集
-			//vfs_poll只是单纯的返回socket上产生的所有事件
+			//vfs_poll只是单纯的返回socket上产生的所有事件, 同时执行更具体的poll函数，在这个poll函数里
+			//一般会执行poll_wait()函数
 
 	ep = epi->ffd.file->private_data;
 	poll_wait(epi->ffd.file, &ep->poll_wait, pt);
@@ -1050,7 +1052,7 @@ static int ep_alloc(struct eventpoll **pep)
 
 	user = get_current_user();
 	error = -ENOMEM;
-	ep = kzalloc(sizeof(*ep), GFP_KERNEL); //
+	ep = kzalloc(sizeof(*ep), GFP_KERNEL);
 	if (unlikely(!ep))
 		goto free_uid;
 
@@ -1306,11 +1308,11 @@ static void ep_ptable_queue_proc(struct file *file, wait_queue_head_t *whead,
 
 	/* pwq是动态分配的，是一个比较持久的量，其中函数指向了ep_poll_callback函数 */
 	if (epi->nwait >= 0 && (pwq = kmem_cache_alloc(pwq_cache, GFP_KERNEL))) {
-		init_waitqueue_func_entry(&pwq->wait, ep_poll_callback);
+		init_waitqueue_func_entry(&pwq->wait, ep_poll_callback);  /* 这个ep_poll_callback 是核心的核心， socket被唤醒后就执行这个函数 */
 		pwq->whead = whead; // whead结构是sk_sleep(sk), 即sk_wq
 		pwq->base = epi; //关联到epi结构，就能关联到对应的file结构。最后通过pwq来回调ep_poll_callback()
 		if (epi->event.events & EPOLLEXCLUSIVE)
-			add_wait_queue_exclusive(whead, &pwq->wait);
+			add_wait_queue_exclusive(whead, &pwq->wait); /* 将epoll_entry结构挂到了sk_wq上 */
 		else
 			add_wait_queue(whead, &pwq->wait); //pwq->wait 链入到 whead中
 		list_add_tail(&pwq->llink, &epi->pwqlist);
@@ -1481,13 +1483,14 @@ static noinline void ep_destroy_wakeup_source(struct epitem *epi)
  * Must be called with "mtx" held.
  */
 /* ep eventpoll对象， event是事件， tf是被监听文件，fd 被监听设备， full_check*/
+/* 核心工作，创建epitem对象，加入到eventpoll机制中监听 */
 static int ep_insert(struct eventpoll *ep, const struct epoll_event *event,
 		     struct file *tfile, int fd, int full_check)
 {
 	int error, pwake = 0;
 	__poll_t revents;
 	long user_watches;
-	struct epitem *epi; //根据epoll_event event来构造epitem结构，表示事件（包含对应的fd等结构）
+	struct epitem *epi; //根据epoll_event event来构造epitem结构，表示监听项，与epoll_event有较大差别（包含对应的fd等结构）
 	struct ep_pqueue epq; //局部变量，临时结构, 一个函数 + epitem指针
 
 	/* construct epi struct, and create a temp struct epq struct(local var)
@@ -1520,7 +1523,7 @@ static int ep_insert(struct eventpoll *ep, const struct epoll_event *event,
 	}
 
 	/* Initialize the poll table using the queue callback */
-	/* 初始化epq */
+	/* 初始化epq, 这是一个临时结构咯，将epi与一个函数关联起来（ep_ptable_queue_proc） */
 	epq.epi = epi;
 	init_poll_funcptr(&epq.pt, ep_ptable_queue_proc); //epq结构的赋值，poll_wait()的时候会调用这个函数
 
@@ -1533,7 +1536,7 @@ static int ep_insert(struct eventpoll *ep, const struct epoll_event *event,
 	 */
 
 	/* 跨越千万里，只为ep_ptable_queue_proc */
-	revents = ep_item_poll(epi, &epq.pt, 1); //调用对应文件的poll函数，最终的主要目的就是为了回调ep_ptable_queue_proc()函数
+	revents = ep_item_poll(epi, &epq.pt, 1); //调用对应文件的poll函数,在那里会执行poll_wait函数，最终的主要目的就是为了回调ep_ptable_queue_proc()函数
 
 	/*
 	 * We have to check if something went wrong during the poll wait queue
@@ -1741,7 +1744,7 @@ static __poll_t ep_send_events_proc(struct eventpoll *ep, struct list_head *head
 		 * is holding "mtx", so no operations coming from userspace
 		 * can change the item.
 		 */
-		if (revents) { /* 对应的sk_wq上有要监听的事件触发的 */
+		if (revents) { /* 对应的sk_wq上有要监听的事件触发的 */ 
 			if (__put_user(revents, &uevent->events) ||
 			    __put_user(epi->event.data, &uevent->data)) {
 				list_add(&epi->rdllink, head);
@@ -1915,7 +1918,7 @@ check_events:
 	 * there's still timeout left over, we go trying again in search of
 	 * more luck.
 	 */
-	if (!res && eavail &&
+	if (!res && eavail && /* ep_send_events() 是核心， 很多epoll的逻辑在这里实现的，譬如：oneshot， ET LT逻辑 */
 	    !(res = ep_send_events(ep, events, maxevents)) && !timed_out)
 		goto fetch_events;
 
@@ -2113,7 +2116,7 @@ SYSCALL_DEFINE4(epoll_ctl, int, epfd, int, op, int, fd,
 
 	/* The target file descriptor must support poll */
 	error = -EPERM;
-	if (!file_can_poll(tf.file)) //file中的poll函数指针不为空
+	if (!file_can_poll(tf.file)) //file中的poll函数指针不为空, 某个文件能够被poll的前提是其提供了poll函数，会被epoll机制使用，譬如：inet中的tcp_poll, vsock中的vsock_poll
 		goto error_tgt_fput;
 
 	/* EPOLLAKEUP 与系统的电源管理，自动休眠有关
@@ -2154,7 +2157,7 @@ SYSCALL_DEFINE4(epoll_ctl, int, epfd, int, op, int, fd,
 
 	/*
 	 * At this point it is safe to assume that the "private_data" contains
-	 * our own data structure.
+	 * our own data structure.   //NO CHECK
 	 */
 	ep = f.file->private_data;  //指向eventpoll结构
 
@@ -2203,6 +2206,7 @@ SYSCALL_DEFINE4(epoll_ctl, int, epfd, int, op, int, fd,
 	 * ep_find() till we release the mutex.
 	 */
 	/* L2125 mutex_lock_nested(&ep->mtx, 0); */
+	/* epitem 类型 */
 	epi = ep_find(ep, tf.file, fd); //在红黑树中找目标文件的监听项，没有的话，就返回空
 
 	error = -EINVAL;
@@ -2211,7 +2215,7 @@ SYSCALL_DEFINE4(epoll_ctl, int, epfd, int, op, int, fd,
 		if (!epi) {
 			/* 必须也要监听ERR与HUP事件 */
 			epds.events |= EPOLLERR | EPOLLHUP; //事件从用户空间copy到了内核空间，即epds结构，将是将标志位置err与hup
-			/* ep eventpoll对象， epds是事件， tf是被监听文件，fd 被监听设备， full_check*/
+			/* ep eventpoll对象， epds是事件， tf是被监听文件file结构，fd 被监听文件的fd， full_check*/
 			error = ep_insert(ep, &epds, tf.file, fd, full_check); //核心
 		} else
 			error = -EEXIST;

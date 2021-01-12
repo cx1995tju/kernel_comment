@@ -13,27 +13,34 @@ Written for: 2.6.31
 
 Terminology used in this Document
 ---------------------------------
-
+										tail 生产端
 tail - where new writes happen in the ring buffer.
 
+										head 消费端
 head - where new reads happen in the ring buffer.
 
+										producer 写者
 producer - the task that writes into the ring buffer (same as writer)
 
 writer - same as producer
 
+										读者
 consumer - the task that reads from the buffer (same as reader)
 
 reader - same as consumer.
 
-reader_page - A page outside the ring buffer used solely (for the most part)    PAGE
+										reader_page 一个独立于ring buffer的==页面==，大部分时候被读者使用
+reader_page - A page outside the ring buffer used solely (for the most part)
     by the reader.
 
-head_page - a pointer to the page that the reader will use next     POINTER
+										head_page 一个指针指向一个页面，读者接下来会使用
+head_page - a pointer to the page that the reader will use next
 
-tail_page - a pointer to the page that will be written to next      POINTER
+										tail_page 一个指针指向一个页面，写者接下来会向其中写
+tail_page - a pointer to the page that will be written to next
 
-commit_page - a pointer to the page with the last finished non-nested write.    POINTER
+										commit page 一个指针指向一个页面，其中有上一次完成的非嵌套的写
+commit_page - a pointer to the page with the last finished non-nested write.
 
 cmpxchg - hardware-assisted atomic transaction that performs the following:
 
@@ -48,19 +55,22 @@ cmpxchg - hardware-assisted atomic transaction that performs the following:
 
 The Generic Ring Buffer
 -----------------------
+										ring_buffer 的两种模式：
+											1. overwrite模式，会丢失最旧的内容
+											2. (producer-consumer模式)non-overwrite模式，会丢失最新的内容
 
 The ring buffer can be used in either an overwrite mode or in
 producer/consumer mode.
 
 Producer/consumer mode is where if the producer were to fill up the
 buffer before the consumer could free up anything, the producer
-will stop writing to the buffer. This will lose most recent events.   丢失最新的事件    producer/consumer 模式
+will stop writing to the buffer. This will lose most recent events.
 
 Overwrite mode is where if the producer were to fill up the buffer
 before the consumer could free up anything, the producer will
-overwrite the older data. This will lose the oldest events.          丢失最旧的事件   overwrite模式
+overwrite the older data. This will lose the oldest events.
 
-No two writers can write at the same time (on the same per-cpu buffer),
+No two writers can write at the same time (on the same per-cpu buffer),		没有两个写者能够在相同时间进行写操作，但是写操作可以嵌套，即一个可以打断另一个。但是若A打断B，A必须完成写操作后B才能继续
 but a writer may interrupt another writer, but it must finish writing
 before the previous writer may continue. This is very important to the
 algorithm. The writers act like a "stack". The way interrupts works
@@ -74,11 +84,11 @@ enforces this behavior.
                  writer2 finishes
   writer1 finishes
 
-This is very much like a writer being preempted by an interrupt and
+This is very much like a writer being preempted by an interrupt and		非常类似于写操作被中断打断了，然后在中断中进行了一次写操作。
 the interrupt doing a write as well.
 
-Readers can happen at any time. But no two readers may run at the
-same time, nor can a reader preempt/interrupt another reader. A reader
+Readers can happen at any time. But no two readers may run at the		读者可以在任意时间进行，但是不会在同一时间有两个读者，读者之间不能抢占.  读者可以在有写者的时候读。
+same time, nor can a reader preempt/interrupt another reader. A reader		读者可以被写者中断。
 cannot preempt/interrupt a writer, but it may read/consume from the
 buffer at the same time as a writer is writing, but the reader must be
 on another processor to do so. A reader may read on its own processor
@@ -88,19 +98,19 @@ A writer can preempt a reader, but a reader cannot preempt a writer.
 But a reader can read the buffer at the same time (on another processor)
 as a writer.
 
-The ring buffer is made up of a list of pages held together by a linked list.
+The ring buffer is made up of a list of pages held together by a linked list.	ring buffer是由一系列的pages构成的链表组成的
 
-At initialization a reader page is allocated for the reader that is not
+At initialization a reader page is allocated for the reader that is not		初始化的时候会分配一个read page，读者会使用，但是其不是ring buffer的组成部分
 part of the ring buffer.
 
-The head_page, tail_page and commit_page are all initialized to point
+The head_page, tail_page and commit_page are all initialized to point		head_page tail_page commit_page都是指针，初始化的时候都指向同一个页
 to the same page.
 
-The reader page is initialized to have its next pointer pointing to
+The reader page is initialized to have its next pointer pointing to		reader page的next指针，指向head page， prev指针，指向head page前的一个page
 the head page, and its previous pointer pointing to a page before
 the head page.
 
-The reader has its own page to use. At start up time, this page is
+The reader has its own page to use. At start up time, this page is		读者有其自己的page，在初始的时候，这个page没有依附任何buffer，当读者想要读的时候，如果page是空，就可以与head_page交换
 allocated but is not attached to the list. When the reader wants
 to read from the buffer, if its page is empty (like it is on start-up),
 it will swap its page with the head_page. The old reader page will

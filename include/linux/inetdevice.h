@@ -22,18 +22,19 @@ struct ipv4_devconf {
 
 #define MC_HASH_SZ_LOG 9
 
+/* ip ifconfig 工具可以修改这些配置 */
 struct in_device {
-	struct net_device	*dev;
+	struct net_device	*dev; //指向这个one for all的网络设备结构
 	refcount_t		refcnt;
-	int			dead;
-	struct in_ifaddr	*ifa_list;	/* IP ifaddr chain		*/
+	int			dead; //为1的时候，表示这个结构快要被释放了，不允许访问其成员了
+	struct in_ifaddr	*ifa_list;	/* IP ifaddr chain	一个设备是可能有多个ip地址的	*/
 
 	struct ip_mc_list __rcu	*mc_list;	/* IP multicast filter chain    */
 	struct ip_mc_list __rcu	* __rcu *mc_hash;
 
 	int			mc_count;	/* Number of installed mcasts	*/
 	spinlock_t		mc_tomb_lock;
-	struct ip_mc_list	*mc_tomb;
+	struct ip_mc_list	*mc_tomb; //各种组播相关的成员
 	unsigned long		mr_v1_seen;
 	unsigned long		mr_v2_seen;
 	unsigned long		mr_maxdelay;
@@ -43,9 +44,9 @@ struct in_device {
 	struct timer_list	mr_gq_timer;	/* general query timer */
 	struct timer_list	mr_ifc_timer;	/* interface change timer */
 
-	struct neigh_parms	*arp_parms;
-	struct ipv4_devconf	cnf;
-	struct rcu_head		rcu_head;
+	struct neigh_parms	*arp_parms; //arp相关的参数
+	struct ipv4_devconf	cnf; //一些config信息
+	struct rcu_head		rcu_head; //rcu机制来释放这个结构
 };
 
 #define IPV4_DEVCONF(cnf, attr) ((cnf).data[IPV4_DEVCONF_ ## attr - 1])
@@ -134,18 +135,18 @@ static inline void ipv4_devconf_setall(struct in_device *in_dev)
 
 struct in_ifaddr {
 	struct hlist_node	hash;
-	struct in_ifaddr	*ifa_next;
-	struct in_device	*ifa_dev;
-	struct rcu_head		rcu_head;
-	__be32			ifa_local;
+	struct in_ifaddr	*ifa_next; //多个ip地址串成链
+	struct in_device	*ifa_dev; //执行in_device结构, 是in_ifaddr的母结构
+	struct rcu_head		rcu_head; //保护该结构的rcu机制, 用来释放这个结构
+	__be32			ifa_local; //广播设备上，这个地址与ifa_address一样，点对点设备上ifa_address存储对面的地址，ifa_local存储本地地址
 	__be32			ifa_address;
 	__be32			ifa_mask;
 	__u32			ifa_rt_priority;
-	__be32			ifa_broadcast;
-	unsigned char		ifa_scope;
-	unsigned char		ifa_prefixlen;
-	__u32			ifa_flags;
-	char			ifa_label[IFNAMSIZ];
+	__be32			ifa_broadcast; //广播地址
+	unsigned char		ifa_scope; //寻址范围, RT_SCOPE_UNIVERSE
+	unsigned char		ifa_prefixlen; //子网掩码长度
+	__u32			ifa_flags; //IP地址属性 IFA_F_SECONDARY
+	char			ifa_label[IFNAMSIZ];  //地址标签，一般是网络设备名 或 网络设备别名
 
 	/* In seconds, relative to tstamp. Expiry is at tstamp + HZ * lft. */
 	__u32			ifa_valid_lft;

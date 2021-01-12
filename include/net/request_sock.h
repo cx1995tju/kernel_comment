@@ -48,7 +48,7 @@ int inet_rtx_syn_ack(const struct sock *parent, struct request_sock *req);
 /* struct request_sock - mini sock to represent a connection request
  */
 struct request_sock {
-	struct sock_common		__req_common;
+	struct sock_common		__req_common; /* 为什么需要一个这么大的sock_common 结构 */
 #define rsk_refcnt			__req_common.skc_refcnt
 #define rsk_hash			__req_common.skc_hash
 #define rsk_listener			__req_common.skc_listener
@@ -62,8 +62,8 @@ struct request_sock {
 	u8				num_timeout:7; /* number of timeouts */
 	u32				ts_recent;
 	struct timer_list		rsk_timer;
-	const struct request_sock_ops	*rsk_ops;
-	struct sock			*sk;
+	const struct request_sock_ops	*rsk_ops; /* 指向连接建立过程使用的函数集合(譬如send_synack)，TCP指向tcp_request_sock_ops结构*/
+	struct sock			*sk; /* 新的socket的sk结构来源 */
 	u32				*saved_syn;
 	u32				secid;
 	u32				peer_secid;
@@ -74,6 +74,7 @@ static inline struct request_sock *inet_reqsk(const struct sock *sk)
 	return (struct request_sock *)sk;
 }
 
+/*request_sock 与 sock使用的是同一块空间，在连接建立后直接在这块空间建立sock结构 */
 static inline struct sock *req_to_sk(struct request_sock *req)
 {
 	return (struct sock *)req;
@@ -170,8 +171,8 @@ struct request_sock_queue {
 	atomic_t		young;
 
 	struct request_sock	*rskq_accept_head;
-	struct request_sock	*rskq_accept_tail;
-	struct fastopen_queue	fastopenq;  /* Check max_qlen != 0 to determine
+	struct request_sock	*rskq_accept_tail; //这个链表保存的是established的sock结构
+	struct fastopen_queue	fastopenq;  /* Check max_qlen != 0 to determine 
 					     * if TFO is enabled.
 					     */
 };

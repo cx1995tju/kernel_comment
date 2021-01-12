@@ -610,7 +610,7 @@ struct sock *tcp_check_req(struct sock *sk, struct sk_buff *skb,
 	}
 
 	/* Check for pure retransmitted SYN. */
-	if (TCP_SKB_CB(skb)->seq == tcp_rsk(req)->rcv_isn &&
+	if (TCP_SKB_CB(skb)->seq == tcp_rsk(req)->rcv_isn && /* 如果接收到的是客户端重发的syn端的话， 则重新调用send_synack，然后返回 */
 	    flg == TCP_FLAG_SYN &&
 	    !paws_reject) {
 		/*
@@ -710,7 +710,7 @@ struct sock *tcp_check_req(struct sock *sk, struct sk_buff *skb,
 	 * elsewhere and is checked directly against the child socket rather
 	 * than req because user data may have been sent out.
 	 */
-	if ((flg & TCP_FLAG_ACK) && !fastopen &&
+	if ((flg & TCP_FLAG_ACK) && !fastopen && /* 接收到的ack段无效（序号不对, 与syn+ack的不匹配），直接返回 */
 	    (TCP_SKB_CB(skb)->ack_seq !=
 	     tcp_rsk(req)->snt_isn + 1))
 		return sk;
@@ -722,6 +722,7 @@ struct sock *tcp_check_req(struct sock *sk, struct sk_buff *skb,
 
 	/* RFC793: "first check sequence number". */
 
+	/* 序号不在接收窗口内，判断是不是rst包，否则要给对端发ack */
 	if (paws_reject || !tcp_in_window(TCP_SKB_CB(skb)->seq, TCP_SKB_CB(skb)->end_seq,
 					  tcp_rsk(req)->rcv_nxt, tcp_rsk(req)->rcv_nxt + req->rsk_rcv_wnd)) {
 		/* Out of window: send ACK and drop. */
@@ -737,6 +738,7 @@ struct sock *tcp_check_req(struct sock *sk, struct sk_buff *skb,
 
 	/* In sequence, PAWS is OK. */
 
+	/* 正常保存时间戳 */
 	if (tmp_opt.saw_tstamp && !after(TCP_SKB_CB(skb)->seq, tcp_rsk(req)->rcv_nxt))
 		req->ts_recent = tmp_opt.rcv_tsval;
 
@@ -760,7 +762,7 @@ struct sock *tcp_check_req(struct sock *sk, struct sk_buff *skb,
 	 * XXX (TFO) - if we ever allow "data after SYN", the
 	 * following check needs to be removed.
 	 */
-	if (!(flg & TCP_FLAG_ACK))
+	if (!(flg & TCP_FLAG_ACK)) /* 正常来说，包中一定有ack标志的 */
 		return NULL;
 
 	/* For Fast Open no more processing is needed (sk is the
@@ -769,6 +771,7 @@ struct sock *tcp_check_req(struct sock *sk, struct sk_buff *skb,
 	if (fastopen)
 		return sk;
 
+	/* 如果设置了deffer  accept，不处理ack包的，而是等到有负荷的包到来了再处理 */
 	/* While TCP_DEFER_ACCEPT is active, drop bare ACK. */
 	if (req->num_timeout < inet_csk(sk)->icsk_accept_queue.rskq_defer_accept &&
 	    TCP_SKB_CB(skb)->end_seq == tcp_rsk(req)->rcv_isn + 1) {
@@ -783,6 +786,7 @@ struct sock *tcp_check_req(struct sock *sk, struct sk_buff *skb,
 	 * ESTABLISHED STATE. If it will be dropped after
 	 * socket is created, wait for troubles.
 	 */
+	/* 创建子的sock结构了 tcp_v4_syn_recv_sock() 不是reqsock了，是真的sock了 */
 	child = inet_csk(sk)->icsk_af_ops->syn_recv_sock(sk, skb, req, NULL,
 							 req, &own_req);
 	if (!child)
@@ -791,7 +795,7 @@ struct sock *tcp_check_req(struct sock *sk, struct sk_buff *skb,
 	sock_rps_save_rxhash(child, skb);
 	tcp_synack_rtt_meas(child, req);
 	*req_stolen = !own_req;
-	return inet_csk_complete_hashdance(sk, child, req, own_req);
+	return inet_csk_complete_hashdance(sk, child, req, own_req); /* 插入队列 */
 
 listen_overflow:
 	if (!sock_net(sk)->ipv4.sysctl_tcp_abort_on_overflow) {

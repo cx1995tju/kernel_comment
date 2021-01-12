@@ -4087,6 +4087,7 @@ void tcp_reset(struct sock *sk)
  *
  *	If we are in FINWAIT-2, a received FIN moves us to TIME-WAIT.
  */
+/* 接收到fin段后通知进程 */
 void tcp_fin(struct sock *sk)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
@@ -5764,6 +5765,7 @@ static void smc_check_reset_syn(struct tcp_sock *tp)
 #endif
 }
 
+/* synsent状态下接收到了syn+ack后进行处理 */
 static int tcp_rcv_synsent_state_process(struct sock *sk, struct sk_buff *skb,
 					 const struct tcphdr *th)
 {
@@ -5782,7 +5784,7 @@ static int tcp_rcv_synsent_state_process(struct sock *sk, struct sk_buff *skb,
 		 * "If the state is SYN-SENT then
 		 *    first check the ACK bit
 		 *      If the ACK bit is set
-		 *	  If SEG.ACK =< ISS, or SEG.ACK > SND.NXT, send
+		 *	  If SEG.ACK =< ISS, or SEG.ACK > SND.NXT, send         序号错乱
 		 *        a reset (unless the RST bit is set, if so drop
 		 *        the segment and return)"
 		 */
@@ -5806,7 +5808,7 @@ static int tcp_rcv_synsent_state_process(struct sock *sk, struct sk_buff *skb,
 		 *    delete TCB, and return."
 		 */
 
-		if (th->rst) {
+		if (th->rst) { /* 在synsent状态下接收了rst包 */
 			tcp_reset(sk);
 			goto discard;
 		}
@@ -5818,7 +5820,7 @@ static int tcp_rcv_synsent_state_process(struct sock *sk, struct sk_buff *skb,
 		 *    See note below!
 		 *                                        --ANK(990513)
 		 */
-		if (!th->syn)
+		if (!th->syn) /* 乱七八糟啥都不是的包 */
 			goto discard_and_undo;
 
 		/* rfc793:
@@ -5828,7 +5830,7 @@ static int tcp_rcv_synsent_state_process(struct sock *sk, struct sk_buff *skb,
 		 *    state to ESTABLISHED..."
 		 */
 
-		tcp_ecn_rcv_synack(tp, th);
+		tcp_ecn_rcv_synack(tp, th); /* 正常的synack包的处理 */
 
 		tcp_init_wl(tp, TCP_SKB_CB(skb)->seq);
 		tcp_ack(sk, skb, FLAG_SLOWPATH);
@@ -6010,13 +6012,13 @@ int tcp_rcv_state_process(struct sock *sk, struct sk_buff *skb)
 		goto discard;
 
 	case TCP_LISTEN:
-		if (th->ack)
+		if (th->ack) /* syn ack 包直接返回了 ？？？？*/
 			return 1;
 
 		if (th->rst)
 			goto discard;
 
-		if (th->syn) {
+		if (th->syn) { /* syn 包 */
 			if (th->fin)
 				goto discard;
 			/* It is possible that we process SYN packets from backlog,
@@ -6024,7 +6026,7 @@ int tcp_rcv_state_process(struct sock *sk, struct sk_buff *skb)
 			 */
 			rcu_read_lock();
 			local_bh_disable();
-			acceptable = icsk->icsk_af_ops->conn_request(sk, skb) >= 0;
+			acceptable = icsk->icsk_af_ops->conn_request(sk, skb) >= 0; //server端处理syn段的核心函数, tcp是ipv4_specific->tcp_v4_conn_request函数, 详见af_inet crate函数-> tcp_init
 			local_bh_enable();
 			rcu_read_unlock();
 
@@ -6038,12 +6040,12 @@ int tcp_rcv_state_process(struct sock *sk, struct sk_buff *skb)
 	case TCP_SYN_SENT:
 		tp->rx_opt.saw_tstamp = 0;
 		tcp_mstamp_refresh(tp);
-		queued = tcp_rcv_synsent_state_process(sk, skb, th);
+		queued = tcp_rcv_synsent_state_process(sk, skb, th); /* 接收到3次握手后的处理 */
 		if (queued >= 0)
 			return queued;
 
 		/* Do step6 onward by hand. */
-		tcp_urg(sk, skb, th);
+		tcp_urg(sk, skb, th); /* 处理紧急数据后，释放掉 */
 		__kfree_skb(skb);
 		tcp_data_snd_check(sk);
 		return 0;
@@ -6080,7 +6082,7 @@ int tcp_rcv_state_process(struct sock *sk, struct sk_buff *skb)
 		goto discard;
 	}
 	switch (sk->sk_state) {
-	case TCP_SYN_RECV:
+	case TCP_SYN_RECV: /* Server端三次握手 */
 		tp->delivered++; /* SYN-ACK delivery isn't tracked in tcp_ack */
 		if (!tp->srtt_us)
 			tcp_synack_rtt_meas(sk, req);
@@ -6347,8 +6349,8 @@ struct request_sock *inet_reqsk_alloc(const struct request_sock_ops *ops,
 		ireq->pktopts = NULL;
 #endif
 		atomic64_set(&ireq->ir_cookie, 0);
-		ireq->ireq_state = TCP_NEW_SYN_RECV;
-		write_pnet(&ireq->ireq_net, sock_net(sk_listener));
+		ireq->ireq_state = TCP_NEW_SYN_RECV; /* 这个状态很有趣， 是连接建立过程中新的req的状态 */
+		write_pnet(&ireq->ireq_net, sock_net(sk_listener)); /* 设置namespace */
 		ireq->ireq_family = sk_listener->sk_family;
 	}
 
@@ -6403,8 +6405,8 @@ static void tcp_reqsk_record_syn(const struct sock *sk,
 	}
 }
 
-int tcp_conn_request(struct request_sock_ops *rsk_ops,
-		     const struct tcp_request_sock_ops *af_ops,
+int tcp_conn_request(struct request_sock_ops *rsk_ops, /* tcp层的操作函数集合 */ //这些函数仅仅在建立的时候使用，所以做为函数指针传进来，而不是挂载到sock结构中
+		     const struct tcp_request_sock_ops *af_ops, /* ip层的操作函数集合 */
 		     struct sock *sk, struct sk_buff *skb)
 {
 	struct tcp_fastopen_cookie foc = { .len = -1 };
@@ -6413,60 +6415,60 @@ int tcp_conn_request(struct request_sock_ops *rsk_ops,
 	struct tcp_sock *tp = tcp_sk(sk);
 	struct net *net = sock_net(sk);
 	struct sock *fastopen_sk = NULL;
-	struct request_sock *req;
+	struct request_sock *req; /* 核心啦，是连接建立过程中的sock */
 	bool want_cookie = false;
 	struct dst_entry *dst;
 	struct flowi fl;
 
-	/* TW buckets are converted to open requests without
+	/* TW buckets are converted to open requests without				TW:time wait
 	 * limitations, they conserve resources and peer is
 	 * evidently real one.
 	 */
-	if ((net->ipv4.sysctl_tcp_syncookies == 2 ||
+	if ((net->ipv4.sysctl_tcp_syncookies == 2 || /* net namespace, ==2表示无条件生成syncookies */
 	     inet_csk_reqsk_queue_is_full(sk)) && !isn) {
-		want_cookie = tcp_syn_flood_action(sk, skb, rsk_ops->slab_name);
+		want_cookie = tcp_syn_flood_action(sk, skb, rsk_ops->slab_name); /* 接收队列满了，且无条件syn cookies， 所以需要进行处理*/
 		if (!want_cookie)
 			goto drop;
 	}
 
 	if (sk_acceptq_is_full(sk)) {
-		NET_INC_STATS(sock_net(sk), LINUX_MIB_LISTENOVERFLOWS);
-		goto drop;
+		NET_INC_STATS(sock_net(sk), LINUX_MIB_LISTENOVERFLOWS); //一些统计
+		goto drop; /* 不能接收了，丢弃 , 而且不支持syn cookies */
 	}
 
-	req = inet_reqsk_alloc(rsk_ops, sk, !want_cookie);
+	req = inet_reqsk_alloc(rsk_ops, sk, !want_cookie); /* 分配连接过程中的sock结构, 同时做一些初步的初始化 */
 	if (!req)
 		goto drop;
 
-	tcp_rsk(req)->af_specific = af_ops;
-	tcp_rsk(req)->ts_off = 0;
+	tcp_rsk(req)->af_specific = af_ops; /* 操作集合保存下来，在连接建立过程中会使用 */
+	tcp_rsk(req)->ts_off = 0; /* 用于随机化timestamp使用 */
 
-	tcp_clear_options(&tmp_opt);
+	tcp_clear_options(&tmp_opt); /* 设置tmp_opt 临时保存tcp选项 */
 	tmp_opt.mss_clamp = af_ops->mss_clamp;
 	tmp_opt.user_mss  = tp->rx_opt.user_mss;
-	tcp_parse_options(sock_net(sk), skb, &tmp_opt, 0,
+	tcp_parse_options(sock_net(sk), skb, &tmp_opt, 0, /* 解析选项并设置, fto???? */
 			  want_cookie ? NULL : &foc);
 
-	if (want_cookie && !tmp_opt.saw_tstamp)
+	if (want_cookie && !tmp_opt.saw_tstamp) /* 开启了syncookies的话，就清除已经解析的tcp 选项 */
 		tcp_clear_options(&tmp_opt);
 
 	if (IS_ENABLED(CONFIG_SMC) && want_cookie)
 		tmp_opt.smc_ok = 0;
 
 	tmp_opt.tstamp_ok = tmp_opt.saw_tstamp;
-	tcp_openreq_init(req, &tmp_opt, skb, sk);
+	tcp_openreq_init(req, &tmp_opt, skb, sk); /* 根据syn报文做一些初始化, req要被初始化的, 基本是保存syn报文的信息 */
 	inet_rsk(req)->no_srccheck = inet_sk(sk)->transparent;
 
 	/* Note: tcp_v6_init_req() might override ir_iif for link locals */
-	inet_rsk(req)->ir_iif = inet_request_bound_dev_if(sk, skb);
+	inet_rsk(req)->ir_iif = inet_request_bound_dev_if(sk, skb); /* 与设备绑定, 输出设备 */
 
-	af_ops->init_req(req, sk, skb);
+	af_ops->init_req(req, sk, skb); /* 各种初始化, tcp_v4_init_req */
 
 	if (security_inet_conn_request(sk, skb, req))
 		goto drop_and_free;
 
 	if (tmp_opt.tstamp_ok)
-		tcp_rsk(req)->ts_off = af_ops->init_ts_off(net, skb);
+		tcp_rsk(req)->ts_off = af_ops->init_ts_off(net, skb); /* 用于随机化timestamp的一个值 */
 
 	dst = af_ops->route_req(sk, &fl, req);
 	if (!dst)
@@ -6527,9 +6529,9 @@ int tcp_conn_request(struct request_sock_ops *rsk_ops,
 	} else {
 		tcp_rsk(req)->tfo_listener = false;
 		if (!want_cookie)
-			inet_csk_reqsk_queue_hash_add(sk, req,
+			inet_csk_reqsk_queue_hash_add(sk, req, /* 挂载到父sock的散列表中, 将req结构挂载 */
 				tcp_timeout_init((struct sock *)req));
-		af_ops->send_synack(sk, dst, &fl, req, &foc,
+		af_ops->send_synack(sk, dst, &fl, req, &foc, /* 发送synack函数 */
 				    !want_cookie ? TCP_SYNACK_NORMAL :
 						   TCP_SYNACK_COOKIE);
 		if (want_cookie) {

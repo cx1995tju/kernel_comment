@@ -87,6 +87,7 @@ struct tcp_sack_block {
 #define TCP_SACK_SEEN     (1 << 0)   /*1 = peer is SACK capable, */
 #define TCP_DSACK_SEEN    (1 << 2)   /*1 = DSACK was received from peer*/
 
+/* 保存TCP选项结构 */
 struct tcp_options_received {
 /*	PAWS/RTTM data	*/
 	int	ts_recent_stamp;/* Time we stored ts_recent (for aging) */
@@ -129,9 +130,9 @@ struct tcp_request_sock {
 	u64				snt_synack; /* first SYNACK sent time */
 	bool				tfo_listener;
 	u32				txhash;
-	u32				rcv_isn;
-	u32				snt_isn;
-	u32				ts_off;
+	u32				rcv_isn; //客户端初始序号
+	u32				snt_isn; //服务端初始序号
+	u32				ts_off; //用于随机化timestamp，避免timestamp被猜出来, timestamp-offset
 	u32				last_oow_ack_time; /* last SYNACK */
 	u32				rcv_nxt; /* the ack # by SYNACK. For
 						  * FastOpen it's the seq#
@@ -172,7 +173,7 @@ struct tcp_sock {
 				 * total number of data segments in.
 				 */
  	u32	rcv_nxt;	/* What we want to receive next 	*/
-	u32	copied_seq;	/* Head of yet unread data		*/
+	u32	copied_seq;	/* Head of yet unread data	, 还没有复制到用户空间的数据的序号，但是已经被接收了 */ 
 	u32	rcv_wup;	/* rcv_nxt on last window update sent	*/
  	u32	snd_nxt;	/* Next sequence we send		*/
 	u32	segs_out;	/* RFC4898 tcpEStatsPerfSegsOut

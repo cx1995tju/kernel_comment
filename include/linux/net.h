@@ -92,7 +92,7 @@ enum sock_shutdown_cmd {
 struct socket_wq {
 	/* Note: wait MUST be first field of socket_wq */
 	wait_queue_head_t	wait; //挂入的东西不一定是task_struct, 虽然叫做等待队列，譬如：可能挂入eppoll_entry结构
-	struct fasync_struct	*fasync_list;
+	struct fasync_struct	*fasync_list; /* 异步通知队列 */
 	unsigned long		flags; /* %SOCKWQ_ASYNC_NOSPACE, etc */
 	struct rcu_head		rcu;
 } ____cacheline_aligned_in_smp;
@@ -130,6 +130,9 @@ struct sk_buff;
 typedef int (*sk_read_actor_t)(read_descriptor_t *, struct sk_buff *,
 			       unsigned int, size_t);
 
+/* socket层到传输层的核心结构, 将协议无关的socket层转换为协议相关的传输层 */
+/* 相关的结构还有proto结构 */
+/* 锁一一个传输层协议应该包含一个特定的proto_ops结构实例 + proto结构实例的 */
 struct proto_ops {
 	int		family;
 	struct module	*owner;
@@ -173,7 +176,7 @@ struct proto_ops {
 	 * ===============================
 	 * msg->msg_namelen should get updated by the recvmsg handlers
 	 * iff msg_name != NULL. It is by default 0 to prevent
-	 * returning uninitialized memory to user space.  The recvfrom
+	 * returning uninitialized memory to user space.  The recvfrom (无连接的才会需要recvfrom这种系统调用)
 	 * handlers can assume that msg.msg_name is either NULL or has
 	 * a minimum size of sizeof(struct sockaddr_storage).
 	 */

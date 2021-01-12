@@ -74,6 +74,8 @@
 #define EPOLL_PACKED
 #endif
 
+/* 表epoll事件的结构，epitem是表示epoll监听项的结构，两者完全不同 */
+/* 不过在创建监听项的时候，会根据传入的event_poll来初始化eventitem结构 */
 struct epoll_event {
 	__poll_t events;
 	__u64 data;

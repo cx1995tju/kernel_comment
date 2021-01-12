@@ -279,12 +279,12 @@ enum {
 */
 
 enum rt_scope_t {
-	RT_SCOPE_UNIVERSE=0,
+	RT_SCOPE_UNIVERSE=0, //可以在任何地方使用，是大多数地址的默认值
 /* User defined values  */
-	RT_SCOPE_SITE=200,
-	RT_SCOPE_LINK=253,
-	RT_SCOPE_HOST=254,
-	RT_SCOPE_NOWHERE=255
+	RT_SCOPE_SITE=200, //只能在一个本地封闭系统中的内部路由
+	RT_SCOPE_LINK=253, //只在局域网有意义，譬如：广播地址
+	RT_SCOPE_HOST=254, //主机内部通信地址，环回地址
+	RT_SCOPE_NOWHERE=255 //该地址的目的地址不存在
 };
 
 /* rtm_flags */
