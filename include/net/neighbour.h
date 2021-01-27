@@ -155,7 +155,7 @@ struct neighbour {
 	int			(*output)(struct neighbour *, struct sk_buff *);
 	const struct neigh_ops	*ops;
 	struct rcu_head		rcu;
-	struct net_device	*dev;
+	struct net_device	*dev; /* 通过此网络设备可以访问到邻居 */
 	u8			primary_key[0];
 } __randomize_layout;
 

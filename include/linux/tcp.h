@@ -104,7 +104,7 @@ struct tcp_options_received {
 		rcv_wscale : 4;	/* Window scaling to send to receiver	*/
 	u8	num_sacks;	/* Number of SACK blocks		*/
 	u16	user_mss;	/* mss requested by user in ioctl	*/
-	u16	mss_clamp;	/* Maximal mss, negotiated at connection setup */
+	u16	mss_clamp;	/* Maximal mss, negotiated at connection setup, 表示对端的MSS, 初始值是536,接收到对端通告后修正 */
 };
 
 static inline void tcp_clear_options(struct tcp_options_received *rx_opt)
@@ -207,7 +207,7 @@ struct tcp_sock {
 	u32	snd_wl1;	/* Sequence for window update		*/
 	u32	snd_wnd;	/* The window we expect to receive	*/
 	u32	max_window;	/* Maximal window ever seen from peer	*/
-	u32	mss_cache;	/* Cached effective mss, not including SACKS */
+	u32	mss_cache;	/* Cached effective mss, not including SACKS, 发送方当前有效的mss  */
 
 	u32	window_clamp;	/* Maximal window to advertise		*/
 	u32	rcv_ssthresh;	/* Current window clamp			*/
@@ -224,7 +224,7 @@ struct tcp_sock {
 		   dsack_seen:1, /* Whether DSACK seen after last adj */
 		   advanced:1;	 /* mstamp advanced since last lost marking */
 	} rack;
-	u16	advmss;		/* Advertised MSS			*/
+	u16	advmss;		/* Advertised MSS, 通告对方的mss,其值来自与路由项中的metrics[RTAX_ADVMSS -1], 而路由项的MSS是通过网络设备接口的MTU减去TCP IP头部计算得到的			*/
 	u8	compressed_ack;
 	u32	chrono_start;	/* Start time in jiffies of a TCP chrono */
 	u32	chrono_stat[3];	/* Time in jiffies for chrono_stat stats */
@@ -274,7 +274,7 @@ struct tcp_sock {
 /*
  *      Options received (usually on last packet, some only on SYN packets).
  */
-	struct tcp_options_received rx_opt;
+	struct tcp_options_received rx_opt; //接收到的tcp选项
 
 /*
  *	Slow start and congestion control (see also Nagle, and Karn & Partridge)

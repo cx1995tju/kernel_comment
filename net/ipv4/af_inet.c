@@ -601,32 +601,12 @@ static long inet_wait_for_connect(struct sock *sk, long timeo, int writebias)
 }
 
 /*
- *	Connect to a remote host. There is regrettably still a little
+ *	Connect to a remote host. There is regrettably(抱歉的) still a little
  *	TCP 'magic' in here.
  */
 int __inet_stream_connect(struct socket *sock, struct sockaddr *uaddr,
 			  int addr_len, int flags, int is_sendmsg)
 {
-	/* lock_sock(sk)
-	 *	assress check and state check
-	 *
-	 *	some details
-	 *
-	 *	connect work about specific transport layer
-	 *
-	 *	non-blocking
-	 *		timeo = 0
-	 *		simply return
-	 *	blocking
-	 *		timeo > 0
-	 *		release sock
-	 *		sleeping()
-	 *		lock_sock()
-	 *		do sth
-	 *
-	 * release_sock(sk)
-	 * */
-
 	struct sock *sk = sock->sk;
 	int err;
 	long timeo;
@@ -893,7 +873,7 @@ int inet_shutdown(struct socket *sock, int how)
 		   EPOLLHUP, even on eg. unconnected UDP sockets -- RR */
 		/* fall through */
 	default:
-		sk->sk_shutdown |= how;
+		sk->sk_shutdown |= how; /* 设置recv shutdown */
 		if (sk->sk_prot->shutdown)
 			sk->sk_prot->shutdown(sk, how);
 		break;

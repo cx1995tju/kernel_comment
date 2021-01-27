@@ -252,7 +252,7 @@ static struct in_device *inetdev_init(struct net_device *dev)
 			sizeof(in_dev->cnf));
 	in_dev->cnf.sysctl = NULL;
 	in_dev->dev = dev;
-	in_dev->arp_parms = neigh_parms_alloc(dev, &arp_tbl);
+	in_dev->arp_parms = neigh_parms_alloc(dev, &arp_tbl); /* 见邻居子系统 */
 	if (!in_dev->arp_parms)
 		goto out_kfree;
 	if (IPV4_DEVCONF(in_dev->cnf, FORWARDING))

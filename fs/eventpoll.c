@@ -1537,6 +1537,7 @@ static int ep_insert(struct eventpoll *ep, const struct epoll_event *event,
 
 	/* 跨越千万里，只为ep_ptable_queue_proc */
 	revents = ep_item_poll(epi, &epq.pt, 1); //调用对应文件的poll函数,在那里会执行poll_wait函数，最终的主要目的就是为了回调ep_ptable_queue_proc()函数
+	/* 如果第一次调用epoll_add的时候就有事件的话，会加入到ready list中的 */
 
 	/*
 	 * We have to check if something went wrong during the poll wait queue

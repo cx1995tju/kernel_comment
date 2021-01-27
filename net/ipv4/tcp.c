@@ -2104,7 +2104,7 @@ int tcp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int nonblock,
 			used = len;
 
 		/* Do we have urgent data here? */
-		if (tp->urg_data) {
+		if (tp->urg_data) 
 			u32 urg_offset = tp->urg_seq - *seq;
 			if (urg_offset < used) {
 				if (!urg_offset) {
@@ -2295,14 +2295,13 @@ static int tcp_close_state(struct sock *sk)
  *	Shutdown the sending side of a connection. Much like close except
  *	that we don't receive shut down or sock_set_flag(sk, SOCK_DEAD).
  */
-
 void tcp_shutdown(struct sock *sk, int how)
 {
 	/*	We need to grab some memory, and put together a FIN,
 	 *	and then put it into the queue to be sent.
 	 *		Tim MacKenzie(tym@dibbler.cs.monash.edu.au) 4 Dec '92.
 	 */
-	if (!(how & SEND_SHUTDOWN))
+	if (!(how & SEND_SHUTDOWN)) /* RECV_SHUTDOWN 从这里出去了 */
 		return;
 
 	/* If we've already sent a FIN, or it's a closed state, skip this. */
@@ -2360,7 +2359,7 @@ void tcp_close(struct sock *sk, long timeout)
 			len--;
 		data_was_unread += len;
 		__kfree_skb(skb);
-	}
+	} /* 还有没读完的话就发送rst报文 */
 
 	sk_mem_reclaim(sk);
 
@@ -2416,9 +2415,10 @@ void tcp_close(struct sock *sk, long timeout)
 		 * probably need API support or TCP_CORK SYN-ACK until
 		 * data is written and socket is closed.)
 		 */
-		tcp_send_fin(sk);
+		tcp_send_fin(sk); /* FIN也占据序号，send fin的前提是其他的都send了，而收到fin的ack前提是其他的都ack了 */
 	}
 
+	/* 等一会再返回 */
 	sk_stream_wait_close(sk, timeout);
 
 adjudge_to_death:

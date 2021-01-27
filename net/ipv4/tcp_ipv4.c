@@ -230,7 +230,7 @@ int tcp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 	orig_sport = inet->inet_sport;
 	orig_dport = usin->sin_port;
 	fl4 = &inet->cork.fl.u.ip4;
-	rt = ip_route_connect(fl4, nexthop, inet->inet_saddr,
+	rt = ip_route_connect(fl4, nexthop, inet->inet_saddr, //查找目的路由缓存项，位后续的数据包提供加速路由查找作用
 			      RT_CONN_FLAGS(sk), sk->sk_bound_dev_if,
 			      IPPROTO_TCP,
 			      orig_sport, orig_dport, sk);
@@ -253,7 +253,7 @@ int tcp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 		inet->inet_saddr = fl4->saddr;
 	sk_rcv_saddr_set(sk, inet->inet_saddr);
 
-	if (tp->rx_opt.ts_recent_stamp && inet->inet_daddr != daddr) {
+	if (tp->rx_opt.ts_recent_stamp && inet->inet_daddr != daddr) { /* sock中的时间戳和地址已经被使用过了， 说明之前已经建立了连接而且通信过了, 重新初始化相关成员 */
 		/* Reset inherited state */
 		tp->rx_opt.ts_recent	   = 0;
 		tp->rx_opt.ts_recent_stamp = 0;
@@ -276,7 +276,7 @@ int tcp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 	 * complete initialization after this.
 	 */
 	/* 自动绑定端口 */
-	tcp_set_state(sk, TCP_SYN_SENT);
+	tcp_set_state(sk, TCP_SYN_SENT); /* 设置状态 */
 	err = inet_hash_connect(tcp_death_row, sk);
 	if (err)
 		goto failure;
@@ -313,7 +313,7 @@ int tcp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 	if (err)
 		goto failure;
 
-	err = tcp_connect(sk);
+	err = tcp_connect(sk); /* 构造并发送syn段 */
 
 	if (err)
 		goto failure;
@@ -1690,6 +1690,8 @@ static void tcp_v4_fill_cb(struct sk_buff *skb, const struct iphdr *iph,
 /*软中断访问sock结构的时候时候，不会直接使用这个锁的，而是先用sock_owend_by_user检测是否被进程锁定，
  * 如果没有就直接访问，因为软中断优先级高，不会被进程打断的，见tcp_v4_rcv
  * */
+
+/* tcp rx 总入口 */
 int tcp_v4_rcv(struct sk_buff *skb)
 {
 	struct net *net = dev_net(skb->dev);
@@ -1700,7 +1702,7 @@ int tcp_v4_rcv(struct sk_buff *skb)
 	struct sock *sk;
 	int ret;
 
-	if (skb->pkt_type != PACKET_HOST)
+	if (skb->pkt_type != PACKET_HOST) /* 报文不是发送到本地的 */
 		goto discard_it;
 
 	/* Count it even if it's bad */
@@ -1709,7 +1711,7 @@ int tcp_v4_rcv(struct sk_buff *skb)
 	if (!pskb_may_pull(skb, sizeof(struct tcphdr)))
 		goto discard_it;
 
-	th = (const struct tcphdr *)skb->data;
+	th = (const struct tcphdr *)skb->data; //data指向头部, 因为此时是从ip层拿到的
 
 	if (unlikely(th->doff < sizeof(struct tcphdr) / 4))
 		goto bad_packet;
@@ -1738,6 +1740,7 @@ process:
 		goto do_time_wait;
 
 	if (sk->sk_state == TCP_NEW_SYN_RECV) {  /* 见4.4版本的commit就知道现在，syn_recv状态也在ehahs中，第三次握手的ack来的时候，会直接找到子sock，而不是父sock了 */
+		/* 同时打开也进入这里 */
 		struct request_sock *req = inet_reqsk(sk);
 		bool req_stolen = false;
 		struct sock *nsk;
@@ -1810,7 +1813,7 @@ process:
 		goto discard_and_relse;
 	th = (const struct tcphdr *)skb->data;
 	iph = ip_hdr(skb);
-	tcp_v4_fill_cb(skb, iph, th);
+	tcp_v4_fill_cb(skb, iph, th); /* 填充tcp_cb */
 
 	skb->dev = NULL;
 

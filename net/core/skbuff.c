@@ -164,7 +164,7 @@ out:
  *	@flags: If SKB_ALLOC_FCLONE is set, allocate from fclone cache
  *		instead of head cache and allocate a cloned (child) skb.
  *		If SKB_ALLOC_RX is set, __GFP_MEMALLOC will be used for
- *		allocations in case the data is required for writeback
+ *		allocations in case the data is required for writeback 
  *	@node: numa node to allocate memory on
  *
  *	Allocate a new &sk_buff. The returned buffer has no headroom and a
@@ -190,9 +190,10 @@ struct sk_buff *__alloc_skb(unsigned int size, gfp_t gfp_mask,
 		? skbuff_fclone_cache : skbuff_head_cache; /* 确定从哪个高速缓冲区分配sk_buff, 详见skb_init中初始化的两个高速缓冲区 */
 
 	if (sk_memalloc_socks() && (flags & SKB_ALLOC_RX))
-		gfp_mask |= __GFP_MEMALLOC;
+		gfp_mask |= __GFP_MEMALLOC; /* 接收报文需要的skb应该尽可能的分配 */
 
 	/* Get the HEAD */
+	/* Please refer to __netdev_alloc_skb() */
 	skb = kmem_cache_alloc_node(cache, gfp_mask & ~__GFP_DMA, node); /* 分配sk_buff结构, 不要从DMA区域分配 */
 	if (!skb)
 		goto out;
@@ -617,7 +618,7 @@ void skb_release_head_state(struct sk_buff *skb)
 {
 	skb_dst_drop(skb);
 	secpath_reset(skb);
-	if (skb->destructor) {
+	if (skb->destructor) { /* 调用skb的析构函数 */
 		WARN_ON(in_irq());
 		skb->destructor(skb);
 	}
@@ -1269,6 +1270,7 @@ EXPORT_SYMBOL_GPL(skb_copy_ubufs);
  *	%GFP_ATOMIC.
  */
 
+/* 共享数据区 */
 struct sk_buff *skb_clone(struct sk_buff *skb, gfp_t gfp_mask)
 {
 	struct sk_buff_fclones *fclones = container_of(skb,

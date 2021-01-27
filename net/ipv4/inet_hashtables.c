@@ -690,7 +690,7 @@ int __inet_hash_connect(struct inet_timewait_death_row *death_row,
 		}
 		spin_unlock(&head->lock);
 		/* No definite answer... Walk to established hash table */
-		ret = check_established(death_row, sk, port, NULL);
+		ret = check_established(death_row, sk, port, NULL); /* 这里为什么要check呢？ 考虑如果多个socket都绑定到一个端口后，其中某个socket与A:1234建立了连接后，又在另一个同端口的socket上执行connect操作的话，就可以检测出来 */
 		local_bh_enable();
 		return ret;
 	}
@@ -733,6 +733,7 @@ other_parity_scan:
 			}
 		}
 
+		/* 加入到散列表bhash中管理 */
 		tb = inet_bind_bucket_create(hinfo->bind_bucket_cachep,
 					     net, head, port);
 		if (!tb) {

@@ -8681,7 +8681,7 @@ static void netdev_wait_allrefs(struct net_device *dev)
 			rtnl_lock();
 
 			/* Rebroadcast unregister notification */
-			call_netdevice_notifiers(NETDEV_UNREGISTER, dev);
+			call_netdevice_notifiers(NETDEV_UNREGISTER, dev); /* 广播信息， 通知链 */
 
 			__rtnl_unlock();
 			rcu_barrier();

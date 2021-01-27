@@ -418,7 +418,7 @@ struct sock {
 		struct sk_buff	*sk_send_head;
 		struct rb_root	tcp_rtx_queue;
 	};
-	struct sk_buff_head	sk_write_queue; //发送队列，重传队列，sk_send_head为重传队列，之后为发送队列
+	struct sk_buff_head	sk_write_queue; //发送队列 + 重传队列，sk_send_head前重传队列，==及==之后为发送队列
 	__s32			sk_peek_off;
 	int			sk_write_pending; //标记马上有数据写入套接字
 	__u32			sk_dst_pending_confirm;

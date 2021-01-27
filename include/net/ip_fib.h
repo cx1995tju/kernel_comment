@@ -215,7 +215,7 @@ void fib_notify(struct net *net, struct notifier_block *nb);
 
 struct fib_table {
 	struct hlist_node	tb_hlist;
-	u32			tb_id;
+	u32			tb_id; //路由表id，在支持策略路由的场景下，主机最多可以有256个路由表
 	int			tb_num_default;
 	struct rcu_head		rcu;
 	unsigned long 		*tb_data;

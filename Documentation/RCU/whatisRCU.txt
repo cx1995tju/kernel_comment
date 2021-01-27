@@ -1,4 +1,4 @@
-What is RCU?  --  "Read, Copy, Update"
+hat is RCU?  --  "Read, Copy, Update"
 
 Please note that the "What is RCU?" LWN series is an excellent place
 to start learning about RCU:
@@ -84,7 +84,7 @@ b.	Wait for all previous readers to complete their RCU read-side
 
 c.	At this point, there cannot be any readers who hold references
 	to the data structure, so it now may safely be reclaimed
-	(e.g., kfree()d).
+	(e.g., kfree()).
 
 Step (b) above is the key idea underlying RCU's deferred destruction.
 The ability to wait until all readers are done allows RCU readers to
@@ -93,7 +93,7 @@ synchronization at all.  In contrast, in more conventional lock-based
 schemes, readers must use heavy-weight synchronization in order to
 prevent an updater from deleting the data structure out from under them.
 This is because lock-based updaters typically update data items in place,
-and must therefore exclude readers.  In contrast, RCU-based updaters
+and must therefore exclude readers.  In contrast, RCU-based updaters                 ==important==
 typically take advantage of the fact that writes to single aligned
 pointers are atomic on modern CPUs, allowing atomic insertion, removal,
 and replacement of data items in a linked structure without disrupting
@@ -104,7 +104,7 @@ SMP computer systems, even in absence of lock contention.
 
 In the three-step procedure shown above, the updater is performing both
 the removal and the reclamation step, but it is often helpful for an
-entirely different thread to do the reclamation, as is in fact the case
+entirely different thread to do the reclamation, as is in fact the case			==updater 与 reclaimer分开, 不一定是一个线程==
 in the Linux kernel's directory-entry cache (dcache).  Even if the same
 thread performs both the update step (step (a) above) and the reclamation
 step (step (c) above), it is often helpful to think of them separately.
@@ -135,7 +135,7 @@ The five core RCU APIs are described below, the other 18 will be enumerated
 later.  See the kernel docbook documentation for more info, or look directly
 at the function header comments.
 
-rcu_read_lock()
+rcu_read_lock()					读者使用，通知reclamier, 在临界区不能block,在RCU临界区中访问的量，确保不会被reclaimer的
 
 	void rcu_read_lock(void);
 
@@ -157,7 +157,7 @@ rcu_read_unlock()
 	exiting an RCU read-side critical section.  Note that RCU
 	read-side critical sections may be nested and/or overlapping.
 
-synchronize_rcu()
+synchronize_rcu()					用于标记updater结束，reclamier开始。其会阻塞住，知道所有的之前存在的所有CPU上的read-side临界区都完成了。
 
 	void synchronize_rcu(void);
 
@@ -188,7 +188,7 @@ synchronize_rcu()
 	requests in batches in order to improve efficiencies, which can
 	further delay synchronize_rcu().
 
-	Since synchronize_rcu() is the API that must figure out when
+	Since synchronize_rcu() is the API that must figure out when			synchronize_rcu()的结束需要知道读者完成，所以其实现就是RCU机制最核心的部分了
 	readers are done, its implementation is key to RCU.  For RCU
 	to be useful in all but the most read-intensive situations,
 	synchronize_rcu()'s overhead must also be quite small.

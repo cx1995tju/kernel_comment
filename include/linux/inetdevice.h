@@ -133,6 +133,7 @@ static inline void ipv4_devconf_setall(struct in_device *in_dev)
 #define IN_DEV_ARP_IGNORE(in_dev)	IN_DEV_MAXCONF((in_dev), ARP_IGNORE)
 #define IN_DEV_ARP_NOTIFY(in_dev)	IN_DEV_MAXCONF((in_dev), ARP_NOTIFY)
 
+/* 表一个ip地址块 */
 struct in_ifaddr {
 	struct hlist_node	hash;
 	struct in_ifaddr	*ifa_next; //多个ip地址串成链

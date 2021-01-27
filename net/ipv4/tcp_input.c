@@ -4153,7 +4153,7 @@ void tcp_fin(struct sock *sk)
 		    sk->sk_state == TCP_CLOSE)
 			sk_wake_async(sk, SOCK_WAKE_WAITD, POLL_HUP);
 		else
-			sk_wake_async(sk, SOCK_WAKE_WAITD, POLL_IN);
+			sk_wake_async(sk, SOCK_WAKE_WAITD, POLL_IN); /* 接收了FIN后会通知线程EPOLL_IN事件的 */
 	}
 }
 
@@ -5566,7 +5566,7 @@ void tcp_rcv_established(struct sock *sk, struct sk_buff *skb)
 				/* We know that such packets are checksummed
 				 * on entry.
 				 */
-				tcp_ack(sk, skb, 0);
+				tcp_ack(sk, skb, 0); /* 接收到ack后 底下会释放skb，然后再次尝试发送所有的 */
 				__kfree_skb(skb);
 				tcp_data_snd_check(sk);
 				/* When receiving pure ack in fast path, update
@@ -5766,6 +5766,7 @@ static void smc_check_reset_syn(struct tcp_sock *tp)
 }
 
 /* synsent状态下接收到了syn+ack后进行处理 */
+/* synsent状态接收到了syn的话，就是同时打开问题，可以回syn+ack */
 static int tcp_rcv_synsent_state_process(struct sock *sk, struct sk_buff *skb,
 					 const struct tcphdr *th)
 {
@@ -5775,7 +5776,7 @@ static int tcp_rcv_synsent_state_process(struct sock *sk, struct sk_buff *skb,
 	int saved_clamp = tp->rx_opt.mss_clamp;
 	bool fastopen_fail;
 
-	tcp_parse_options(sock_net(sk), skb, &tp->rx_opt, 0, &foc);
+	tcp_parse_options(sock_net(sk), skb, &tp->rx_opt, 0, &foc); /* 解析tcp选项，保存到sock结构中 */
 	if (tp->rx_opt.saw_tstamp && tp->rx_opt.rcv_tsecr)
 		tp->rx_opt.rcv_tsecr -= tp->tsoffset;
 
@@ -5925,7 +5926,7 @@ discard:
 	    tcp_paws_reject(&tp->rx_opt, 0))
 		goto discard_and_undo;
 
-	if (th->syn) {
+	if (th->syn) { /* 同时打开， 回复syn+ack */
 		/* We see SYN without ACK. It is attempt of
 		 * simultaneous connect with crossed SYNs.
 		 * Particularly, it can be connect to self.
@@ -5958,7 +5959,7 @@ discard:
 		tcp_sync_mss(sk, icsk->icsk_pmtu_cookie);
 		tcp_initialize_rcv_mss(sk);
 
-		tcp_send_synack(sk);
+		tcp_send_synack(sk); /* 同时打开 回syn ack */
 #if 0
 		/* Note, we could accept data and URG from this segment.
 		 * There are no obstacles to make this (except that we must
@@ -6037,7 +6038,7 @@ int tcp_rcv_state_process(struct sock *sk, struct sk_buff *skb)
 		}
 		goto discard;
 
-	case TCP_SYN_SENT:
+	case TCP_SYN_SENT: /* 客户端发送了syn后，接收到syn+ack进入到这里处理 */
 		tp->rx_opt.saw_tstamp = 0;
 		tcp_mstamp_refresh(tp);
 		queued = tcp_rcv_synsent_state_process(sk, skb, th); /* 接收到3次握手后的处理 */
@@ -6082,7 +6083,7 @@ int tcp_rcv_state_process(struct sock *sk, struct sk_buff *skb)
 		goto discard;
 	}
 	switch (sk->sk_state) {
-	case TCP_SYN_RECV: /* Server端三次握手 */
+	case TCP_SYN_RECV:
 		tp->delivered++; /* SYN-ACK delivery isn't tracked in tcp_ack */
 		if (!tp->srtt_us)
 			tcp_synack_rtt_meas(sk, req);
@@ -6107,7 +6108,7 @@ int tcp_rcv_state_process(struct sock *sk, struct sk_buff *skb)
 			tp->copied_seq = tp->rcv_nxt;
 		}
 		smp_mb();
-		tcp_set_state(sk, TCP_ESTABLISHED);
+		tcp_set_state(sk, TCP_ESTABLISHED); /* 同时打开 */
 		sk->sk_state_change(sk);
 
 		/* Note, that this wakeup is only for marginal crossed SYN case.

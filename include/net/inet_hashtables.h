@@ -134,7 +134,7 @@ struct inet_hashinfo {
 	 * TCP hash as well as the others for fast bind/connect.
 	 */
 	struct kmem_cache		*bind_bucket_cachep;
-	struct inet_bind_hashbucket	*bhash;
+	struct inet_bind_hashbucket	*bhash; /* 端口hash表 */
 	unsigned int			bhash_size;
 
 	/* The 2nd listener table hashed by local port and address */

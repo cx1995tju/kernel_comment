@@ -285,7 +285,7 @@ struct sk_buff_head {
 	struct sk_buff	*next;
 	struct sk_buff	*prev;
 
-	__u32		qlen;
+	__u32		qlen; /* 队列长度 */
 	spinlock_t	lock;
 };
 
@@ -442,6 +442,7 @@ enum {
  * The ctx field is used to track device context.
  * The desc field is used to track userspace buffer index.
  */
+/* 反向通知用户的函数, zero copy的实现机制  */
 struct ubuf_info {
 	void (*callback)(struct ubuf_info *, bool zerocopy_success);
 	union {
@@ -500,7 +501,7 @@ struct skb_shared_info {
 	__u8		meta_len;
 	__u8		nr_frags;
 	__u8		tx_flags;
-	unsigned short	gso_size; /* 可能传递一个GSO段给网络设备，让其帮助处理, SKB_GSO_TCPV4 */
+	unsigned short	gso_size; /* 可能传递一个GSO段给网络设备，让其帮助处理, SKB_GSO_TCPV4, 是MSS的整数倍 */
 	/* Warning: this field is not always filled in (UFO)! */
 	unsigned short	gso_segs;
 	struct sk_buff	*frag_list; /* 分散聚合sk_buff, 如果网口支持分散聚合功能，我们可以直接将多个sk_buff丢过去 */
@@ -882,7 +883,7 @@ struct sk_buff {
 	/* public: */
 
 	/* These elements must be at the end, see alloc_skb() for details.  */
-	/* head end 指向整个完整的包的头尾， data指向overload的开始，tail指向overload的结尾 */
+	/* head end 指向整个完整的包的头尾， data指向payload的开始，tail指向payload的结尾 */
 	sk_buff_data_t		tail;
 	sk_buff_data_t		end;
 	unsigned char		*head, //数据

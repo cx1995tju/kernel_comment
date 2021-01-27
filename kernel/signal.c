@@ -1799,7 +1799,7 @@ ret:
  * Let a parent know about the death of a child.
  * For a stopped/continued status change, use do_notify_parent_cldstop instead.
  *
- * Returns true if our parent ignored us and so we've switched to
+ * Returns true if our parent ignored us and so we've switched to			POSIX.1 的时候会在父进程的SIGCHLD信号中调用wait4，就算其设置为SIG_IGN
  * self-reaping.
  */
 bool do_notify_parent(struct task_struct *tsk, int sig)
