@@ -1988,13 +1988,13 @@ void tcp_enter_loss(struct sock *sk)
 	if (icsk->icsk_ca_state <= TCP_CA_Disorder ||
 	    !after(tp->high_seq, tp->snd_una) ||
 	    (icsk->icsk_ca_state == TCP_CA_Loss && !icsk->icsk_retransmits)) {
-		tp->prior_ssthresh = tcp_current_ssthresh(sk);
+		tp->prior_ssthresh = tcp_current_ssthresh(sk); //保存一些量, 可能用户拥塞撤销
 		tp->prior_cwnd = tp->snd_cwnd;
 		tp->snd_ssthresh = icsk->icsk_ca_ops->ssthresh(sk);
-		tcp_ca_event(sk, CA_EVENT_LOSS);
+		tcp_ca_event(sk, CA_EVENT_LOSS); //发送LOSS事件给具体的拥塞控制算法
 		tcp_init_undo(tp);
 	}
-	tp->snd_cwnd	   = tcp_packets_in_flight(tp) + 1;
+	tp->snd_cwnd	   = tcp_packets_in_flight(tp) + 1; //重置一些量, 没有置一的
 	tp->snd_cwnd_cnt   = 0;
 	tp->snd_cwnd_stamp = tcp_jiffies32;
 
@@ -2005,7 +2005,7 @@ void tcp_enter_loss(struct sock *sk)
 	    tp->sacked_out >= net->ipv4.sysctl_tcp_reordering)
 		tp->reordering = min_t(unsigned int, tp->reordering,
 				       net->ipv4.sysctl_tcp_reordering);
-	tcp_set_ca_state(sk, TCP_CA_Loss);
+	tcp_set_ca_state(sk, TCP_CA_Loss); //进入loss状态
 	tp->high_seq = tp->snd_nxt;
 	tcp_ecn_queue_cwr(tp);
 
@@ -2028,6 +2028,7 @@ void tcp_enter_loss(struct sock *sk)
  * restore sanity to the SACK scoreboard. If the apparent reneging
  * persists until this RTO then we'll clear the SACK scoreboard.
  */
+/* 检测sack食言问题 */
 static bool tcp_check_sack_reneging(struct sock *sk, int flag)
 {
 	if (flag & FLAG_SACK_RENEGING) {
@@ -2155,6 +2156,7 @@ static inline int tcp_dupack_heuristics(const struct tcp_sock *tp)
  * Main question: may we further continue forward transmission
  * with the same cwnd?
  */
+/* 检测能够进入快速恢复状态 */
 static bool tcp_time_to_recover(struct sock *sk, int flag)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
@@ -2236,7 +2238,7 @@ static void tcp_mark_head_lost(struct sock *sk, int packets, int mark_head)
 }
 
 /* Account newly detected lost packet(s) */
-
+/* 为确认丢失的段更新积分牌 */
 static void tcp_update_scoreboard(struct sock *sk, int fast_rexmit)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
@@ -2333,6 +2335,7 @@ static void DBGUNDO(struct sock *sk, const char *msg)
 #endif
 }
 
+//拥塞窗口撤销的时候调用的调整函数
 static void tcp_undo_cwnd_reduction(struct sock *sk, bool unmark_loss)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
@@ -2347,7 +2350,7 @@ static void tcp_undo_cwnd_reduction(struct sock *sk, bool unmark_loss)
 		tcp_clear_all_retrans_hints(tp);
 	}
 
-	if (tp->prior_ssthresh) {
+	if (tp->prior_ssthresh) { //是否存在ssthresh的旧值
 		const struct inet_connection_sock *icsk = inet_csk(sk);
 
 		tp->snd_cwnd = icsk->icsk_ca_ops->undo_cwnd(sk);
@@ -2364,6 +2367,9 @@ static void tcp_undo_cwnd_reduction(struct sock *sk, bool unmark_loss)
 
 static inline bool tcp_may_undo(const struct tcp_sock *tp)
 {
+	//正在使用f-rto算法做重传检测，或者进入了Recovery在重传，或者进入了LOSS在慢启动
+	//没有可撤销的重传段数
+	//或者米有重传或重传了之后还米有接收到对方发送或确认的段
 	return tp->undo_marker && (!tp->undo_retrans || tcp_packet_delayed(tp));
 }
 
@@ -2452,6 +2458,7 @@ static bool tcp_try_undo_loss(struct sock *sk, bool frto_undo)
  */
 static void tcp_init_cwnd_reduction(struct sock *sk)
 {
+	//prr算法的初始化
 	struct tcp_sock *tp = tcp_sk(sk);
 
 	tp->high_seq = tp->snd_nxt;
@@ -2507,6 +2514,7 @@ static inline void tcp_end_cwnd_reduction(struct sock *sk)
 	tcp_ca_event(sk, CA_EVENT_COMPLETE_CWR);
 }
 
+//不允许拥塞窗口撤销，因为这肯定不是伪重传导致的
 /* Enter CWR state. Disable cwnd undo since congestion is proven with ECN */
 void tcp_enter_cwr(struct sock *sk)
 {
@@ -2515,7 +2523,7 @@ void tcp_enter_cwr(struct sock *sk)
 	tp->prior_ssthresh = 0;
 	if (inet_csk(sk)->icsk_ca_state < TCP_CA_CWR) {
 		tp->undo_marker = 0;
-		tcp_init_cwnd_reduction(sk);
+		tcp_init_cwnd_reduction(sk); //prr算法初始化
 		tcp_set_ca_state(sk, TCP_CA_CWR);
 	}
 }
@@ -2709,6 +2717,7 @@ static void tcp_process_loss(struct sock *sk, int flag, bool is_dupack,
 }
 
 /* Undo during fast recovery after partial ACK. */
+/* Recovery阶段接收到了partial ACK，使用这个来恢复拥塞窗口 */
 static bool tcp_try_undo_partial(struct sock *sk, u32 prior_snd_una)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
@@ -2777,6 +2786,7 @@ static bool tcp_force_fast_retransmit(struct sock *sk)
  * It does _not_ decide what to send, it is made in function
  * tcp_xmit_retransmit_queue().
  */
+//拥塞控制的处理
 static void tcp_fastretrans_alert(struct sock *sk, const u32 prior_snd_una,
 				  bool is_dupack, int *ack_flag, int *rexmit)
 {
@@ -2791,33 +2801,33 @@ static void tcp_fastretrans_alert(struct sock *sk, const u32 prior_snd_una,
 
 	/* Now state machine starts.
 	 * A. ECE, hence prohibit cwnd undoing, the reduction is required. */
-	if (flag & FLAG_ECE)
+	if (flag & FLAG_ECE) //接收到显式拥塞通知，禁止拥塞窗口撤销，开始减小拥塞窗口
 		tp->prior_ssthresh = 0;
 
 	/* B. In all the states check for reneging SACKs. */
-	if (tcp_check_sack_reneging(sk, flag))
+	if (tcp_check_sack_reneging(sk, flag)) //检测是否有sack食言, 直接跳出，在外层按照超时重传来处理了
 		return;
 
 	/* C. Check consistency of the current state. */
 	tcp_verify_left_out(tp);
 
 	/* D. Check state exit conditions. State can be terminated
-	 *    when high_seq is ACKed. */
+	 *    when high_seq is ACKed. */ //检测是不是要离开拥塞状态
 	if (icsk->icsk_ca_state == TCP_CA_Open) {
 		WARN_ON(tp->retrans_out != 0);
 		tp->retrans_stamp = 0;
-	} else if (!before(tp->snd_una, tp->high_seq)) {
+	} else if (!before(tp->snd_una, tp->high_seq)) { //没有unack的段了，要退出cwr或者recover状态了
 		switch (icsk->icsk_ca_state) {
 		case TCP_CA_CWR:
 			/* CWR is to be held something *above* high_seq
 			 * is ACKed for CWR bit to reach receiver. */
-			if (tp->snd_una != tp->high_seq) {
-				tcp_end_cwnd_reduction(sk);
+			if (tp->snd_una != tp->high_seq) { //una > high_seq, 可以退出拥塞控制阶段了
+				tcp_end_cwnd_reduction(sk); //退出cwnd的减操作了
 				tcp_set_ca_state(sk, TCP_CA_Open);
 			}
 			break;
 
-		case TCP_CA_Recovery:
+		case TCP_CA_Recovery: //退出快速回复阶段了
 			if (tcp_is_reno(tp))
 				tcp_reset_reno_sack(tp);
 			if (tcp_try_undo_recovery(sk))
@@ -2827,7 +2837,7 @@ static void tcp_fastretrans_alert(struct sock *sk, const u32 prior_snd_una,
 		}
 	}
 
-	/* E. Process state. */
+	/* E. Process state. */ 
 	switch (icsk->icsk_ca_state) {
 	case TCP_CA_Recovery:
 		if (!(flag & FLAG_SND_UNA_ADVANCED)) {
@@ -2854,7 +2864,7 @@ static void tcp_fastretrans_alert(struct sock *sk, const u32 prior_snd_una,
 			return;
 		/* Change state if cwnd is undone or retransmits are lost */
 		/* fall through */
-	default:
+	default: //从disorder状态进入recovery状态
 		if (tcp_is_reno(tp)) {
 			if (flag & FLAG_SND_UNA_ADVANCED)
 				tcp_reset_reno_sack(tp);
@@ -3689,7 +3699,7 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 
 	if (tcp_ack_is_dubious(sk, flag)) {
 		is_dupack = !(flag & (FLAG_SND_UNA_ADVANCED | FLAG_NOT_DUP));
-		tcp_fastretrans_alert(sk, prior_snd_una, is_dupack, &flag,
+		tcp_fastretrans_alert(sk, prior_snd_una, is_dupack, &flag, //快速重传
 				      &rexmit);
 	}
 
@@ -5686,7 +5696,7 @@ void tcp_finish_connect(struct sock *sk, struct sk_buff *skb)
 	tp->lsndtime = tcp_jiffies32;
 
 	if (sock_flag(sk, SOCK_KEEPOPEN))
-		inet_csk_reset_keepalive_timer(sk, keepalive_time_when(tp));
+		inet_csk_reset_keepalive_timer(sk, keepalive_time_when(tp)); //初始化保活定时器
 
 	if (!tp->rx_opt.snd_wscale)
 		__tcp_fast_path_on(tp, tp->snd_wnd);
@@ -5773,7 +5783,7 @@ static int tcp_rcv_synsent_state_process(struct sock *sk, struct sk_buff *skb,
 	struct inet_connection_sock *icsk = inet_csk(sk);
 	struct tcp_sock *tp = tcp_sk(sk);
 	struct tcp_fastopen_cookie foc = { .len = -1 };
-	int saved_clamp = tp->rx_opt.mss_clamp;
+	int saved_clamp = tp->rx_opt.mss_clamp; //对方通告的最大段
 	bool fastopen_fail;
 
 	tcp_parse_options(sock_net(sk), skb, &tp->rx_opt, 0, &foc); /* 解析tcp选项，保存到sock结构中 */
@@ -5831,7 +5841,8 @@ static int tcp_rcv_synsent_state_process(struct sock *sk, struct sk_buff *skb,
 		 *    state to ESTABLISHED..."
 		 */
 
-		tcp_ecn_rcv_synack(tp, th); /* 正常的synack包的处理 */
+		/* 正常的synack包的处理 */
+		tcp_ecn_rcv_synack(tp, th);
 
 		tcp_init_wl(tp, TCP_SKB_CB(skb)->seq);
 		tcp_ack(sk, skb, FLAG_SLOWPATH);
@@ -5998,7 +6009,7 @@ reset_and_undo:
  *	It's called from both tcp_v4_rcv and tcp_v6_rcv and should be
  *	address independent.
  */
-
+/* 处理除etablished 和 time_wait状态之外的所有tcp段 */
 int tcp_rcv_state_process(struct sock *sk, struct sk_buff *skb)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
@@ -6013,7 +6024,7 @@ int tcp_rcv_state_process(struct sock *sk, struct sk_buff *skb)
 		goto discard;
 
 	case TCP_LISTEN:
-		if (th->ack) /* syn ack 包直接返回了 ？？？？*/
+		if (th->ack) /* syn ack 包直接返回了 ？？？？, 接收了syn后，创建了新的socket后，后续的syn+ack包就是索引到新socket了，所以不会是LISTEN状态 */
 			return 1;
 
 		if (th->rst)
@@ -6038,7 +6049,7 @@ int tcp_rcv_state_process(struct sock *sk, struct sk_buff *skb)
 		}
 		goto discard;
 
-	case TCP_SYN_SENT: /* 客户端发送了syn后，接收到syn+ack进入到这里处理 */
+	case TCP_SYN_SENT: /* 客户端发送了syn后，接收到syn+ack进入到这里处理, 现在是fast open才会使用的状态 */
 		tp->rx_opt.saw_tstamp = 0;
 		tcp_mstamp_refresh(tp);
 		queued = tcp_rcv_synsent_state_process(sk, skb, th); /* 接收到3次握手后的处理 */
@@ -6337,7 +6348,7 @@ static void tcp_openreq_init(struct request_sock *req,
 
 struct request_sock *inet_reqsk_alloc(const struct request_sock_ops *ops,
 				      struct sock *sk_listener,
-				      bool attach_listener)
+				      bool attach_listener) //如果不want cookie的话，就还要依附父sock，如果不需要的话，现在子socket直接加入到ehash中，不再依附了
 {
 	struct request_sock *req = reqsk_alloc(ops, sk_listener,
 					       attach_listener);
@@ -6426,13 +6437,14 @@ int tcp_conn_request(struct request_sock_ops *rsk_ops, /* tcp层的操作函数�
 	 * evidently real one.
 	 */
 	if ((net->ipv4.sysctl_tcp_syncookies == 2 || /* net namespace, ==2表示无条件生成syncookies */
-	     inet_csk_reqsk_queue_is_full(sk)) && !isn) {
-		want_cookie = tcp_syn_flood_action(sk, skb, rsk_ops->slab_name); /* 接收队列满了，且无条件syn cookies， 所以需要进行处理*/
+	     inet_csk_reqsk_queue_is_full(sk)) && !isn) { //isn : init seq num //已经建立的连接数目
+		/* 准许syn cookies， return true */
+		want_cookie = tcp_syn_flood_action(sk, skb, rsk_ops->slab_name); /* 接收队列满了，或无条件syn cookies， 所以需要进行处理*/
 		if (!want_cookie)
 			goto drop;
 	}
 
-	if (sk_acceptq_is_full(sk)) {
+	if (sk_acceptq_is_full(sk)) { //已经建立的连接数目 + 接收了syn的连接数目
 		NET_INC_STATS(sock_net(sk), LINUX_MIB_LISTENOVERFLOWS); //一些统计
 		goto drop; /* 不能接收了，丢弃 , 而且不支持syn cookies */
 	}
@@ -6471,7 +6483,7 @@ int tcp_conn_request(struct request_sock_ops *rsk_ops, /* tcp层的操作函数�
 	if (tmp_opt.tstamp_ok)
 		tcp_rsk(req)->ts_off = af_ops->init_ts_off(net, skb); /* 用于随机化timestamp的一个值 */
 
-	dst = af_ops->route_req(sk, &fl, req);
+	dst = af_ops->route_req(sk, &fl, req); /* 获取路由缓存项 */
 	if (!dst)
 		goto drop_and_free;
 
@@ -6499,7 +6511,7 @@ int tcp_conn_request(struct request_sock_ops *rsk_ops, /* tcp层的操作函数�
 	tcp_ecn_create_request(req, skb, sk, dst);
 
 	if (want_cookie) {
-		isn = cookie_init_sequence(af_ops, sk, skb, &req->mss);
+		isn = cookie_init_sequence(af_ops, sk, skb, &req->mss); //cookie计算
 		req->cookie_ts = tmp_opt.tstamp_ok;
 		if (!tmp_opt.tstamp_ok)
 			inet_rsk(req)->ecn_ok = 0;
@@ -6511,12 +6523,12 @@ int tcp_conn_request(struct request_sock_ops *rsk_ops, /* tcp层的操作函数�
 	sk_rx_queue_set(req_to_sk(req), skb);
 	if (!want_cookie) {
 		tcp_reqsk_record_syn(sk, req, skb);
-		fastopen_sk = tcp_try_fastopen(sk, skb, req, &foc, dst);
+		fastopen_sk = tcp_try_fastopen(sk, skb, req, &foc, dst); //返回true，表示要fast open
 	}
 	if (fastopen_sk) {
 		af_ops->send_synack(fastopen_sk, dst, &fl, req,
 				    &foc, TCP_SYNACK_FASTOPEN);
-		/* Add the child socket directly into the accept queue */
+		/* Add the child socket directly into the accept queue,    //fast_open */
 		if (!inet_csk_reqsk_queue_add(sk, req, fastopen_sk)) {
 			reqsk_fastopen_remove(fastopen_sk, req, false);
 			bh_unlock_sock(fastopen_sk);
@@ -6530,7 +6542,7 @@ int tcp_conn_request(struct request_sock_ops *rsk_ops, /* tcp层的操作函数�
 	} else {
 		tcp_rsk(req)->tfo_listener = false;
 		if (!want_cookie)
-			inet_csk_reqsk_queue_hash_add(sk, req, /* 挂载到父sock的散列表中, 将req结构挂载 */
+			inet_csk_reqsk_queue_hash_add(sk, req, /* 挂载到父sock的散列表中, 将req结构挂载, 会启动连接建立定时器 */
 				tcp_timeout_init((struct sock *)req));
 		af_ops->send_synack(sk, dst, &fl, req, &foc, /* 发送synack函数 */
 				    !want_cookie ? TCP_SYNACK_NORMAL :

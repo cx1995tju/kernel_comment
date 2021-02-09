@@ -264,6 +264,7 @@ static struct inode *sock_alloc_inode(struct super_block *sb)
 	ei->socket.sk = NULL;
 	ei->socket.file = NULL;
 
+	/* 各种初始化 */
 	return &ei->vfs_inode;
 }
 
@@ -471,6 +472,7 @@ struct socket *sockfd_lookup(int fd, int *err)
 }
 EXPORT_SYMBOL(sockfd_lookup);
 
+/* fd找socket结构 */
 static struct socket *sockfd_lookup_light(int fd, int *err, int *fput_needed)
 {
 	struct fd f = fdget(fd);

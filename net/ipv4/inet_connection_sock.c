@@ -295,7 +295,7 @@ int inet_csk_get_port(struct sock *sk, unsigned short snum)
 	/* 冲突判断函数？？？？？ inet_csk_bind_conflict */
 	kuid_t uid = sock_i_uid(sk);
 
-	if (!port) {
+	if (!port) { //需要自动分配端口
 		head = inet_csk_find_open_port(sk, &tb, &port);
 		if (!head)
 			return ret;
@@ -470,7 +470,7 @@ struct sock *inet_csk_accept(struct sock *sk, int flags, int *err, bool kern)
 	if (sk->sk_protocol == IPPROTO_TCP &&
 	    tcp_rsk(req)->tfo_listener) {
 		spin_lock_bh(&queue->fastopenq.lock);
-		if (tcp_rsk(req)->tfo_listener) {
+		if (tcp_rsk(req)->tfo_listener) { //虽然可以收发数据了
 			/* We are still waiting for the final ACK from 3WHS
 			 * so can't free req now. Instead, we set req->sk to
 			 * NULL to signify that the child socket is taken
@@ -510,7 +510,7 @@ void inet_csk_init_xmit_timers(struct sock *sk,
 	timer_setup(&icsk->icsk_retransmit_timer, retransmit_handler, 0);
 	timer_setup(&icsk->icsk_delack_timer, delack_handler, 0);
 	timer_setup(&sk->sk_timer, keepalive_handler, 0);
-	icsk->icsk_pending = icsk->icsk_ack.pending = 0;
+	icsk->icsk_pending = icsk->icsk_ack.pending = 0; //重传定时器
 }
 EXPORT_SYMBOL(inet_csk_init_xmit_timers);
 
@@ -538,6 +538,7 @@ void inet_csk_reset_keepalive_timer(struct sock *sk, unsigned long len)
 }
 EXPORT_SYMBOL(inet_csk_reset_keepalive_timer);
 
+/* 根据sock信息(listen sock + 新建的req sock)查询路由 */
 struct dst_entry *inet_csk_route_req(const struct sock *sk,
 				     struct flowi4 *fl4,
 				     const struct request_sock *req)
@@ -555,9 +556,9 @@ struct dst_entry *inet_csk_route_req(const struct sock *sk,
 			   sk->sk_protocol, inet_sk_flowi_flags(sk),
 			   (opt && opt->opt.srr) ? opt->opt.faddr : ireq->ir_rmt_addr,
 			   ireq->ir_loc_addr, ireq->ir_rmt_port,
-			   htons(ireq->ir_num), sk->sk_uid);
+			   htons(ireq->ir_num), sk->sk_uid); /* 初始化路由查询条件 */
 	security_req_classify_flow(req, flowi4_to_flowi(fl4));
-	rt = ip_route_output_flow(net, fl4, sk);
+	rt = ip_route_output_flow(net, fl4, sk);  /* 查路由 */
 	if (IS_ERR(rt))
 		goto no_route;
 	if (opt && opt->opt.is_strictroute && rt->rt_uses_gateway)
@@ -716,14 +717,16 @@ static void reqsk_timer_handler(struct timer_list *t)
 	 * embrions; and abort old ones without pity, if old
 	 * ones are about to clog our table.
 	 */
+	/* 保留一半空间给没有重传过syn+ack的连接 */
 	qlen = reqsk_queue_len(queue);
 	if ((qlen << 1) > max(8U, sk_listener->sk_max_ack_backlog)) {
 		int young = reqsk_queue_len_young(queue) << 1;
 
+		/* qlen超过一半空间了，尝试次数大于2， 调整重传阈值 */
 		while (thresh > 2) {
 			if (qlen < young)
 				break;
-			thresh--;
+			thresh--;  /* 如果young占比太小的话，就一直将thresh--，直到2 */
 			young <<= 1;
 		}
 	}
@@ -736,7 +739,8 @@ static void reqsk_timer_handler(struct timer_list *t)
 	if (!expire &&
 	    (!resend ||
 	     !inet_rtx_syn_ack(sk_listener, req) ||
-	     inet_rsk(req)->acked)) {
+	     inet_rsk(req)->acked)) { //acked defer accept
+		/* 还需要等待下一次超时重传 */
 		unsigned long timeo;
 
 		if (req->num_timeout++ == 0)
@@ -759,6 +763,7 @@ static void reqsk_queue_hash_req(struct request_sock *req,
 	timer_setup(&req->rsk_timer, reqsk_timer_handler, TIMER_PINNED);
 	mod_timer(&req->rsk_timer, jiffies + timeout);
 
+	/* 现在是通通整合到ehash中了 */
 	inet_ehash_insert(req_to_sk(req), NULL);
 	/* before letting lookups find us, make sure all req fields
 	 * are committed to memory and refcnt initialized.
@@ -875,6 +880,7 @@ int inet_csk_listen_start(struct sock *sk, int backlog)
 	struct inet_sock *inet = inet_sk(sk);
 	int err = -EADDRINUSE;
 
+	/* 分配req sock队列 */
 	reqsk_queue_alloc(&icsk->icsk_accept_queue);
 
 	sk->sk_max_ack_backlog = backlog;
@@ -891,7 +897,7 @@ int inet_csk_listen_start(struct sock *sk, int backlog)
 		inet->inet_sport = htons(inet->inet_num);
 
 		sk_dst_reset(sk);
-		err = sk->sk_prot->hash(sk);
+		err = sk->sk_prot->hash(sk); //加入listening hash中
 
 		if (likely(!err))
 			return 0;
@@ -999,7 +1005,7 @@ void inet_csk_listen_stop(struct sock *sk)
 		local_bh_enable();
 		sock_put(child);
 
-		cond_resched();
+		cond_resched(); //抢占点
 	}
 	if (queue->fastopenq.rskq_rst_head) {
 		/* Free all the reqs queued in rskq_rst_head. */

@@ -2949,8 +2949,7 @@ extern int netdev_flow_limit_table_len;
  *	什么poll_list等结构就在这里
  */
 struct softnet_data {
-	struct list_head	poll_list; //网络设备轮询队列，处于rx接收状态的网络设备链接到这个队列上, rx软中断中遍历这个队列, 是否将发送的数据包链接到这个队列中，与具体执行环境有关
-					//
+	struct list_head	poll_list; //网络设备轮询队列，处于rx接收状态的网络设备链接到这个队列上, rx软中断中遍历这个队列, 然后调用具体设备的poll函数来收包
 	struct sk_buff_head	process_queue;
 
 	/* stats */
@@ -2958,7 +2957,7 @@ struct softnet_data {
 	unsigned int		time_squeeze;
 	unsigned int		received_rps;
 #ifdef CONFIG_RPS
-	struct softnet_data	*rps_ipi_list; //软件模拟的RSS
+	struct softnet_data	*rps_ipi_list; //软件模拟的RPS
 #endif
 #ifdef CONFIG_NET_FLOW_LIMIT
 	struct sd_flow_limit __rcu *flow_limit;

@@ -40,7 +40,7 @@ struct tcphdr {
 		ece:1,
 		cwr:1;
 #elif defined(__BIG_ENDIAN_BITFIELD)
-	__u16	doff:4, //头部长度
+	__u16	doff:4, //头部长度, head_offset
 		res1:4,
 		cwr:1, //拥塞窗口减, 拥塞控制中，发送方用于降低发送速率
 		ece:1, //ECN回显, 发送方接收到了一个更早的拥塞通告

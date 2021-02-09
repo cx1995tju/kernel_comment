@@ -50,8 +50,8 @@ struct msghdr {
 	int		msg_namelen;	/* size of socket address structure */
 	struct iov_iter	msg_iter;	/* data */
 	void		*msg_control;	/* ancillary data */
-	__kernel_size_t	msg_controllen;	/* ancillary data buffer length */
-	unsigned int	msg_flags;	/* flags on received message */
+	__kernel_size_t	msg_controllen;	/* ancillary data buffer length, 一般指向cmsghdr类型数组 */
+	unsigned int	msg_flags;	/* flags on received message, MSG_OOB等 */
 	struct kiocb	*msg_iocb;	/* ptr to iocb for async requests */
 };
 
@@ -79,8 +79,8 @@ struct mmsghdr {
 
 struct cmsghdr {
 	__kernel_size_t	cmsg_len;	/* data byte count, including hdr */
-        int		cmsg_level;	/* originating protocol */
-        int		cmsg_type;	/* protocol-specific type */
+        int		cmsg_level;	/* originating protocol, 控制消息的level，SOL_SOCKET等 */
+        int		cmsg_type;	/* protocol-specific type, 控制消息的类别 */
 };
 
 /*

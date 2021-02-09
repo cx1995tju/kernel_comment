@@ -1797,7 +1797,7 @@ static int neigh_add(struct sk_buff *skb, struct nlmsghdr *nlh,
 		err = 0;
 	} else
 		err = neigh_update(neigh, lladdr, ndm->ndm_state, flags,
-				   NETLINK_CB(skb).portid);
+				   NETLINK_CB(skb).portid); /* 这里会更新 */
 	neigh_release(neigh);
 
 out:
@@ -2300,8 +2300,8 @@ nla_put_failure:
 
 static void neigh_update_notify(struct neighbour *neigh, u32 nlmsg_pid)
 {
-	call_netevent_notifiers(NETEVENT_NEIGH_UPDATE, neigh);
-	__neigh_notify(neigh, RTM_NEWNEIGH, 0, nlmsg_pid);
+	call_netevent_notifiers(NETEVENT_NEIGH_UPDATE, neigh); /* 内核通知链 */
+	__neigh_notify(neigh, RTM_NEWNEIGH, 0, nlmsg_pid); /* netlink 广播 */
 }
 
 static bool neigh_master_filtered(struct net_device *dev, int master_idx)

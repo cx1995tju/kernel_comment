@@ -16,7 +16,7 @@
 enum {
 	TCP_ESTABLISHED = 1,
 	TCP_SYN_SENT,
-	TCP_SYN_RECV,
+	TCP_SYN_RECV, //现在是fast open使用的 参考git log -S"TCP_NEW_SYN_RECV" -- ./include/net/tcp_states.h
 	TCP_FIN_WAIT1,
 	TCP_FIN_WAIT2,
 	TCP_TIME_WAIT,
@@ -25,7 +25,7 @@ enum {
 	TCP_LAST_ACK,
 	TCP_LISTEN,
 	TCP_CLOSING,	/* Now a valid state */
-	TCP_NEW_SYN_RECV,
+	TCP_NEW_SYN_RECV, //正常的连接中的syn_recv状态
 
 	TCP_MAX_STATES	/* Leave at the end! */
 };

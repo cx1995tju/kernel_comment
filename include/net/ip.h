@@ -368,6 +368,7 @@ static inline int ip_mtu_locked(const struct dst_entry *dst)
 	return rt->rt_mtu_locked || dst_metric_locked(dst, RTAX_MTU);
 }
 
+/* 发送数据的时候，使用其检测待输出的数据报能否分片，如果不能，在ip数据报首部添加不能分片的标志 */
 static inline
 int ip_dont_fragment(const struct sock *sk, const struct dst_entry *dst)
 {

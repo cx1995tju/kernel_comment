@@ -3202,7 +3202,7 @@ struct sk_buff *tcp_make_synack(const struct sock *sk, struct dst_entry *dst,
 
 	switch (synack_type) {
 	case TCP_SYNACK_NORMAL:
-		skb_set_owner_w(skb, req_to_sk(req));
+		skb_set_owner_w(skb, req_to_sk(req)); /* normal的话包附加到reqsk中 */
 		break;
 	case TCP_SYNACK_COOKIE:
 		/* Under synflood, we do not attach skb to a socket,
@@ -3214,7 +3214,7 @@ struct sk_buff *tcp_make_synack(const struct sock *sk, struct dst_entry *dst,
 		 * cpu might call us concurrently.
 		 * sk->sk_wmem_alloc in an atomic, we can promote to rw.
 		 */
-		skb_set_owner_w(skb, (struct sock *)sk);
+		skb_set_owner_w(skb, (struct sock *)sk); /* fastopen 直接设置owner到listen 的父sock上, 为什么？？？？？ */
 		break;
 	}
 	skb_dst_set(skb, dst);
@@ -3292,7 +3292,7 @@ static void tcp_ca_dst_init(struct sock *sk, const struct dst_entry *dst)
 	rcu_read_unlock();
 }
 
-/* Do all connect socket setups that can be done AF independent. */
+/* Do all connect socket setups that can be done AF independent. addr family无关的设置 */
 static void tcp_connect_init(struct sock *sk)
 {
 	const struct dst_entry *dst = __sk_dst_get(sk);
@@ -3506,7 +3506,7 @@ int tcp_connect(struct sock *sk)
 	tcp_rbtree_insert(&sk->tcp_rtx_queue, buff);
 
 	/* Send off SYN; include data in Fast Open. */
-	err = tp->fastopen_req ? tcp_send_syn_data(sk, buff) :
+	err = tp->fastopen_req ? tcp_send_syn_data(sk, buff) : //fastopen， syn中带数据
 	      tcp_transmit_skb(sk, buff, 1, sk->sk_allocation);
 	if (err == -ECONNREFUSED)
 		return err;

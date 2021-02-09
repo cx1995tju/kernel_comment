@@ -38,11 +38,11 @@ struct net;
  * in sock->flags, but moved into sk->sk_wq->flags to be RCU protected.
  * Eventually all flags will be in sk->sk_wq->flags.
  */
-#define SOCKWQ_ASYNC_NOSPACE	0
+#define SOCKWQ_ASYNC_NOSPACE	0  /* 发送队列是否已满 */
 #define SOCKWQ_ASYNC_WAITDATA	1
-#define SOCK_NOSPACE		2
-#define SOCK_PASSCRED		3
-#define SOCK_PASSSEC		4
+#define SOCK_NOSPACE		2 /* 非异步情况下该套接口发送队列是否已满 */
+#define SOCK_PASSCRED		3 /* 是否设置了SO_PASSCRED选项 */
+#define SOCK_PASSSEC		4 /* 是否设置了SO_PASSEC选项 */
 
 #ifndef ARCH_HAS_SOCKET_TYPES
 /**
@@ -107,8 +107,9 @@ struct socket_wq {
  *  @sk: internal networking protocol agnostic socket representation
  *  @wq: wait queue for several uses
  */
+/* file结构的private_data索引到这个结构，甚至直接通过vfs_inode也可以索引到，见socket_alloc结构 */
 struct socket {
-	socket_state		state;
+	socket_state		state; /* 只对面向连接的socket有意义，对于UDP等是没有意义的, SS_FREE等 */
 
 	short			type;
 

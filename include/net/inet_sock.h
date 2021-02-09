@@ -44,7 +44,7 @@ struct ip_options {
 	__be32		faddr;
 	__be32		nexthop;
 	unsigned char	optlen;
-	unsigned char	srr;
+	unsigned char	srr; //
 	unsigned char	rr;
 	unsigned char	ts;
 	unsigned char	is_strictroute:1,
@@ -162,7 +162,7 @@ struct rtable;
  * @inet_rcv_saddr - Bound local IPv4 addr 本地local地址 
  * @inet_dport - Destination port
  * @inet_num - Local port 本地端口号
- * @inet_saddr - Sending source
+ * @inet_saddr - Sending source , 发送的时候使用的本地地址
  * @uc_ttl - Unicast TTL 单播TTL
  * @inet_sport - Source port
  * @inet_id - ID counter for DF pkts
@@ -188,18 +188,18 @@ struct inet_sock {
 #define inet_num		sk.__sk_common.skc_num //本地端口
 
 	__be32			inet_saddr;
-	__s16			uc_ttl; //ttl，TTL的值首先从这里获取
+	__s16			uc_ttl; //单播ttl，TTL的值首先从这里获取
 	__u16			cmsg_flags; //IPPROTO_IP级别的一些选项值
 	__be16			inet_sport; //网络字节序源端口
-	__u16			inet_id; //一个单调递增的值，用来给ip头部id域赋值
+	__u16			inet_id; //一个单调递增的值，用来给ip头部id域赋值,即一个IP数据报的标志
 
 	struct ip_options_rcu __rcu	*inet_opt; //指向ip数据报选项的指针
 	int			rx_dst_ifindex; /* device index */
 	__u8			tos;
 	__u8			min_ttl;
-	__u8			mc_ttl;
+	__u8			mc_ttl; /* 多播ttl */
 	__u8			pmtudisc; //是否启动路径MTU发现功能
-	__u8			recverr:1,
+	__u8			recverr:1, //是否允许接收扩展的可靠错误信息
 				is_icsk:1, //是否是基于连接的
 				freebind:1, //是否允许绑定非主机地址
 				hdrincl:1, //ip头部是否是用户数据构建
@@ -215,10 +215,10 @@ struct inet_sock {
 	__u8			rcv_tos;
 	__u8			convert_csum;
 	int			uc_index;
-	int			mc_index;
-	__be32			mc_addr;
-	struct ip_mc_socklist __rcu	*mc_list;
-	struct inet_cork_full	cork;
+	int			mc_index; /* 组播使用的本地设备索引 */
+	__be32			mc_addr; //组播使用的本地源地址
+	struct ip_mc_socklist __rcu	*mc_list; /* 组播组列表 */
+	struct inet_cork_full	cork; //udp或原始ip在每次发送的时候缓存的一些临时信息
 };
 
 #define IPCORK_OPT	1	/* ip-options has been held in ipcork.opt */

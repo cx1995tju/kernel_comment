@@ -571,7 +571,7 @@ struct sock *tcp_create_openreq_child(const struct sock *sk,
 EXPORT_SYMBOL(tcp_create_openreq_child);
 
 /*
- * Process an incoming packet for SYN_RECV sockets represented as a
+ * Process an incoming packet for SYN_RECV sockets represented as a //其实是NEW_SYN_RECV状态, TFO才是SYN_RECV状态
  * request_sock. Normally sk is the listener socket but for TFO it
  * points to the child socket.
  *
@@ -593,11 +593,11 @@ struct sock *tcp_check_req(struct sock *sk, struct sk_buff *skb,
 	bool own_req;
 
 	tmp_opt.saw_tstamp = 0;
-	if (th->doff > (sizeof(struct tcphdr)>>2)) {
-		tcp_parse_options(sock_net(sk), skb, &tmp_opt, 0, NULL);
+	if (th->doff > (sizeof(struct tcphdr)>>2)) { //头部大小检验，不能小于20B
+		tcp_parse_options(sock_net(sk), skb, &tmp_opt, 0, NULL); //tcp选项分析
 
 		if (tmp_opt.saw_tstamp) {
-			tmp_opt.ts_recent = req->ts_recent;
+			tmp_opt.ts_recent = req->ts_recent; //见基于TSOPT的RTT估计，解决延时ack的问题
 			if (tmp_opt.rcv_tsecr)
 				tmp_opt.rcv_tsecr -= tcp_rsk(req)->ts_off;
 			/* We do not store true stamp, but it is not required,
@@ -605,7 +605,7 @@ struct sock *tcp_check_req(struct sock *sk, struct sk_buff *skb,
 			 * from another data.
 			 */
 			tmp_opt.ts_recent_stamp = ktime_get_seconds() - ((TCP_TIMEOUT_INIT/HZ)<<req->num_timeout);
-			paws_reject = tcp_paws_reject(&tmp_opt, th->rst);
+			paws_reject = tcp_paws_reject(&tmp_opt, th->rst); //PAWS 防止回绕序号, check
 		}
 	}
 
@@ -638,15 +638,15 @@ struct sock *tcp_check_req(struct sock *sk, struct sk_buff *skb,
 		 */
 		if (!tcp_oow_rate_limited(sock_net(sk), skb,
 					  LINUX_MIB_TCPACKSKIPPEDSYNRECV,
-					  &tcp_rsk(req)->last_oow_ack_time) &&
+					  &tcp_rsk(req)->last_oow_ack_time) && //检查防止过分的syn攻击，就不需要回复synack了
 
-		    !inet_rtx_syn_ack(sk, req)) {
+		    !inet_rtx_syn_ack(sk, req)) { //发送synack
 			unsigned long expires = jiffies;
 
 			expires += min(TCP_TIMEOUT_INIT << req->num_timeout,
 				       TCP_RTO_MAX);
 			if (!fastopen)
-				mod_timer_pending(&req->rsk_timer, expires);
+				mod_timer_pending(&req->rsk_timer, expires); //重置连接建立定时器
 			else
 				req->rsk_timer.expires = expires;
 		}
@@ -739,7 +739,7 @@ struct sock *tcp_check_req(struct sock *sk, struct sk_buff *skb,
 	/* In sequence, PAWS is OK. */
 
 	/* 正常保存时间戳 */
-	if (tmp_opt.saw_tstamp && !after(TCP_SKB_CB(skb)->seq, tcp_rsk(req)->rcv_nxt))
+	if (tmp_opt.saw_tstamp && !after(TCP_SKB_CB(skb)->seq, tcp_rsk(req)->rcv_nxt)) //保存时间戳
 		req->ts_recent = tmp_opt.rcv_tsval;
 
 	if (TCP_SKB_CB(skb)->seq == tcp_rsk(req)->rcv_isn) {
@@ -772,7 +772,7 @@ struct sock *tcp_check_req(struct sock *sk, struct sk_buff *skb,
 		return sk;
 
 	/* 如果设置了deffer  accept，不处理ack包的，而是等到有负荷的包到来了再处理 */
-	/* While TCP_DEFER_ACCEPT is active, drop bare ACK. */
+	/* While TCP_DEFER_ACCEPT is active, drop bare ACK. 当然也不是一直等待数据包的 */
 	if (req->num_timeout < inet_csk(sk)->icsk_accept_queue.rskq_defer_accept &&
 	    TCP_SKB_CB(skb)->end_seq == tcp_rsk(req)->rcv_isn + 1) {
 		inet_rsk(req)->acked = 1;
@@ -792,10 +792,10 @@ struct sock *tcp_check_req(struct sock *sk, struct sk_buff *skb,
 	if (!child)
 		goto listen_overflow;
 
-	sock_rps_save_rxhash(child, skb);
+	sock_rps_save_rxhash(child, skb); //保存hash值，避免总是计算
 	tcp_synack_rtt_meas(child, req);
 	*req_stolen = !own_req;
-	return inet_csk_complete_hashdance(sk, child, req, own_req); /* 插入队列 */
+	return inet_csk_complete_hashdance(sk, child, req, own_req); /* 插入队列, 返回的新sock结构 */
 
 listen_overflow:
 	if (!sock_net(sk)->ipv4.sysctl_tcp_abort_on_overflow) {

@@ -3917,12 +3917,12 @@ EXPORT_SYMBOL(netdev_max_backlog);
 
 /* 一些重要的系统参数 */
 int netdev_tstamp_prequeue __read_mostly = 1;
-int netdev_budget __read_mostly = 300; //在数据包rx软中断中，所有设备可以读取的报文总配额, 这是默认值
+int netdev_budget __read_mostly = 300; //在数据包rx软中断中，所有设备可以读取的报文总配额, 这是默认值, 当达到配额后，会结束本次读取，产生一个新的软中断
 unsigned int __read_mostly netdev_budget_usecs = 2000;
 int weight_p __read_mostly = 64;           /* old backlog weight */
 int dev_weight_rx_bias __read_mostly = 1;  /* bias for backlog weight */
 int dev_weight_tx_bias __read_mostly = 1;  /* bias for output_queue quota */
-int dev_rx_weight __read_mostly = 64;
+int dev_rx_weight __read_mostly = 64; /* 单个设备的配额 */
 int dev_tx_weight __read_mostly = 64;
 
 /* Called with irq disabled */
@@ -4801,6 +4801,7 @@ another_round:
 	if (pfmemalloc)
 		goto skip_taps;
 
+	/* 遍历ptype_all链表 */
 	list_for_each_entry_rcu(ptype, &ptype_all, list) {
 		if (pt_prev)
 			ret = deliver_skb(skb, pt_prev, orig_dev);

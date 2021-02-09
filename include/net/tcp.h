@@ -795,6 +795,10 @@ static inline u32 tcp_skb_timestamp(const struct sk_buff *skb)
  * If this grows please adjust skbuff.h:skbuff->cb[xxx] size appropriately.
  */
 /* 保存在sk_buff的cb成员中的传输层的私有数据（到达别的层后，cb会保存其他层的私有数据）*/
+/* rx的时候，在tcp_v4_Rcv中设置，tx的在发送的时候，譬如tcp_fragment的时候设置
+ *
+ *
+ * */
 struct tcp_skb_cb {
 	__u32		seq;		/* Starting sequence number	*/
 	__u32		end_seq;	/* SEQ + FIN + SYN + datalen	*/
@@ -1181,7 +1185,7 @@ static inline __u32 tcp_current_ssthresh(const struct sock *sk)
 }
 
 /* Use define here intentionally to get WARN_ON location shown at the caller */
-#define tcp_verify_left_out(tp)	WARN_ON(tcp_left_out(tp) > tp->packets_out)
+#define tcp_verify_left_out(tp)	WARN_ON(tcp_left_out(tp) > tp->packets_out) //left_out 不能大于 packets_out的
 
 void tcp_enter_cwr(struct sock *sk);
 __u32 tcp_init_cwnd(const struct tcp_sock *tp, const struct dst_entry *dst);
@@ -1289,7 +1293,7 @@ static inline __sum16 __tcp_checksum_complete(struct sk_buff *skb)
 static inline bool tcp_checksum_complete(struct sk_buff *skb)
 {
 	return !skb_csum_unnecessary(skb) &&
-		__tcp_checksum_complete(skb);
+		__tcp_checksum_complete(skb); //如果需要软件计算的话，那么就去计算一下
 }
 
 bool tcp_add_backlog(struct sock *sk, struct sk_buff *skb);

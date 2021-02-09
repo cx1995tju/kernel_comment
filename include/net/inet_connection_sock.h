@@ -34,20 +34,21 @@ struct tcp_congestion_ops;
  * Pointers to address related TCP functions
  * (i.e. things that depend on the address family)
  */
+//tcp层的实例是ipv4_specific，是tx方向传输层到网络层的关键
 struct inet_connection_sock_af_ops {
-	int	    (*queue_xmit)(struct sock *sk, struct sk_buff *skb, struct flowi *fl);
-	void	    (*send_check)(struct sock *sk, struct sk_buff *skb);
-	int	    (*rebuild_header)(struct sock *sk);
+	int	    (*queue_xmit)(struct sock *sk, struct sk_buff *skb, struct flowi *fl); //传输层到网络层接口，TCP设置为ip_queue_xmit
+	void	    (*send_check)(struct sock *sk, struct sk_buff *skb); //计算传输层首部校验和, tcp初始化为tcp_v4_send_check
+	int	    (*rebuild_header)(struct sock *sk); //如果对应的sock没有路由缓存向，为其选择，tcp设置为inet_sk_rebuild_header
 	void	    (*sk_rx_dst_set)(struct sock *sk, const struct sk_buff *skb);
-	int	    (*conn_request)(struct sock *sk, struct sk_buff *skb);
-	struct sock *(*syn_recv_sock)(const struct sock *sk, struct sk_buff *skb,
+	int	    (*conn_request)(struct sock *sk, struct sk_buff *skb); //连接请求处理， tcp:tcp_v4_conn_request
+	struct sock *(*syn_recv_sock)(const struct sock *sk, struct sk_buff *skb, //完成三次握手后调用该接口创建套接口,tcp_v4_syn_recv_sock
 				      struct request_sock *req,
 				      struct dst_entry *dst,
 				      struct request_sock *req_unhash,
 				      bool *own_req);
-	u16	    net_header_len;
+	u16	    net_header_len; //网络层首部长度
 	u16	    net_frag_header_len;
-	u16	    sockaddr_len;
+	u16	    sockaddr_len; //网络层socket地址长度
 	int	    (*setsockopt)(struct sock *sk, int level, int optname,
 				  char __user *optval, unsigned int optlen);
 	int	    (*getsockopt)(struct sock *sk, int level, int optname,
@@ -60,7 +61,7 @@ struct inet_connection_sock_af_ops {
 				int level, int optname,
 				char __user *optval, int __user *optlen);
 #endif
-	void	    (*addr2sockaddr)(struct sock *sk, struct sockaddr *);
+	void	    (*addr2sockaddr)(struct sock *sk, struct sockaddr *); 
 	void	    (*mtu_reduced)(struct sock *sk);
 };
 
@@ -91,38 +92,38 @@ struct inet_connection_sock_af_ops {
 struct inet_connection_sock {
 	/* inet_sock has to be the first member! */
 	struct inet_sock	  icsk_inet;
-	struct request_sock_queue icsk_accept_queue;
+	struct request_sock_queue icsk_accept_queue; //TCP层接收到连接请求后，会创建一个sock结构存档到这里, 等待accept来获取
 	struct inet_bind_bucket	  *icsk_bind_hash; //绑定的端口信息
-	unsigned long		  icsk_timeout;
- 	struct timer_list	  icsk_retransmit_timer;
- 	struct timer_list	  icsk_delack_timer;
-	__u32			  icsk_rto;
-	__u32			  icsk_pmtu_cookie;
-	const struct tcp_congestion_ops *icsk_ca_ops;
+	unsigned long		  icsk_timeout; //即超时重传时间, 一般等于jiffies + icsk_rto
+ 	struct timer_list	  icsk_retransmit_timer; //重传定时器或持续定时器，使用icsk_pending来区分
+ 	struct timer_list	  icsk_delack_timer; //延迟ack定时器
+	__u32			  icsk_rto; //RTO
+	__u32			  icsk_pmtu_cookie; //最近一次更新的PMTU
+	const struct tcp_congestion_ops *icsk_ca_ops; //指向实现某个拥塞控制算法的指针，LINUX支持多种，用户也可以自己编写后加载到内核中
 	const struct inet_connection_sock_af_ops *icsk_af_ops;  //向网络层发送的接口，tcp的该成员是ipv4_specific
 	const struct tcp_ulp_ops  *icsk_ulp_ops;
 	void			  *icsk_ulp_data;
 	void (*icsk_clean_acked)(struct sock *sk, u32 acked_seq);
 	struct hlist_node         icsk_listen_portaddr_node;
-	unsigned int		  (*icsk_sync_mss)(struct sock *sk, u32 pmtu);
-	__u8			  icsk_ca_state:6,
+	unsigned int		  (*icsk_sync_mss)(struct sock *sk, u32 pmtu); //根据pmtu同步本地MSS的函数指针, 在加载tcp协议模块的时候，在tcp_v4_init_sock中被初始化为tcp_sync_mss
+	__u8			  icsk_ca_state:6, //拥塞控制状态机的状态
 				  icsk_ca_setsockopt:1,
 				  icsk_ca_dst_locked:1;
-	__u8			  icsk_retransmits;
-	__u8			  icsk_pending;
-	__u8			  icsk_backoff;
-	__u8			  icsk_syn_retries;
-	__u8			  icsk_probes_out;
-	__u16			  icsk_ext_hdr_len;
+	__u8			  icsk_retransmits; //超时重传的次数
+	__u8			  icsk_pending; //区分重传定时器和持续定时器，
+	__u8			  icsk_backoff; //用来计算下一个持续定时器设定值的指数退避算法指数
+	__u8			  icsk_syn_retries; //最大的重发syn或syn_ack的次数
+	__u8			  icsk_probes_out; //持续定时器或保活定时器周期性发出去但是没有被确认的TCP段，接收到ack后清零
+	__u16			  icsk_ext_hdr_len; //ip首部选项长度
 	struct {
-		__u8		  pending;	 /* ACK is pending			   */
-		__u8		  quick;	 /* Scheduled number of quick acks	   */
-		__u8		  pingpong;	 /* The session is interactive		   */
-		__u8		  blocked;	 /* Delayed ACK was blocked by socket lock */
-		__u32		  ato;		 /* Predicted tick of soft clock	   */
-		unsigned long	  timeout;	 /* Currently scheduled timeout		   */
-		__u32		  lrcvtime;	 /* timestamp of last received data packet */
-		__u16		  last_seg_size; /* Size of last incoming segment	   */
+		__u8		  pending;	 /* ACK is pending,标识当前ack发送的紧急程度，在调用send的时候会检测该状态，如果需要就立即发送ack，%ICSK_ACK_SCHED			   */
+		__u8		  quick;	 /* Scheduled number of quick acks,快速ack模式，可以发送的ack数目	   */
+		__u8		  pingpong;	 /* The session is interactive,标识是否开启了快速ack模式		   */
+		__u8		  blocked;	 /* Delayed ACK was blocked by socket lock, socket被进程占据了，现在不能立即发送ack，有机会立即发送 */
+		__u32		  ato;		 /* Predicted tick of soft clock, 延时确认定时器的估值	   */
+		unsigned long	  timeout;	 /* Currently scheduled timeout,当前的延时确认时间		   */
+		__u32		  lrcvtime;	 /* timestamp of last received data packet,最近一次接受到数据包的时间 */
+		__u16		  last_seg_size; /* Size of last incoming segment, 最后一个接收到的端长度，可以计算rcv_mss	   */
 		__u16		  rcv_mss;	 /* MSS used for delayed ACK decisions	   */
 	} icsk_ack;
 	struct {
@@ -133,13 +134,13 @@ struct inet_connection_sock {
 		int		  search_low;
 
 		/* Information on the current probe. */
-		int		  probe_size;
+		int		  probe_size; //当前探测值，探测结束后置0
 
 		u32		  probe_timestamp;
-	} icsk_mtup;
+	} icsk_mtup; //pmtu相关
 	u32			  icsk_user_timeout;
 
-	u64			  icsk_ca_priv[88 / sizeof(u64)];
+	u64			  icsk_ca_priv[88 / sizeof(u64)]; //关于拥塞控制算法的各种私有数据
 #define ICSK_CA_PRIV_SIZE      (11 * sizeof(u64))
 };
 
@@ -165,10 +166,10 @@ struct sock *inet_csk_clone_lock(const struct sock *sk,
 				 const gfp_t priority);
 
 enum inet_csk_ack_state_t {
-	ICSK_ACK_SCHED	= 1,
-	ICSK_ACK_TIMER  = 2,
-	ICSK_ACK_PUSHED = 4,
-	ICSK_ACK_PUSHED2 = 8,
+	ICSK_ACK_SCHED	= 1,  //有ack需要发送，是立即发送还是delay需要看其他标志，是发送ack的前提，在接收到有负荷的TCP包后，会设置
+	ICSK_ACK_TIMER  = 2, //延时发送ack定时器已经启动
+	ICSK_ACK_PUSHED = 4, //如果pingpong是0，立即发送ack
+	ICSK_ACK_PUSHED2 = 8, //无条件立即发送ack
 	ICSK_ACK_NOW = 16	/* Send the next ACK immediately (once) */
 };
 

@@ -140,28 +140,28 @@ struct neighbour {
 	unsigned long		updated;
 	rwlock_t		lock;
 	refcount_t		refcnt;
-	struct sk_buff_head	arp_queue;
+	struct sk_buff_head	arp_queue; /* 邻居项无效的时候缓存报文 */
 	unsigned int		arp_queue_len_bytes;
 	struct timer_list	timer;
 	unsigned long		used;
 	atomic_t		probes;
 	__u8			flags;
-	__u8			nud_state;
+	__u8			nud_state; /* 邻居项状态，邻居项是有一个状态机的 */
 	__u8			type;
 	__u8			dead;
 	seqlock_t		ha_lock;
-	unsigned char		ha[ALIGN(MAX_ADDR_LEN, sizeof(unsigned long))];
-	struct hh_cache		hh;
-	int			(*output)(struct neighbour *, struct sk_buff *);
+	unsigned char		ha[ALIGN(MAX_ADDR_LEN, sizeof(unsigned long))]; /* 二层地址 */
+	struct hh_cache		hh; /* 二层头部缓存 , 缓存后就可以直接复制了，而不是一个域一个域的设置头部，加速报文传输 */ 
+	int			(*output)(struct neighbour *, struct sk_buff *); /* 输出报文到该邻居的函数 */
 	const struct neigh_ops	*ops;
 	struct rcu_head		rcu;
 	struct net_device	*dev; /* 通过此网络设备可以访问到邻居 */
-	u8			primary_key[0];
+	u8			primary_key[0]; /* 三层地址 */
 } __randomize_layout;
 
 struct neigh_ops {
 	int			family;
-	void			(*solicit)(struct neighbour *, struct sk_buff *);
+	void			(*solicit)(struct neighbour *, struct sk_buff *); /* 发送请求报文函数 */
 	void			(*error_report)(struct neighbour *, struct sk_buff *);
 	int			(*output)(struct neighbour *, struct sk_buff *);
 	int			(*connected_output)(struct neighbour *, struct sk_buff *);

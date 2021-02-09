@@ -289,6 +289,7 @@ lookup_protocol:
 
 	if (unlikely(err)) {
 		if (try_loading_module < 2) {
+			/* 尝试加载模块最多不超过两次，第一次要求protocol和type都一致，第二次仅要求protocol一致 */
 			rcu_read_unlock();
 			/*
 			 * Be more specific, e.g. net-pf-2-proto-132-type-1
@@ -415,7 +416,7 @@ int inet_release(struct socket *sock)
 		long timeout;
 
 		/* Applications forget to leave groups before exiting */
-		ip_mc_drop_socket(sk);
+		ip_mc_drop_socket(sk); /* 离开加入的组播组 */
 
 		/* If linger is set, we don't return until the close
 		 * is complete.  Otherwise we return immediately. The
@@ -464,7 +465,7 @@ int __inet_bind(struct sock *sk, struct sockaddr *uaddr, int addr_len,
 	struct sockaddr_in *addr = (struct sockaddr_in *)uaddr;
 	struct inet_sock *inet = inet_sk(sk);
 	struct net *net = sock_net(sk);
-	unsigned short snum;
+	unsigned short snum; //source port
 	int chk_addr_ret;
 	u32 tb_id = RT_TABLE_LOCAL;
 	int err;
@@ -613,7 +614,7 @@ int __inet_stream_connect(struct socket *sock, struct sockaddr *uaddr,
 
 	/*
 	 * uaddr can be NULL and addr_len can be 0 if:
-	 * sk is a TCP fastopen active socket and
+	 * sk is a TCP fastopen active socket and //fastopen的时候syn包可以带数据的, fastopen的时候，直接发数据，不需要手动调用connect, 在send函数中会帮忙调用的
 	 * TCP_FASTOPEN_CONNECT sockopt is set and
 	 * we already have a valid cookie for this socket.
 	 * In this case, user can call write() after connect().
@@ -639,7 +640,7 @@ int __inet_stream_connect(struct socket *sock, struct sockaddr *uaddr,
 		err = -EISCONN;
 		goto out;
 	case SS_CONNECTING:
-		if (inet_sk(sk)->defer_connect) //是之前推迟的connect
+		if (inet_sk(sk)->defer_connect) //与fastopen有关，见该成员注释
 			err = is_sendmsg ? -EINPROGRESS : -EISCONN;
 		else
 			err = -EALREADY;
@@ -882,12 +883,12 @@ int inet_shutdown(struct socket *sock, int how)
 	 * close() in multithreaded environment. It is _not_ a good idea,
 	 * but we have no choice until close() is repaired at VFS level.
 	 */
-	case TCP_LISTEN:
+	case TCP_LISTEN: /* listen状态的fd只能设置recvshutdown */
 		if (!(how & RCV_SHUTDOWN))
 			break;
 		/* fall through */
 	case TCP_SYN_SENT:
-		err = sk->sk_prot->disconnect(sk, O_NONBLOCK);
+		err = sk->sk_prot->disconnect(sk, O_NONBLOCK); /* 如果是正在连接状态，需要调用传输层的disconnect函数 */
 		sock->state = err ? SS_DISCONNECTING : SS_UNCONNECTED;
 		break;
 	}
@@ -1094,7 +1095,7 @@ static struct inet_protosw inetsw_array[] =
 		.protocol =   IPPROTO_TCP,
 		.prot =       &tcp_prot,
 		.ops =        &inet_stream_ops,
-		.flags =      INET_PROTOSW_PERMANENT |
+		.flags =      INET_PROTOSW_PERMANENT | //表示TCP模块在运行过程中不能被替换或者卸载，而且是面向连接的
 			      INET_PROTOSW_ICSK,
 	},
 
@@ -1686,6 +1687,7 @@ static const struct net_protocol igmp_protocol = {
 /* thinking of making this const? Don't.
  * early_demux can change based on sysctl.
  */
+/* rx方向从ip_rcv 到tcp层的关键 */
 static struct net_protocol tcp_protocol = {
 	.early_demux	=	tcp_v4_early_demux,
 	.early_demux_handler =  tcp_v4_early_demux,

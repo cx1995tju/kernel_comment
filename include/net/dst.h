@@ -32,6 +32,7 @@
 
 struct sk_buff;
 
+/* 路由缓存中独立于协议的部分，三层协议会在另外的结构中缓存更多的信息，譬如ipv4使用rtable结构 */
 struct dst_entry {
 	struct net_device       *dev;
 	struct  dst_ops	        *ops;
@@ -43,7 +44,7 @@ struct dst_entry {
 	void			*__pad1;
 #endif
 	int			(*input)(struct sk_buff *);
-	int			(*output)(struct net *net, struct sock *sk, struct sk_buff *skb);
+	int			(*output)(struct net *net, struct sock *sk, struct sk_buff *skb); /* 报文输入输出函数 */
 
 	unsigned short		flags;
 #define DST_HOST		0x0001
@@ -79,10 +80,10 @@ struct dst_entry {
 	atomic_t		__refcnt;	/* 64-bit offset 64 */
 #endif
 	int			__use;
-	unsigned long		lastuse;
+	unsigned long		lastuse; /* 最后一次使用的时间戳 */
 	struct lwtunnel_state   *lwtstate;
 	struct rcu_head		rcu_head;
-	short			error;
+	short			error; /* fib_lookup查找失败的时候，会将错误信息放置在这里,在后续的ip_error中使用本值来决定如何处理错误，即生成哪一种ICMP消息 */
 	short			__pad;
 	__u32			tclassid;
 #ifndef CONFIG_64BIT
@@ -91,7 +92,7 @@ struct dst_entry {
 };
 
 struct dst_metrics {
-	u32		metrics[RTAX_MAX];
+	u32		metrics[RTAX_MAX]; /* 多种度量值，TCP很多地方都会使用 */
 	refcount_t	refcnt;
 };
 extern const struct dst_metrics dst_default_metrics;

@@ -87,7 +87,7 @@ struct tcp_sack_block {
 #define TCP_SACK_SEEN     (1 << 0)   /*1 = peer is SACK capable, */
 #define TCP_DSACK_SEEN    (1 << 2)   /*1 = DSACK was received from peer*/
 
-/* 保存TCP选项结构 */
+/* 保存接收到的TCP选项结构 */
 struct tcp_options_received {
 /*	PAWS/RTTM data	*/
 	int	ts_recent_stamp;/* Time we stored ts_recent (for aging) */
@@ -124,6 +124,7 @@ static inline void tcp_clear_options(struct tcp_options_received *rx_opt)
 
 struct tcp_request_sock_ops;
 
+/* 保存连接初始相关信息 */
 struct tcp_request_sock {
 	struct inet_request_sock 	req;
 	const struct tcp_request_sock_ops *af_specific;
@@ -148,14 +149,14 @@ static inline struct tcp_request_sock *tcp_rsk(const struct request_sock *req)
 struct tcp_sock {
 	/* inet_connection_sock has to be the first member of tcp_sock */
 	struct inet_connection_sock	inet_conn;
-	u16	tcp_header_len;	/* Bytes of tcp header to send		*/
+	u16	tcp_header_len;	/* Bytes of tcp header to send, tcp首部长度，含选项		*/
 	u16	gso_segs;	/* Max number of segs per GSO packet	*/
 
 /*
  *	Header prediction flags
  *	0x5?10 << 16 + snd_wnd in net byte order
  */
-	__be32	pred_flags;
+	__be32	pred_flags; //首部预测标志
 
 /*
  *	RFC793 variables by their proper names. This means you can
@@ -193,7 +194,7 @@ struct tcp_sock {
 				 * total number of DSACK blocks received
 				 */
  	u32	snd_una;	/* First byte we want an ack for	*/
- 	u32	snd_sml;	/* Last byte of the most recently transmitted small packet */
+ 	u32	snd_sml;	/* Last byte of the most recently transmitted small packet, 最近发送的小包的最后一个字节序号, 成功发送报文后，如果长度小于mss，则更新，主要用于判断是否启动nagle算法  */
 	u32	rcv_tstamp;	/* timestamp of last received ACK (for keepalives) */
 	u32	lsndtime;	/* timestamp of last sent data packet (for restart window) */
 	u32	last_oow_ack_time;  /* timestamp of last out-of-window ACK */
@@ -204,12 +205,12 @@ struct tcp_sock {
 	struct list_head tsq_node; /* anchor in tsq_tasklet.head list */
 	struct list_head tsorted_sent_queue; /* time-sorted sent but un-SACKed skbs */
 
-	u32	snd_wl1;	/* Sequence for window update		*/
-	u32	snd_wnd;	/* The window we expect to receive	*/
-	u32	max_window;	/* Maximal window ever seen from peer	*/
+	u32	snd_wl1;	/* Sequence for window update, 记录更新发送串口的那个ack端的序号，如果后续接收到的ack端大于snd_wl1，就需要更新窗口		*/
+	u32	snd_wnd;	/* The window we expect to receive, 接收方提供的接收窗口大小，即发送方发送窗口大小	*/
+	u32	max_window;	/* Maximal window ever seen from peer, 对端通告过的最大窗口值	*/
 	u32	mss_cache;	/* Cached effective mss, not including SACKS, 发送方当前有效的mss  */
 
-	u32	window_clamp;	/* Maximal window to advertise		*/
+	u32	window_clamp;	/* Maximal window to advertise. 滑动窗口大小不会超过这个值		*/
 	u32	rcv_ssthresh;	/* Current window clamp			*/
 
 	/* Information of the most recently (s)acked skb */
@@ -259,7 +260,7 @@ struct tcp_sock {
 	u32	rtt_seq;	/* sequence number to update rttvar	*/
 	struct  minmax rtt_min;
 
-	u32	packets_out;	/* Packets which are "in flight"	*/
+	u32	packets_out;	/* Packets which are "in flight",	 //i.e. SND.NXT - SND.UNA	*/
 	u32	retrans_out;	/* Retransmitted packets out		*/
 	u32	max_packets_out;  /* max packets_out in last window */
 	u32	max_packets_seq;  /* right edge of max_packets_out flight */
@@ -318,7 +319,7 @@ struct tcp_sock {
 
 	/* SACKs data, these 2 need to be together (see tcp_options_write) */
 	struct tcp_sack_block duplicate_sack[1]; /* D-SACK block */
-	struct tcp_sack_block selective_acks[4]; /* The SACKS themselves*/
+	struct tcp_sack_block selective_acks[4]; /* The SACKS themselves, 存储sack信息*/
 
 	struct tcp_sack_block recv_sack_cache[4];
 
@@ -331,7 +332,7 @@ struct tcp_sock {
 	int     lost_cnt_hint;
 
 	u32	prior_ssthresh; /* ssthresh saved at recovery start	*/
-	u32	high_seq;	/* snd_nxt at onset of congestion	*/
+	u32	high_seq;	/* snd_nxt at onset of congestion, 拥塞开始的时候NXT值	*/
 
 	u32	retrans_stamp;	/* Timestamp of the last retransmit,
 				 * also used in SYN-SENT to remember stamp of

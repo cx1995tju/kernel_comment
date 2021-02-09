@@ -2283,7 +2283,7 @@ static const unsigned char new_state[16] = {
 
 static int tcp_close_state(struct sock *sk)
 {
-	int next = (int)new_state[sk->sk_state];
+	int next = (int)new_state[sk->sk_state]; /* 状态转移函数 */
 	int ns = next & TCP_STATE_MASK;
 
 	tcp_set_state(sk, ns);
@@ -3882,7 +3882,7 @@ void __init tcp_init(void)
 	if (inet_ehash_locks_alloc(&tcp_hashinfo))
 		panic("TCP: failed to alloc ehash_locks");
 	tcp_hashinfo.bhash =
-		alloc_large_system_hash("TCP bind", //已绑定端口hash表
+		alloc_large_system_hash("TCP bind", //已绑定端口hash表, bhash表
 					sizeof(struct inet_bind_hashbucket),
 					tcp_hashinfo.ehash_mask + 1,
 					17, /* one slot per 128 KB of memory */

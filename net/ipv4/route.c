@@ -1702,6 +1702,7 @@ static void ip_handle_martian_source(struct net_device *dev,
 }
 
 /* called in rcu_read_lock() section */
+/* 创建路由缓存*/
 static int __mkroute_input(struct sk_buff *skb,
 			   const struct fib_result *res,
 			   struct in_device *in_dev,

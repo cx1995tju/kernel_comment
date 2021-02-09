@@ -59,7 +59,7 @@ struct __kfifo {
 	unsigned int	in;
 	unsigned int	out;
 	unsigned int	mask;
-	unsigned int	esize;
+	unsigned int	esize; /* ele size */
 	void		*data;
 };
 

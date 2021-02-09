@@ -28,13 +28,14 @@ struct sk_buff;
 struct dst_entry;
 struct proto;
 
+//tcp是tcp_request_sock_ops,连接建立过程中要用到的函数集合
 struct request_sock_ops {
 	int		family;
 	unsigned int	obj_size;
 	struct kmem_cache	*slab;
 	char		*slab_name;
 	int		(*rtx_syn_ack)(const struct sock *sk,
-				       struct request_sock *req);
+				       struct request_sock *req); /* 发送syn ack */
 	void		(*send_ack)(const struct sock *sk, struct sk_buff *skb,
 				    struct request_sock *req);
 	void		(*send_reset)(const struct sock *sk,
@@ -51,7 +52,7 @@ struct request_sock {
 	struct sock_common		__req_common; /* 为什么需要一个这么大的sock_common 结构 */
 #define rsk_refcnt			__req_common.skc_refcnt
 #define rsk_hash			__req_common.skc_hash
-#define rsk_listener			__req_common.skc_listener
+#define rsk_listener			__req_common.skc_listener //对于非syn cookies，指向子sock依赖的父sock
 #define rsk_window_clamp		__req_common.skc_window_clamp
 #define rsk_rcv_wnd			__req_common.skc_rcv_wnd
 
@@ -59,11 +60,11 @@ struct request_sock {
 	u16				mss;
 	u8				num_retrans; /* number of retransmits */
 	u8				cookie_ts:1; /* syncookie: encode tcpopts in timestamp */
-	u8				num_timeout:7; /* number of timeouts */
-	u32				ts_recent;
+	u8				num_timeout:7; /* number of timeouts, 超时的次数，用来解决defer_accept等待时间过长的问题 */
+	u32				ts_recent; //见基于TSOPT的RTT估计，用来解决延时ack的问题的
 	struct timer_list		rsk_timer;
 	const struct request_sock_ops	*rsk_ops; /* 指向连接建立过程使用的函数集合(譬如send_synack)，TCP指向tcp_request_sock_ops结构*/
-	struct sock			*sk; /* 新的socket的sk结构来源 */
+	struct sock			*sk; /* 新的socket的sk结构来源, 服务端第二次握手的时候创建tcp_sock结构后，让sk指向 */
 	u32				*saved_syn;
 	u32				secid;
 	u32				peer_secid;
@@ -143,8 +144,8 @@ static inline void reqsk_put(struct request_sock *req)
  *	temporarily through shutdown()->tcp_disconnect(), and re-enabled later.
  */
 struct fastopen_queue {
-	struct request_sock	*rskq_rst_head; /* Keep track of past TFO */
-	struct request_sock	*rskq_rst_tail; /* requests that caused RST.
+	struct request_sock	*rskq_rst_head; /* Keep track of past TFO, 记录TFO的RST情况 */
+	struct request_sock	*rskq_rst_tail; /* requests that caused RST. //第二次
 						 * This is part of the defense
 						 * against spoofing attack.
 						 */
@@ -157,24 +158,26 @@ struct fastopen_queue {
 
 /** struct request_sock_queue - queue of request_socks
  *
- * @rskq_accept_head - FIFO head of established children
+ * @rskq_accept_head - FIFO head of established children //TFO的socket也是直接挂载在这上面的
  * @rskq_accept_tail - FIFO tail of established children
  * @rskq_defer_accept - User waits for some data after accept()
  *
  */
 struct request_sock_queue {
 	spinlock_t		rskq_lock;
-	u8			rskq_defer_accept;
+	u8			rskq_defer_accept; //TCP层选项，TCP_DEFER_ACCEPT的值
 
 	u32			synflood_warned;
 	atomic_t		qlen;
-	atomic_t		young;
+	atomic_t		young; //没有重传过syn+ack的请求块数目
 
 	struct request_sock	*rskq_accept_head;
 	struct request_sock	*rskq_accept_tail; //这个链表保存的是established的sock结构
+
 	struct fastopen_queue	fastopenq;  /* Check max_qlen != 0 to determine 
 					     * if TFO is enabled.
 					     */
+	/* 现在syn_recv状态的sock不依附于父节点了，直接在全局的ehash表中搜索 */
 };
 
 void reqsk_queue_alloc(struct request_sock_queue *queue);

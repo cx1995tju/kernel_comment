@@ -57,7 +57,7 @@ struct rtable {
 	__u8			rt_is_input;
 	__u8			rt_uses_gateway;
 
-	int			rt_iif;
+	int			rt_iif; /* 输入网络设备标志 */
 
 	/* Info on neighbour */
 	__be32			rt_gateway;

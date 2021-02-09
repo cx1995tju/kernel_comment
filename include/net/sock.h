@@ -132,7 +132,7 @@ typedef __u64 __bitwise __addrpair;
  *	@skc_dport: placeholder for inet_dport/tw_dport
  *	@skc_num: placeholder for inet_num/tw_num
  *	@skc_family: network address family
- *	@skc_state: Connection state
+ *	@skc_state: Connection state,就是TCP的state，不过UDP也使用
  *	@skc_reuse: %SO_REUSEADDR setting
  *	@skc_reuseport: %SO_REUSEPORT setting
  *	@skc_bound_dev_if: bound device index if != 0
@@ -165,7 +165,7 @@ struct sock_common {
 		};
 	};
 	union  {
-		unsigned int	skc_hash;
+		unsigned int	skc_hash; /* ehash key值，避免反复计算 */
 		__u16		skc_u16hashes[2];
 	};
 	/* skc_dport && skc_num must be grouped as well */
@@ -185,7 +185,7 @@ struct sock_common {
 	unsigned char		skc_net_refcnt:1;
 	int			skc_bound_dev_if; //是否出报文的网络设备索引号
 	union {
-		struct hlist_node	skc_bind_node; //已经绑定的的端口的sock结构会利用这个字段插入到与之绑定的端口信息结构的链表中
+		struct hlist_node	skc_bind_node; //已经绑定的的端口的sock结构会利用这个字段插入到与之绑定的端口信息结构的链表中, bhash表
 		struct hlist_node	skc_portaddr_node;
 	};
 	struct proto		*skc_prot; //指向网络接口层的指针
@@ -205,7 +205,7 @@ struct sock_common {
 	 */
 	union {
 		unsigned long	skc_flags;
-		struct sock	*skc_listener; /* request_sock */
+		struct sock	*skc_listener; /* 对于非syn cookies，指向子sock依赖的父sock */
 		struct inet_timewait_death_row *skc_tw_dr; /* inet_timewait_sock */
 	};
 	/*
@@ -216,7 +216,7 @@ struct sock_common {
 	int			skc_dontcopy_begin[0];
 	/* public: */
 	union {
-		struct hlist_node	skc_node; //用于维护散列表
+		struct hlist_node	skc_node; //用于维护散列表, 链接到tcphashinfo中，五元组查找到
 		struct hlist_nulls_node skc_nulls_node;
 	};
 	unsigned short		skc_tx_queue_mapping;
@@ -258,7 +258,7 @@ struct sock_common {
   *	@sk_tsq_flags: TCP Small Queues flags
   *	@sk_write_queue: Packet sending queue
   *	@sk_omem_alloc: "o" is "option" or "other" 分配的辅助缓冲区的上限
-  *	@sk_wmem_queued: persistent queue size 发送队列目前的总大小
+  *	@sk_wmem_queued: persistent queue size 发送队列目前的总大小, 不包括重传队列
   *	@sk_forward_alloc: space allocated forward 预分配的缓存长度，当分配的缓存小于该值的时候，一定成功, 否则需要重新确认分配的缓存是否有效
   *	@sk_napi_id: id of the last napi context to receive data for sk
   *	@sk_ll_usec: usecs to busypoll when there is no data  没有数据的时候，可以busy looping的时间
@@ -278,7 +278,7 @@ struct sock_common {
   *	@sk_gso_max_segs: Maximum number of GSO segments
   *	@sk_pacing_shift: scaling factor for TCP Small Queues
   *	@sk_lingertime: %SO_LINGER l_linger setting
-  *	@sk_backlog: always used with the per-socket spinlock held
+  *	@sk_backlog: always used with the per-socket spinlock held 这是一个队列
   *	@sk_callback_lock: used with the callbacks in the end of this struct
   *	@sk_error_queue: rarely used 存放详细的出错信息，通过setsockopt(IO_RECVERR), 就可以设置，后续使用recvmsg(MSG_ERRQUEUE)就可以读取到
   *	@sk_prot_creator: sk_prot of original sock creator (see ipv6_setsockopt,
@@ -287,10 +287,10 @@ struct sock_common {
   *	@sk_err_soft: errors that don't cause failure but are the cause of a
   *		      persistent failure not just 'timed out'
   *	@sk_drops: raw/udp drops counter
-  *	@sk_ack_backlog: current listen backlog
+  *	@sk_ack_backlog: current listen backlog  接收syn的时候++, accept的时候--
   *	@sk_max_ack_backlog: listen backlog set in listen()
   *	@sk_uid: user id of owner
-  *	@sk_priority: %SO_PRIORITY setting QoS类型
+  *	@sk_priority: %SO_PRIORITY setting QoS类型, 见SO_PRIORITY 和 IP_TOS选项，将TC子系统
   *	@sk_type: socket type (%SOCK_STREAM, etc)
   *	@sk_protocol: which protocol this socket belongs in this network family
   *	@sk_peer_pid: &struct pid for this socket's peer
@@ -365,12 +365,12 @@ struct sock {
 #define sk_v6_rcv_saddr	__sk_common.skc_v6_rcv_saddr
 #define sk_cookie		__sk_common.skc_cookie
 #define sk_incoming_cpu		__sk_common.skc_incoming_cpu
-#define sk_flags		__sk_common.skc_flags //各种flags
+#define sk_flags		__sk_common.skc_flags //各种flags, 杂
 #define sk_rxhash		__sk_common.skc_rxhash
 
 	socket_lock_t		sk_lock; //同步锁
 	atomic_t		sk_drops;
-	int			sk_rcvlowat;
+	int			sk_rcvlowat; //接收缓存下限值
 	struct sk_buff_head	sk_error_queue;
 	struct sk_buff_head	sk_receive_queue; //接收队列
 	/*
@@ -387,7 +387,7 @@ struct sock {
 		struct sk_buff	*head;
 		struct sk_buff	*tail;
 	} sk_backlog; /* 后备接收队列，当sock结构被上锁后，有新的报文到来的时候，只能将其防止到后备接收队列中，后续用户读取TCP的时候使用，目前仅仅在TCP中使用 */
-#define sk_rmem_alloc sk_backlog.rmem_alloc // 接收低劣sk_receivec_queue中的总报文长度
+#define sk_rmem_alloc sk_backlog.rmem_alloc // 接收sk_receivec_queue中的总报文长度
 
 	int			sk_forward_alloc;
 #ifdef CONFIG_NET_RX_BUSY_POLL
@@ -470,10 +470,10 @@ struct sock {
 	unsigned long	        sk_lingertime;
 	struct proto		*sk_prot_creator;
 	rwlock_t		sk_callback_lock; //确保sock结构中一些成员同步访问的锁, 因为有些成员会在软中断中被访问
-	int			sk_err, //记录最后一次致命错误
+	int			sk_err, //记录最后一次致命错误, 用户读取后重置
 				sk_err_soft; //最后一次非致命错误
-	u32			sk_ack_backlog; //当前已经建立的连接数目
-	u32			sk_max_ack_backlog; //等待连接队列最大长度, 即接受的syn的最大个数, 同时已经建立的连接也不能超过这个值
+	u32			sk_ack_backlog; 
+	u32			sk_max_ack_backlog; 
 	kuid_t			sk_uid;
 	struct pid		*sk_peer_pid;
 	const struct cred	*sk_peer_cred;
@@ -483,7 +483,7 @@ struct sock {
 	seqlock_t		sk_stamp_seq;
 #endif
 	u16			sk_tsflags;
-	u8			sk_shutdown; //关闭套接字的标志
+	u8			sk_shutdown; //关闭套接字的标志, RCV_SHUTDOWN SEND_SHUTDOWN
 	u32			sk_tskey;
 	atomic_t		sk_zckey;
 
@@ -503,7 +503,7 @@ struct sock {
 	void			(*sk_data_ready)(struct sock *sk);
 	void			(*sk_write_space)(struct sock *sk);
 	void			(*sk_error_report)(struct sock *sk);
-	int			(*sk_backlog_rcv)(struct sock *sk,
+	int			(*sk_backlog_rcv)(struct sock *sk, /* TCP中用于接收预备队列和后备队列中的TCP段, TCP中就是tcp_v4_do_rcv */
 						  struct sk_buff *skb);
 #ifdef CONFIG_SOCK_VALIDATE_XMIT
 	struct sk_buff*		(*sk_validate_xmit_skb)(struct sock *sk,
@@ -1067,6 +1067,7 @@ static inline void sk_prot_clear_nulls(struct sock *sk, int size)
 /* 是网络接口层，结构中有些操作实现传输层的操作譬如：connect，有些则是从传输层到网络层调用的转换，譬如：sendmsg
  *
  * */
+//所有的proto结构通过proto_register挂载到proto_list链上
 struct proto {
 	void			(*close)(struct sock *sk,
 					long timeout);
@@ -1083,7 +1084,7 @@ struct proto {
 
 	int			(*ioctl)(struct sock *sk, int cmd,
 					 unsigned long arg);
-	int			(*init)(struct sock *sk);
+	int			(*init)(struct sock *sk); //创建socket的时候会调用
 	void			(*destroy)(struct sock *sk);
 	void			(*shutdown)(struct sock *sk, int how);
 	int			(*setsockopt)(struct sock *sk, int level,
@@ -1121,8 +1122,8 @@ struct proto {
 	void		(*release_cb)(struct sock *sk);
 
 	/* Keeping track of sk's, looking them up, and port selection methods. */
-	int			(*hash)(struct sock *sk);
-	void			(*unhash)(struct sock *sk);
+	int			(*hash)(struct sock *sk); //添加到散列表的接口, eg,tcp_v4_hash, tcp_unhash
+	void			(*unhash)(struct sock *sk); //从散列表删除的接口
 	void			(*rehash)(struct sock *sk);
 	int			(*get_port)(struct sock *sk, unsigned short snum); /* 地址与端口的绑定 */
 
@@ -1134,9 +1135,9 @@ struct proto {
 	bool			(*stream_memory_free)(const struct sock *sk);
 	bool			(*stream_memory_read)(const struct sock *sk);
 	/* Memory pressure */
-	void			(*enter_memory_pressure)(struct sock *sk); /* 目前只有TCP在使用，调用此接口设置告警状态 */
+	void			(*enter_memory_pressure)(struct sock *sk); /* 目前只有TCP在使用，调用此接口设置告警状态, 当整个TCP重登使用的缓冲大小过大 */
 	void			(*leave_memory_pressure)(struct sock *sk);
-	atomic_long_t		*memory_allocated;	/* Current allocated memory.  目前只有TCP使用，当前整个TCP传输层为缓冲区分配的内存 */
+	atomic_long_t		*memory_allocated;	/* Current allocated memory.  目前只有TCP使用，当前整个TCP传输层为缓冲区分配的内存, tcp中指向tcp_memory_pressure */
 	struct percpu_counter	*sockets_allocated;	/* Current number of sockets. */
 	/*
 	 * Pressure flag: try to collapse.
@@ -1145,7 +1146,7 @@ struct proto {
 	 * is strict, actions are advisory and have some latency.
 	 */
 	unsigned long		*memory_pressure; /* 内存进入告警状态后 置1 */
-	long			*sysctl_mem;
+	long			*sysctl_mem; //指向sysctl_mem数组
 
 	int			*sysctl_wmem;
 	int			*sysctl_rmem;
@@ -1161,7 +1162,7 @@ struct proto {
 	unsigned int		useroffset;	/* Usercopy region offset */
 	unsigned int		usersize;	/* Usercopy region size */
 
-	struct percpu_counter	*orphan_count;
+	struct percpu_counter	*orphan_count; //只有TCP使用，整个TCP传输层待销毁的socket数目, 指向tcp_orphan_count变量
 
 	struct request_sock_ops	*rsk_prot; /* 目前只有TCP在使用，指向连接请求的处理接口集合，譬如SYN+ACK的处理 */
 	struct timewait_sock_ops *twsk_prot; /* 目前只有TCP在使用，指向timewait控制块操作接口 */
@@ -1349,6 +1350,7 @@ static inline int __sk_prot_rehash(struct sock *sk)
 #define SOCK_BINDADDR_LOCK	4 //已经绑定了本地地址
 #define SOCK_BINDPORT_LOCK	8
 
+/* 一个萝卜一个坑，一一对应 */
 struct socket_alloc {
 	struct socket socket;
 	struct inode vfs_inode;

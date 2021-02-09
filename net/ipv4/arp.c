@@ -1290,14 +1290,14 @@ static int arp_proc_init(void);
 
 void __init arp_init(void)
 {
-	neigh_table_init(NEIGH_ARP_TABLE, &arp_tbl);
+	neigh_table_init(NEIGH_ARP_TABLE, &arp_tbl); /* 全局邻居散列表中加入arp的邻居表 */
 
 	dev_add_pack(&arp_packet_type);
 	arp_proc_init();
 #ifdef CONFIG_SYSCTL
 	neigh_sysctl_register(NULL, &arp_tbl.parms, NULL);
 #endif
-	register_netdevice_notifier(&arp_netdev_notifier);
+	register_netdevice_notifier(&arp_netdev_notifier); /* 注册到netdev_chain通知链上 */
 }
 
 #ifdef CONFIG_PROC_FS

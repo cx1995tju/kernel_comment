@@ -570,6 +570,7 @@ EXPORT_SYMBOL(inetdev_by_index);
 
 /* Called only from RTNL semaphored context. No locks. */
 
+/* 查找与前缀掩码和匹配的IP地址 */
 struct in_ifaddr *inet_ifa_byprefix(struct in_device *in_dev, __be32 prefix,
 				    __be32 mask)
 {

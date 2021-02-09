@@ -213,6 +213,7 @@ static bool retransmits_timed_out(struct sock *sk,
 }
 
 /* A write timeout has occurred. Process the after effects. */
+/* 重传发生后要检测当前的资源使用情况 */
 static int tcp_write_timeout(struct sock *sk)
 {
 	struct inet_connection_sock *icsk = inet_csk(sk);
@@ -221,8 +222,8 @@ static int tcp_write_timeout(struct sock *sk)
 	bool expired, do_reset;
 	int retry_until;
 
-	if ((1 << sk->sk_state) & (TCPF_SYN_SENT | TCPF_SYN_RECV)) {
-		if (icsk->icsk_retransmits) {
+	if ((1 << sk->sk_state) & (TCPF_SYN_SENT | TCPF_SYN_RECV)) { /* 连接建立阶段超时，要检测路由缓存项 */
+		if (icsk->icsk_retransmits) { /* 已经重传过了 */
 			dst_negative_advice(sk);
 		} else {
 			sk_rethink_txhash(sk);
@@ -230,7 +231,7 @@ static int tcp_write_timeout(struct sock *sk)
 		retry_until = icsk->icsk_syn_retries ? : net->ipv4.sysctl_tcp_syn_retries;
 		expired = icsk->icsk_retransmits >= retry_until;
 	} else {
-		if (retransmits_timed_out(sk, net->ipv4.sysctl_tcp_retries1, 0)) {
+		if (retransmits_timed_out(sk, net->ipv4.sysctl_tcp_retries1, 0)) { /* 重传次数达到retries1的时候，要进行黑洞检测，还要检测路由缓存项 */
 			/* Black hole detection */
 			tcp_mtu_probing(icsk, sk);
 
@@ -241,6 +242,7 @@ static int tcp_write_timeout(struct sock *sk)
 
 		retry_until = net->ipv4.sysctl_tcp_retries2;
 		if (sock_flag(sk, SOCK_DEAD)) {
+			/* 资源不够的时候(内存限制，孤儿套接字过多)，如果当前的套接口连接已经断开，即将关闭，那么直接关闭该套接口，虽然不符合TCP，但是为了防止DoS攻击 */
 			const bool alive = icsk->icsk_rto < TCP_RTO_MAX;
 
 			retry_until = tcp_orphan_retries(sk, alive);
@@ -260,6 +262,7 @@ static int tcp_write_timeout(struct sock *sk)
 				  icsk->icsk_retransmits,
 				  icsk->icsk_rto, (int)expired);
 
+	/* 重传太多次了，以及其他异常，立即报告 */
 	if (expired) {
 		/* Has it gone just too far? */
 		tcp_write_err(sk);
@@ -277,14 +280,14 @@ void tcp_delack_timer_handler(struct sock *sk)
 	sk_mem_reclaim_partial(sk);
 
 	if (((1 << sk->sk_state) & (TCPF_CLOSE | TCPF_LISTEN)) ||
-	    !(icsk->icsk_ack.pending & ICSK_ACK_TIMER))
+	    !(icsk->icsk_ack.pending & ICSK_ACK_TIMER)) /* 不是ack timer事件 */
 		goto out;
 
 	if (time_after(icsk->icsk_ack.timeout, jiffies)) {
 		sk_reset_timer(sk, &icsk->icsk_delack_timer, icsk->icsk_ack.timeout);
 		goto out;
 	}
-	icsk->icsk_ack.pending &= ~ICSK_ACK_TIMER;
+	icsk->icsk_ack.pending &= ~ICSK_ACK_TIMER; //定时器处理了，去掉对应标志
 
 	if (inet_csk_ack_scheduled(sk)) {
 		if (!icsk->icsk_ack.pingpong) {
@@ -435,6 +438,7 @@ void tcp_retransmit_timer(struct sock *sk)
 	if (tp->fastopen_rsk) {
 		WARN_ON_ONCE(sk->sk_state != TCP_SYN_RECV &&
 			     sk->sk_state != TCP_FIN_WAIT1);
+		/* 如果是FTO，那么启动FTO的syncak定时器 */
 		tcp_fastopen_synack_timer(sk);
 		/* Before we receive ACK to our SYN-ACK don't retransmit
 		 * anything else (e.g., data or FIN segments).
@@ -472,11 +476,11 @@ void tcp_retransmit_timer(struct sock *sk)
 					    tp->snd_una, tp->snd_nxt);
 		}
 #endif
-		if (tcp_jiffies32 - tp->rcv_tstamp > TCP_RTO_MAX) {
-			tcp_write_err(sk);
+		if (tcp_jiffies32 - tp->rcv_tstamp > TCP_RTO_MAX) { /* 超过重传上限120s */
+			tcp_write_err(sk); /* 报告错误 */
 			goto out;
 		}
-		tcp_enter_loss(sk);
+		tcp_enter_loss(sk); /* 拥塞控制状态机 */
 		tcp_retransmit_skb(sk, tcp_rtx_queue_head(sk), 1);
 		__sk_dst_reset(sk);
 		goto out_reset_timer;
@@ -485,6 +489,7 @@ void tcp_retransmit_timer(struct sock *sk)
 	if (tcp_write_timeout(sk))
 		goto out;
 
+	/* 第一次重传 */
 	if (icsk->icsk_retransmits == 0) {
 		int mib_idx;
 
@@ -513,6 +518,7 @@ void tcp_retransmit_timer(struct sock *sk)
 		/* Retransmission failed because of local congestion,
 		 * do not backoff.
 		 */
+		/* 发送失败的话 复位重传定时器 */
 		if (!icsk->icsk_retransmits)
 			icsk->icsk_retransmits = 1;
 		inet_csk_reset_xmit_timer(sk, ICSK_TIME_RETRANS,
@@ -536,10 +542,12 @@ void tcp_retransmit_timer(struct sock *sk)
 	 * implemented ftp to mars will work nicely. We will have to fix
 	 * the 120 second clamps though!
 	 */
+	/* 发送成功，指数退避 */
 	icsk->icsk_backoff++;
 	icsk->icsk_retransmits++;
 
 out_reset_timer:
+	/* 重传完成后，重置定时器 */
 	/* If stream is thin, use linear timeouts. Since 'icsk_backoff' is
 	 * used to reset timer, set to 0. Recalculate 'icsk_rto' as this
 	 * might be increased if the stream oscillates between thin and thick,
@@ -575,9 +583,10 @@ void tcp_write_timer_handler(struct sock *sk)
 	int event;
 
 	if (((1 << sk->sk_state) & (TCPF_CLOSE | TCPF_LISTEN)) ||
-	    !icsk->icsk_pending)
+	    !icsk->icsk_pending) /* 无事件 */
 		goto out;
 
+	/* 还不到时间 */
 	if (time_after(icsk->icsk_timeout, jiffies)) {
 		sk_reset_timer(sk, &icsk->icsk_retransmit_timer, icsk->icsk_timeout);
 		goto out;
@@ -613,6 +622,7 @@ static void tcp_write_timer(struct timer_list *t)
 			from_timer(icsk, t, icsk_retransmit_timer);
 	struct sock *sk = &icsk->icsk_inet.sk;
 
+	/* 定时器在软中断中处理 */
 	bh_lock_sock(sk);
 	if (!sock_owned_by_user(sk)) {
 		tcp_write_timer_handler(sk);

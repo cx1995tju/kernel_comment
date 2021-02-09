@@ -1520,7 +1520,7 @@ struct sock *sk_alloc(struct net *net, int family, gfp_t priority,
 {
 //sk = sk_alloc(net, AF_VSOCK, priority, &vsock_proto, kern);
 	struct sock *sk;
-	sk = sk_prot_alloc(prot, priority | __GFP_ZERO, family); //与具体网域有关哟, 这里是vsock_proto
+	sk = sk_prot_alloc(prot, priority | __GFP_ZERO, family); //与具体网域有关
 	if (sk) {
 		sk->sk_family = family;
 		/*
@@ -1536,7 +1536,7 @@ struct sock *sk_alloc(struct net *net, int family, gfp_t priority,
 			sock_inuse_add(net, 1);
 		}
 
-		sock_net_set(sk, net);
+		sock_net_set(sk, net); //设置命名空间, net来自于执行调用的进程的task_struc结构
 		refcount_set(&sk->sk_wmem_alloc, 1);
 
 		mem_cgroup_sk_alloc(sk);
@@ -1608,6 +1608,7 @@ static void __sk_free(struct sock *sk)
 		sk_destruct(sk);
 }
 
+//一般是sock_put调用
 void sk_free(struct sock *sk)
 {
 	/*

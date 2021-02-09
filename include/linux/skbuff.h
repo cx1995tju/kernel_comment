@@ -750,7 +750,7 @@ struct sk_buff {
 	struct nf_bridge_info	*nf_bridge;
 #endif
 	unsigned int		len,// 实际数据长度
-				data_len;
+				data_len; //SG区长度
 	__u16			mac_len, 
 				hdr_len;
 
@@ -1960,7 +1960,7 @@ static inline bool skb_is_nonlinear(const struct sk_buff *skb)
 
 static inline unsigned int skb_headlen(const struct sk_buff *skb)
 {
-	return skb->len - skb->data_len;
+	return skb->len - skb->data_len; //即线性区长度
 }
 
 static inline unsigned int __skb_pagelen(const struct sk_buff *skb)

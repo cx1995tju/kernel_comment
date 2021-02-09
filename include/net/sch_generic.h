@@ -84,7 +84,7 @@ struct Qdisc {
 	const struct Qdisc_ops	*ops;
 	struct qdisc_size_table	__rcu *stab;
 	struct hlist_node       hash;
-	u32			handle;
+	u32			handle; /* 排队规则的id */
 	u32			parent;
 
 	struct netdev_queue	*dev_queue;

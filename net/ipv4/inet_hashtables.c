@@ -782,7 +782,7 @@ int inet_hash_connect(struct inet_timewait_death_row *death_row,
 
 	if (!inet_sk(sk)->inet_num)
 		port_offset = inet_sk_port_offset(sk);
-	return __inet_hash_connect(death_row, sk, port_offset,
+	return __inet_hash_connect(death_row, sk, port_offset, //death_row就是tcp_hashinfo
 				   __inet_check_established);
 }
 EXPORT_SYMBOL_GPL(inet_hash_connect);
