@@ -76,6 +76,7 @@ static int ip_forward_finish(struct net *net, struct sock *sk, struct sk_buff *s
 	return dst_output(net, sk, skb);
 }
 
+//经过输入路由检测后，发现不是本地的报文，则可能转发
 int ip_forward(struct sk_buff *skb)
 {
 	u32 mtu;
@@ -85,19 +86,19 @@ int ip_forward(struct sk_buff *skb)
 	struct net *net;
 
 	/* that should never happen */
-	if (skb->pkt_type != PACKET_HOST)
+	if (skb->pkt_type != PACKET_HOST) //不是发给本机的, 必须是发送给本机的mac地址的才会接收
 		goto drop;
 
 	if (unlikely(skb->sk))
 		goto drop;
 
-	if (skb_warn_if_lro(skb))
+	if (skb_warn_if_lro(skb)) 
 		goto drop;
 
-	if (!xfrm4_policy_check(NULL, XFRM_POLICY_FWD, skb))
+	if (!xfrm4_policy_check(NULL, XFRM_POLICY_FWD, skb)) //IPsec相关
 		goto drop;
 
-	if (IPCB(skb)->opt.router_alert && ip_call_ra_chain(skb))
+	if (IPCB(skb)->opt.router_alert && ip_call_ra_chain(skb)) //路由警告
 		return NET_RX_SUCCESS;
 
 	skb_forward_csum(skb);
@@ -114,7 +115,7 @@ int ip_forward(struct sk_buff *skb)
 	if (!xfrm4_route_forward(skb))
 		goto drop;
 
-	rt = skb_rtable(skb);
+	rt = skb_rtable(skb); //路由缓存项
 
 	if (opt->is_strictroute && rt->rt_uses_gateway)
 		goto sr_failed;
@@ -128,10 +129,10 @@ int ip_forward(struct sk_buff *skb)
 		goto drop;
 	}
 
-	/* We are about to mangle packet. Copy it! */
+	/* We are about to mangle packet. Copy it! */ //可能会修改报文的，所以要copy一份
 	if (skb_cow(skb, LL_RESERVED_SPACE(rt->dst.dev)+rt->dst.header_len))
 		goto drop;
-	iph = ip_hdr(skb);
+	iph = ip_hdr(skb); 
 
 	/* Decrease ttl after skb cow done */
 	ip_decrease_ttl(iph);

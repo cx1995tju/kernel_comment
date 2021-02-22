@@ -140,6 +140,7 @@ static inline int ip_select_ttl(struct inet_sock *inet, struct dst_entry *dst)
  *		Add an ip header to a skbuff and send it out.
  *
  */
+//发送syn+ack的tcp报文的时候会调用
 int ip_build_and_send_pkt(struct sk_buff *skb, const struct sock *sk,
 			  __be32 saddr, __be32 daddr, struct ip_options_rcu *opt)
 {
@@ -181,6 +182,7 @@ int ip_build_and_send_pkt(struct sk_buff *skb, const struct sock *sk,
 }
 EXPORT_SYMBOL_GPL(ip_build_and_send_pkt);
 
+//通过邻居子系统将数据报输出到网络设备
 static int ip_finish_output2(struct net *net, struct sock *sk, struct sk_buff *skb)
 {
 	struct dst_entry *dst = skb_dst(skb);
@@ -195,8 +197,8 @@ static int ip_finish_output2(struct net *net, struct sock *sk, struct sk_buff *s
 	} else if (rt->rt_type == RTN_BROADCAST)
 		IP_UPD_PO_STATS(net, IPSTATS_MIB_OUTBCAST, skb->len);
 
-	/* Be paranoid, rather than too clever. */
-	if (unlikely(skb_headroom(skb) < hh_len && dev->header_ops)) {
+	/* Be paranoid(多疑的), rather than too clever. */
+	if (unlikely(skb_headroom(skb) < hh_len && dev->header_ops)) { //检测头部是否有足够空间
 		struct sk_buff *skb2;
 
 		skb2 = skb_realloc_headroom(skb, LL_RESERVED_SPACE(dev));
@@ -226,7 +228,7 @@ static int ip_finish_output2(struct net *net, struct sock *sk, struct sk_buff *s
 		int res;
 
 		sock_confirm_neigh(skb, neigh);
-		res = neigh_output(neigh, skb);
+		res = neigh_output(neigh, skb); //通过邻居子系统输出
 
 		rcu_read_unlock_bh();
 		return res;
@@ -235,7 +237,7 @@ static int ip_finish_output2(struct net *net, struct sock *sk, struct sk_buff *s
 
 	net_dbg_ratelimited("%s: No header cache and no neighbour!\n",
 			    __func__);
-	kfree_skb(skb);
+	kfree_skb(skb); //如果没有办法获取对应的邻居项，直接释放数据报
 	return -EINVAL;
 }
 
@@ -289,6 +291,7 @@ static int ip_finish_output_gso(struct net *net, struct sock *sk,
 	return ret;
 }
 
+//此函数的主要功能是：如果数据报大于MTU，调用ip_fragment()分片；否则直接调用ip_finish_output2输出
 static int ip_finish_output(struct net *net, struct sock *sk, struct sk_buff *skb)
 {
 	unsigned int mtu;
@@ -312,7 +315,7 @@ static int ip_finish_output(struct net *net, struct sock *sk, struct sk_buff *sk
 		return ip_finish_output_gso(net, sk, skb, mtu);
 
 	if (skb->len > mtu || (IPCB(skb)->flags & IPSKB_FRAG_PMTU))
-		return ip_fragment(net, sk, skb, mtu, ip_finish_output2);
+		return ip_fragment(net, sk, skb, mtu, ip_finish_output2); //如果MTU太大，那么要对IP数据报进行分片
 
 	return ip_finish_output2(net, sk, skb);
 }
@@ -393,6 +396,8 @@ int ip_mc_output(struct net *net, struct sock *sk, struct sk_buff *skb)
 			    !(IPCB(skb)->flags & IPSKB_REROUTED));
 }
 
+//单播数据报的路由缓存项的输出接口会指向这个函数
+//因为从路由缓存过来的，所以涉及不到路由表的查找等操作
 int ip_output(struct net *net, struct sock *sk, struct sk_buff *skb)
 {
 	struct net_device *dev = skb_dst(skb)->dev;
@@ -423,13 +428,14 @@ static void ip_copy_addrs(struct iphdr *iph, const struct flowi4 *fl4)
 }
 
 /* Note: skb->sk can be different from sk, in case of tunnels */
+//如果没有路由缓存的话，需要查找路由表的
 int __ip_queue_xmit(struct sock *sk, struct sk_buff *skb, struct flowi *fl,
 		    __u8 tos)
 {
 	struct inet_sock *inet = inet_sk(sk);
 	struct net *net = sock_net(sk);
 	struct ip_options_rcu *inet_opt;
-	struct flowi4 *fl4;
+	struct flowi4 *fl4; 
 	struct rtable *rt;
 	struct iphdr *iph;
 	int res;
@@ -440,13 +446,13 @@ int __ip_queue_xmit(struct sock *sk, struct sk_buff *skb, struct flowi *fl,
 	rcu_read_lock();
 	inet_opt = rcu_dereference(inet->inet_opt);
 	fl4 = &fl->u.ip4;
-	rt = skb_rtable(skb);
+	rt = skb_rtable(skb); //路由缓存项
 	if (rt)
 		goto packet_routed;
 
 	/* Make sure we can route this packet. */
 	rt = (struct rtable *)__sk_dst_check(sk, 0);
-	if (!rt) {
+	if (!rt) { //没有路由缓存，要查找路由
 		__be32 daddr;
 
 		/* Use correct destination address if we have options. */
@@ -480,7 +486,7 @@ packet_routed:
 	skb_reset_network_header(skb);
 	iph = ip_hdr(skb);
 	*((__be16 *)iph) = htons((4 << 12) | (5 << 8) | (tos & 0xff));
-	if (ip_dont_fragment(sk, &rt->dst) && !skb->ignore_df)
+	if (ip_dont_fragment(sk, &rt->dst) && !skb->ignore_df) //判断要不要分片
 		iph->frag_off = htons(IP_DF);
 	else
 		iph->frag_off = 0;

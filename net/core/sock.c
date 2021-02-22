@@ -2865,7 +2865,7 @@ EXPORT_SYMBOL(lock_sock_nested);
 void release_sock(struct sock *sk)
 {
 	spin_lock_bh(&sk->sk_lock.slock);
-	if (sk->sk_backlog.tail)
+	if (sk->sk_backlog.tail) //backlog接收队列处理
 		__release_sock(sk);
 
 	/* Warning : release_cb() might need to release sk ownership,

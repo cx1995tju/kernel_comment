@@ -92,6 +92,7 @@ void dst_init(struct dst_entry *dst, struct dst_ops *ops,
 }
 EXPORT_SYMBOL(dst_init);
 
+//分配路由缓存项，做一些必要的初始化
 void *dst_alloc(struct dst_ops *ops, struct net_device *dev,
 		int initial_ref, int initial_obsolete, unsigned short flags)
 {

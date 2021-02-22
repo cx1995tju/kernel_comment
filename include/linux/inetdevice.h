@@ -23,6 +23,8 @@ struct ipv4_devconf {
 #define MC_HASH_SZ_LOG 9
 
 /* ip ifconfig 工具可以修改这些配置 */
+//inet设备相关的结构，net_device会指向这里
+//ifa interface address
 struct in_device {
 	struct net_device	*dev; //指向这个one for all的网络设备结构
 	refcount_t		refcnt;
@@ -133,18 +135,18 @@ static inline void ipv4_devconf_setall(struct in_device *in_dev)
 #define IN_DEV_ARP_IGNORE(in_dev)	IN_DEV_MAXCONF((in_dev), ARP_IGNORE)
 #define IN_DEV_ARP_NOTIFY(in_dev)	IN_DEV_MAXCONF((in_dev), ARP_NOTIFY)
 
-/* 表一个ip地址块 */
+/* 表一个ip地址, inet interface addr */
 struct in_ifaddr {
 	struct hlist_node	hash;
 	struct in_ifaddr	*ifa_next; //多个ip地址串成链
-	struct in_device	*ifa_dev; //执行in_device结构, 是in_ifaddr的母结构
+	struct in_device	*ifa_dev; //指向in_device结构, 是in_ifaddr的母结构
 	struct rcu_head		rcu_head; //保护该结构的rcu机制, 用来释放这个结构
-	__be32			ifa_local; //广播设备上，这个地址与ifa_address一样，点对点设备上ifa_address存储对面的地址，ifa_local存储本地地址
-	__be32			ifa_address;
-	__be32			ifa_mask;
+	__be32			ifa_local;//广播设备上，这个地址与ifa_address一样，点对点设备上ifa_address存储对面的地址，ifa_local存储本地地址 /* 重要 */
+	__be32			ifa_address; 
+	__be32			ifa_mask; //子网掩码
 	__u32			ifa_rt_priority;
 	__be32			ifa_broadcast; //广播地址
-	unsigned char		ifa_scope; //寻址范围, RT_SCOPE_UNIVERSE
+	unsigned char		ifa_scope; //寻址范围, %RT_SCOPE_UNIVERSE
 	unsigned char		ifa_prefixlen; //子网掩码长度
 	__u32			ifa_flags; //IP地址属性 IFA_F_SECONDARY
 	char			ifa_label[IFNAMSIZ];  //地址标签，一般是网络设备名 或 网络设备别名
@@ -188,7 +190,7 @@ struct in_ifaddr *inet_ifa_byprefix(struct in_device *in_dev, __be32 prefix,
 struct in_ifaddr *inet_lookup_ifaddr_rcu(struct net *net, __be32 addr);
 static __inline__ bool inet_ifa_match(__be32 addr, struct in_ifaddr *ifa)
 {
-	return !((addr^ifa->ifa_address)&ifa->ifa_mask);
+	return !((addr^ifa->ifa_address)&ifa->ifa_mask); //按位异或。完全相同就是0
 }
 
 /*

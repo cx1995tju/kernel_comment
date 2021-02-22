@@ -214,18 +214,18 @@ struct rtmsg {
 /* rtm_type */
 
 enum {
-	RTN_UNSPEC,
-	RTN_UNICAST,		/* Gateway or direct route	*/
-	RTN_LOCAL,		/* Accept locally		*/
-	RTN_BROADCAST,		/* Accept locally as broadcast,
+	RTN_UNSPEC, //定义一个未初始化的值。譬如：当从路由表中删除一个表项的时候使用该值，因为被删除的表项不需要指定路由表项的类型
+	RTN_UNICAST,		/* Gateway or direct route	*/ //该路由是一条单播地址的直连或非直连路由
+	RTN_LOCAL,		/* Accept locally		*/ //目的地址被配置为本地接口的地址
+	RTN_BROADCAST,		/* Accept locally as broadcast, //目的地址是一个广播地址, 匹配的输入的数据报会以广播的方式发送达到本地, 匹配的输出数据报会以广播的方式发送出去
 				   send as broadcast */
-	RTN_ANYCAST,		/* Accept locally as broadcast,
+	RTN_ANYCAST,		/* Accept locally as broadcast, //ipv4中不使用任播
 				   but send as unicast */
-	RTN_MULTICAST,		/* Multicast route		*/
+	RTN_MULTICAST,		/* Multicast route		*/ //目的地址是一个多播地址
 	RTN_BLACKHOLE,		/* Drop				*/
 	RTN_UNREACHABLE,	/* Destination is unreachable   */
 	RTN_PROHIBIT,		/* Administratively prohibited	*/
-	RTN_THROW,		/* Not in this table		*/
+	RTN_THROW,		/* Not in this table		*/ //上述4个与特定的管理配置相关联
 	RTN_NAT,		/* Translate this address	*/
 	RTN_XRESOLVE,		/* Use external resolver	*/
 	__RTN_MAX

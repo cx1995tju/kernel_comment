@@ -130,6 +130,7 @@ static void arp_solicit(struct neighbour *neigh, struct sk_buff *skb);
 static void arp_error_report(struct neighbour *neigh, struct sk_buff *skb);
 static void parp_redo(struct sk_buff *skb);
 
+//通用的arp操作
 static const struct neigh_ops arp_generic_ops = {
 	.family =		AF_INET,
 	.solicit =		arp_solicit,
@@ -138,6 +139,7 @@ static const struct neigh_ops arp_generic_ops = {
 	.connected_output =	neigh_connected_output,
 };
 
+//支持缓存硬件首部的操作
 static const struct neigh_ops arp_hh_ops = {
 	.family =		AF_INET,
 	.solicit =		arp_solicit,
@@ -146,6 +148,7 @@ static const struct neigh_ops arp_hh_ops = {
 	.connected_output =	neigh_resolve_output,
 };
 
+//不支持arp的操作
 static const struct neigh_ops arp_direct_ops = {
 	.family =		AF_INET,
 	.output =		neigh_direct_output,
@@ -221,6 +224,8 @@ static bool arp_key_eq(const struct neighbour *neigh, const void *pkey)
 	return neigh_key_eq32(neigh, pkey);
 }
 
+//arp_tbl的邻居项构造函数
+//注意arp不仅仅是针对以太网的
 static int arp_constructor(struct neighbour *neigh)
 {
 	__be32 addr;
@@ -240,7 +245,7 @@ static int arp_constructor(struct neighbour *neigh)
 		return -EINVAL;
 	}
 
-	neigh->type = inet_addr_type_dev_table(dev_net(dev), dev, addr);
+	neigh->type = inet_addr_type_dev_table(dev_net(dev), dev, addr); //根据邻居地址获取邻居类型
 
 	parms = in_dev->arp_parms;
 	__neigh_parms_put(neigh->parms);
@@ -312,11 +317,13 @@ static void arp_send_dst(int type, int ptype, __be32 dest_ip,
 	if (dev->flags & IFF_NOARP)
 		return;
 
+	//创建报文
 	skb = arp_create(type, ptype, dest_ip, dev, src_ip,
 			 dest_hw, src_hw, target_hw);
 	if (!skb)
 		return;
 
+	//发送报文
 	skb_dst_set(skb, dst_clone(dst));
 	arp_xmit(skb);
 }
@@ -331,23 +338,24 @@ void arp_send(int type, int ptype, __be32 dest_ip,
 }
 EXPORT_SYMBOL(arp_send);
 
+//neigh是arp请求的目的邻居项， skb是缓存在邻居项中待发送的报文，需要为该报文的发送请求arp
 static void arp_solicit(struct neighbour *neigh, struct sk_buff *skb)
 {
 	__be32 saddr = 0;
 	u8 dst_ha[MAX_ADDR_LEN], *dst_hw = NULL;
 	struct net_device *dev = neigh->dev;
-	__be32 target = *(__be32 *)neigh->primary_key;
-	int probes = atomic_read(&neigh->probes);
+	__be32 target = *(__be32 *)neigh->primary_key; //三层目标地址 大端4B，ipv4地址。现在仅仅支持ipv4？？？？？
+	int probes = atomic_read(&neigh->probes); //尝试过的次数
 	struct in_device *in_dev;
 	struct dst_entry *dst = NULL;
 
 	rcu_read_lock();
 	in_dev = __in_dev_get_rcu(dev);
-	if (!in_dev) {
+	if (!in_dev) { //是否有这个inet设备
 		rcu_read_unlock();
 		return;
 	}
-	switch (IN_DEV_ARP_ANNOUNCE(in_dev)) {
+	switch (IN_DEV_ARP_ANNOUNCE(in_dev)) { //根据arp_announce参数选择源IP地址
 	default:
 	case 0:		/* By default announce any local IP */
 		if (skb && inet_addr_type_dev_table(dev_net(dev), dev,
@@ -374,7 +382,7 @@ static void arp_solicit(struct neighbour *neigh, struct sk_buff *skb)
 	if (!saddr)
 		saddr = inet_select_addr(dev, target, RT_SCOPE_LINK);
 
-	probes -= NEIGH_VAR(neigh->parms, UCAST_PROBES);
+	probes -= NEIGH_VAR(neigh->parms, UCAST_PROBES); //检查重传是否到达上限
 	if (probes < 0) {
 		if (!(neigh->nud_state & NUD_VALID))
 			pr_debug("trying to ucast probe in NUD_INVALID\n");
@@ -390,27 +398,29 @@ static void arp_solicit(struct neighbour *neigh, struct sk_buff *skb)
 
 	if (skb && !(dev->priv_flags & IFF_XMIT_DST_RELEASE))
 		dst = skb_dst(skb);
+	//将得到的硬件源，目标地址和ip源等作为参数，调用arp_send创建arp报文并发送
 	arp_send_dst(ARPOP_REQUEST, ETH_P_ARP, target, dev, saddr,
 		     dst_hw, dev->dev_addr, NULL, dst);
 }
 
+//根据过滤规则对输入ARP保温中的源目标ip地址进行确认，返回值非0表示需要过滤
 static int arp_ignore(struct in_device *in_dev, __be32 sip, __be32 tip)
 {
 	struct net *net = dev_net(in_dev->dev);
 	int scope;
 
-	switch (IN_DEV_ARP_IGNORE(in_dev)) {
-	case 0:	/* Reply, the tip is already validated */
+	switch (IN_DEV_ARP_IGNORE(in_dev)) { //根据arp_ignore参数来确定过滤规则
+	case 0:	/* Reply, the tip is already validated */ //应答所有的arp请求报文，返回0表示不需要过滤
 		return 0;
 	case 1:	/* Reply only if tip is configured on the incoming interface */
-		sip = 0;
+		sip = 0; //应答目标ip地址是配置在输入接口的本地地址
 		scope = RT_SCOPE_HOST;
 		break;
 	case 2:	/*
 		 * Reply only if tip is configured on the incoming interface
 		 * and is in same subnet as sip
 		 */
-		scope = RT_SCOPE_HOST;
+		scope = RT_SCOPE_HOST; //应答目标ip地址是配置在输入接口的本地地址，并且与源ip地址是一个子网的ARP请求报文
 		break;
 	case 3:	/* Do not reply for scope host addresses */
 		sip = 0;
@@ -430,6 +440,7 @@ static int arp_ignore(struct in_device *in_dev, __be32 sip, __be32 tip)
 	return !inet_confirm_addr(net, in_dev, sip, tip, scope);
 }
 
+//根据arp请求报文中的发送方ip地址和目的ip地址，查找输出搭配arp请求报文的陆游，过滤掉哪些查找陆游失败，或是查找路由输出设备和输入arp请求的设备不一致的报文
 static int arp_filter(__be32 sip, __be32 tip, struct net_device *dev)
 {
 	struct rtable *rt;
@@ -538,6 +549,7 @@ struct sk_buff *arp_create(int type, int ptype, __be32 dest_ip,
 	 *	Allocate a buffer
 	 */
 
+	//创建报文
 	skb = alloc_skb(arp_hdr_len(dev) + hlen + tlen, GFP_ATOMIC);
 	if (!skb)
 		return NULL;
@@ -571,7 +583,7 @@ struct sk_buff *arp_create(int type, int ptype, __be32 dest_ip,
 	switch (dev->type) {
 	default:
 		arp->ar_hrd = htons(dev->type);
-		arp->ar_pro = htons(ETH_P_IP);
+		arp->ar_pro = htons(ETH_P_IP); //默认是ip协议
 		break;
 
 #if IS_ENABLED(CONFIG_AX25)
@@ -676,6 +688,7 @@ static bool arp_is_garp(struct net *net, struct net_device *dev,
  *	Process an arp request.
  */
 
+//arp_rcv后到这里处理
 static int arp_process(struct net *net, struct sock *sk, struct sk_buff *skb)
 {
 	struct net_device *dev = skb->dev;
@@ -739,7 +752,7 @@ static int arp_process(struct net *net, struct sock *sk, struct sk_buff *skb)
 	/* Understand only these message types */
 
 	if (arp->ar_op != htons(ARPOP_REPLY) &&
-	    arp->ar_op != htons(ARPOP_REQUEST))
+	    arp->ar_op != htons(ARPOP_REQUEST)) //目前仅仅处理arp请求和响应报文，对于rarp报文不处理
 		goto out_free_skb;
 
 /*
@@ -936,7 +949,7 @@ static void parp_redo(struct sk_buff *skb)
 /*
  *	Receive an arp request from the device layer.
  */
-
+//skb是接收到的报文，dev是输入设备，orig_dev是接收到arp报文的原始设备，在此处未使用 , pt是packet_type实例，即arp_packet_type
 static int arp_rcv(struct sk_buff *skb, struct net_device *dev,
 		   struct packet_type *pt, struct net_device *orig_dev)
 {
@@ -953,7 +966,7 @@ static int arp_rcv(struct sk_buff *skb, struct net_device *dev,
 		goto out_of_mem;
 
 	/* ARP header, plus 2 device addresses, plus 2 IP addresses.  */
-	if (!pskb_may_pull(skb, arp_hdr_len(dev)))
+	if (!pskb_may_pull(skb, arp_hdr_len(dev)))  //检测报文完整性，长度是否是arp头部长度 + 两个硬件地址长度 + 两个ip地址长度
 		goto freeskb;
 
 	arp = arp_hdr(skb);

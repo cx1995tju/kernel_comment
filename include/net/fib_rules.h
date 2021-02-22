@@ -17,14 +17,14 @@ struct fib_kuid_range {
 };
 
 struct fib_rule {
-	struct list_head	list;
-	int			iifindex;
-	int			oifindex;
+	struct list_head	list; //即挂载到rules_list中的成员
+	int			iifindex; //表示该策略针对的是哪个输入设备, -1时表示禁止该策略
+	int			oifindex; //表示该策略针对的是哪个输出设备
 	u32			mark;
 	u32			mark_mask;
 	u32			flags;
-	u32			table;
-	u8			action;
+	u32			table; //路由表标识，或者认为是id
+	u8			action; //根据策略查找对应的路由项的时候，确定策略被访问的动作, 参见fib4_rule_action
 	u8			l3mdev;
 	u8                      proto;
 	u8			ip_proto;
@@ -34,7 +34,7 @@ struct fib_rule {
 	struct net		*fr_net;
 
 	refcount_t		refcnt;
-	u32			pref;
+	u32			pref; //路由策略的优先级, 使用ip rule添加一个策略的时候，可以使用关键字priority preference order来配置
 	int			suppress_ifgroup;
 	int			suppress_prefixlen;
 	char			iifname[IFNAMSIZ];
@@ -57,9 +57,9 @@ struct fib_lookup_arg {
 };
 
 struct fib_rules_ops {
-	int			family;
-	struct list_head	list;
-	int			rule_size;
+	int			family; //协议族
+	struct list_head	list; //链入到rules_ops上
+	int			rule_size; //该协议族路由策略大小，创建新路由策略的时候，分配内存使用
 	int			addr_size;
 	int			unresolved_rules;
 	int			nr_goto_rules;
@@ -67,23 +67,23 @@ struct fib_rules_ops {
 
 	int			(*action)(struct fib_rule *,
 					  struct flowi *, int,
-					  struct fib_lookup_arg *);
+					  struct fib_lookup_arg *); //根据策略查找对应的路由项
 	bool			(*suppress)(struct fib_rule *,
 					    struct fib_lookup_arg *);
 	int			(*match)(struct fib_rule *,
-					 struct flowi *, int);
+					 struct flowi *, int); //根据flowi进行策略的比较, 查找路由项的时候fib_rule_match调用
 	int			(*configure)(struct fib_rule *,
 					     struct sk_buff *,
 					     struct fib_rule_hdr *,
 					     struct nlattr **,
-					     struct netlink_ext_ack *);
+					     struct netlink_ext_ack *); //添加新的策略的时候，对策略中相应的成员进行赋值
 	int			(*delete)(struct fib_rule *);
 	int			(*compare)(struct fib_rule *,
 					   struct fib_rule_hdr *,
-					   struct nlattr **);
+					   struct nlattr **); //根据条件进行策略的比较，用于根据条件查找策略，在删除策略的时候使用
 	int			(*fill)(struct fib_rule *, struct sk_buff *,
-					struct fib_rule_hdr *);
-	size_t			(*nlmsg_payload)(struct fib_rule *);
+					struct fib_rule_hdr *); //应用程序获取具体的策略信息的时候，在返回的时候填充相应的信息
+	size_t			(*nlmsg_payload)(struct fib_rule *); //添加或删除策略后，需要组播通知加入nlgroup标识组的进程，需要构造SKB，此处用于计算payload大小
 
 	/* Called after modifications to the rules set, must flush
 	 * the route cache if one exists. */
@@ -91,7 +91,7 @@ struct fib_rules_ops {
 
 	int			nlgroup;
 	const struct nla_policy	*policy;
-	struct list_head	rules_list;
+	struct list_head	rules_list; //挂载该协议族所有策略结构的双向循环链表的表头
 	struct module		*owner;
 	struct net		*fro_net;
 	struct rcu_head		rcu;

@@ -6,19 +6,20 @@
 #include <linux/list.h>
 #include <net/ip_fib.h>
 
+//代表一条路由表项
 struct fib_alias {
 	struct hlist_node	fa_list;
-	struct fib_info		*fa_info;
-	u8			fa_tos;
-	u8			fa_type;
-	u8			fa_state;
+	struct fib_info		*fa_info; //记录如何处理与该路由匹配的数据报的信息
+	u8			fa_tos; //路由的服务类型比特位字段。当该值位0的时候，表示还没有配置TOS，所以在路由查找时任何值都可以匹配。
+	u8			fa_type; //路由表项的类型 %RTN_UNSPEC
+	u8			fa_state; //一些标志的位图，%FA_S_ACCESSED, 目前只有这一个标志
 	u8			fa_slen;
-	u32			tb_id;
+	u32			tb_id; //route table_id
 	s16			fa_default;
 	struct rcu_head		rcu;
 };
 
-#define FA_S_ACCESSED	0x01
+#define FA_S_ACCESSED	0x01 //表示该表项已经被访问过了
 
 /* Dont write on fa_state unless needed, to keep it shared on all cpus */
 static inline void fib_alias_accessed(struct fib_alias *fa)

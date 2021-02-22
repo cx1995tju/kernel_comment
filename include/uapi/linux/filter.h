@@ -21,6 +21,7 @@
  *	the BPF code definitions which need to match so you can share filters
  */
  
+/* 过滤器指令 */
 struct sock_filter {	/* Filter block */
 	__u16	code;   /* Actual filter code */
 	__u8	jt;	/* Jump true */
@@ -28,9 +29,10 @@ struct sock_filter {	/* Filter block */
 	__u32	k;      /* Generic multiuse field */
 };
 
+/* 过滤器程序 */
 struct sock_fprog {	/* Required for SO_ATTACH_FILTER. */
 	unsigned short		len;	/* Number of filter blocks */
-	struct sock_filter __user *filter;
+	struct sock_filter __user *filter; //这里的代码还是在用户空间的后，后续会被复制到内核空间中，组织到一个sk_filter结构中
 };
 
 /* ret - BPF_K and BPF_X also apply */

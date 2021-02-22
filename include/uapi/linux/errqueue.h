@@ -5,17 +5,17 @@
 #include <linux/types.h>
 
 struct sock_extended_err {
-	__u32	ee_errno;	
-	__u8	ee_origin;
-	__u8	ee_type;
-	__u8	ee_code;
+	__u32	ee_errno;	//出错码
+	__u8	ee_origin; //出错信息来源, %SO_EE_ORIGIN_LOCAL
+	__u8	ee_type; //出错信息要是来自ICMP的话，标志ICMP错误消息类型
+	__u8	ee_code; //ICMP错误消息的编码
 	__u8	ee_pad;
-	__u32   ee_info;
+	__u32   ee_info; //出错消息的扩展信息，具体内容与出错码相关
 	__u32   ee_data;
 };
 
 #define SO_EE_ORIGIN_NONE	0
-#define SO_EE_ORIGIN_LOCAL	1
+#define SO_EE_ORIGIN_LOCAL	1 //出错信息来自本地
 #define SO_EE_ORIGIN_ICMP	2
 #define SO_EE_ORIGIN_ICMP6	3
 #define SO_EE_ORIGIN_TXSTATUS	4

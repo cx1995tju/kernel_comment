@@ -35,9 +35,9 @@ struct sk_buff;
 /* 路由缓存中独立于协议的部分，三层协议会在另外的结构中缓存更多的信息，譬如ipv4使用rtable结构 */
 struct dst_entry {
 	struct net_device       *dev;
-	struct  dst_ops	        *ops;
+	struct  dst_ops	        *ops; //相关操作
 	unsigned long		_metrics;
-	unsigned long           expires;
+	unsigned long           expires; //该表项过期的时间
 #ifdef CONFIG_XFRM
 	struct xfrm_state	*xfrm;
 #else
@@ -46,8 +46,8 @@ struct dst_entry {
 	int			(*input)(struct sk_buff *);
 	int			(*output)(struct net *net, struct sock *sk, struct sk_buff *skb); /* 报文输入输出函数 */
 
-	unsigned short		flags;
-#define DST_HOST		0x0001
+	unsigned short		flags; //%DST_HOST
+#define DST_HOST		0x0001 //表示是本机路由，即不是到网络或者广播多播地址的路由
 #define DST_NOXFRM		0x0002
 #define DST_NOPOLICY		0x0004
 #define DST_NOCOUNT		0x0008
@@ -64,9 +64,9 @@ struct dst_entry {
 	 * Negative values are used by the implementation layer code to
 	 * force invocation of the dst_ops->check() method.
 	 */
-	short			obsolete;
-#define DST_OBSOLETE_NONE	0
-#define DST_OBSOLETE_DEAD	2
+	short			obsolete;//表示dst的可用状态
+#define DST_OBSOLETE_NONE	0 //有效可以使用
+#define DST_OBSOLETE_DEAD	2 //表示所在结构实例将被删除因而不能被使用
 #define DST_OBSOLETE_FORCE_CHK	-1
 #define DST_OBSOLETE_KILL	-2
 	unsigned short		header_len;	/* more space at head required */
@@ -79,20 +79,20 @@ struct dst_entry {
 #ifdef CONFIG_64BIT
 	atomic_t		__refcnt;	/* 64-bit offset 64 */
 #endif
-	int			__use;
+	int			__use; //该表项已经被使用过的次数
 	unsigned long		lastuse; /* 最后一次使用的时间戳 */
 	struct lwtunnel_state   *lwtstate;
 	struct rcu_head		rcu_head;
 	short			error; /* fib_lookup查找失败的时候，会将错误信息放置在这里,在后续的ip_error中使用本值来决定如何处理错误，即生成哪一种ICMP消息 */
 	short			__pad;
-	__u32			tclassid;
+	__u32			tclassid; //基于路由表的classifier的标签，见TC子系统
 #ifndef CONFIG_64BIT
 	atomic_t		__refcnt;	/* 32-bit offset 64 */
 #endif
 };
 
 struct dst_metrics {
-	u32		metrics[RTAX_MAX]; /* 多种度量值，TCP很多地方都会使用 */
+	u32		metrics[RTAX_MAX]; /* 多种度量值，TCP很多地方都会使用 */ //%RTAX_LOCK
 	refcount_t	refcnt;
 };
 extern const struct dst_metrics dst_default_metrics;
@@ -401,6 +401,7 @@ static inline void dst_confirm(struct dst_entry *dst)
 {
 }
 
+//有时候会将路由缓存与邻居项绑定到一起的
 static inline struct neighbour *dst_neigh_lookup(const struct dst_entry *dst, const void *daddr)
 {
 	struct neighbour *n = dst->ops->neigh_lookup(dst, NULL, daddr);

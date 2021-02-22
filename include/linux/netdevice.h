@@ -238,8 +238,9 @@ struct netdev_hw_addr_list {
 #define netdev_for_each_mc_addr(ha, dev) \
 	netdev_hw_addr_list_for_each(ha, &(dev)->mc)
 
+/* 缓存二层头部，加速报文输出，避免一个一个域的赋值 */
 struct hh_cache {
-	unsigned int	hh_len;
+	unsigned int	hh_len; //缓存的二层头部长度
 	seqlock_t	hh_lock;
 
 	/* cached hardware header; allow for machine alignment needs.        */
@@ -248,7 +249,7 @@ struct hh_cache {
 	(HH_DATA_MOD - (((__len - 1) & (HH_DATA_MOD - 1)) + 1))
 #define HH_DATA_ALIGN(__len) \
 	(((__len)+(HH_DATA_MOD-1))&~(HH_DATA_MOD - 1))
-	unsigned long	hh_data[HH_DATA_ALIGN(LL_MAX_HEADER) / sizeof(long)];
+	unsigned long	hh_data[HH_DATA_ALIGN(LL_MAX_HEADER) / sizeof(long)]; //二层首部
 };
 
 /* Reserve HH_DATA_MOD byte-aligned hard_header_len, but at least that much.
@@ -1877,7 +1878,7 @@ struct net_device {
 #if IS_ENABLED(CONFIG_IRDA) || IS_ENABLED(CONFIG_ATALK)
 	void 			*atalk_ptr;
 #endif
-	struct in_device __rcu	*ip_ptr; //指向网络层相关信息，譬如ip地址等
+	struct in_device __rcu	*ip_ptr; //指向网络层相关信息，譬如ip地址等, inet的设备信息
 #if IS_ENABLED(CONFIG_DECNET)
 	struct dn_dev __rcu     *dn_ptr;
 #endif

@@ -41,12 +41,13 @@ extern void netlink_table_ungrab(void);
 #define NL_CFG_F_NONROOT_SEND	(1 << 1)
 
 /* optional Netlink kernel configuration parameters */
+//netlink各个协议在内核侧的一些配置参数, per-协议的，
 struct netlink_kernel_cfg {
-	unsigned int	groups;
+	unsigned int	groups; //最大多播组
 	unsigned int	flags;
-	void		(*input)(struct sk_buff *skb);
-	struct mutex	*cb_mutex;
-	int		(*bind)(struct net *net, int group);
+	void		(*input)(struct sk_buff *skb); //指定回调函数，该函数用于接收和处理来自用户空间的消息，如果不需要接收，可以不设置, 这个是最重要的，可以说是用户发送到内核后，内核处理的总入口, 进入到相应协议的运行逻辑, 譬如：rtnetlink_rcv。而内核发送给用户则是将skb挂到该进程对应的sock队列上，由用户进程自行处理。
+	struct mutex	*cb_mutex; //用于保护per-protocol的一些操作
+	int		(*bind)(struct net *net, int group); //sock的绑定等操作，会添加sock到nl_table的hash表中
 	void		(*unbind)(struct net *net, int group);
 	bool		(*compare)(struct net *net, struct sock *sk);
 };

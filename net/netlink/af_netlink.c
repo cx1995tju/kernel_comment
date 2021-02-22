@@ -648,7 +648,7 @@ static int __netlink_create(struct net *net, struct socket *sock,
 
 	nlk = nlk_sk(sk);
 	if (cb_mutex) {
-		nlk->cb_mutex = cb_mutex;
+		nlk->cb_mutex = cb_mutex; //同一netlink协议会共享一个锁的。
 	} else {
 		nlk->cb_mutex = &nlk->cb_def_mutex;
 		mutex_init(nlk->cb_mutex);
@@ -2678,7 +2678,7 @@ static const struct proto_ops netlink_ops = {
 
 static const struct net_proto_family netlink_family_ops = {
 	.family = PF_NETLINK,
-	.create = netlink_create,
+	.create = netlink_create, //并没有什么新鲜，socket的创建函数
 	.owner	= THIS_MODULE,	/* for consistency 8) */
 };
 
@@ -2720,7 +2720,7 @@ static void __init netlink_add_usersock_entry(void)
 }
 
 static struct pernet_operations __net_initdata netlink_net_ops = {
-	.init = netlink_net_init,
+	.init = netlink_net_init, //会为每个net空间创建proc接口
 	.exit = netlink_net_exit,
 };
 
@@ -2771,7 +2771,7 @@ static int __init netlink_proto_init(void)
 	register_pernet_subsys(&netlink_net_ops);
 	register_pernet_subsys(&netlink_tap_net_ops);
 	/* The netlink device handler may be needed early. */
-	rtnetlink_init();
+	rtnetlink_init(); //创建NETLINK_ROUTE类型的netlink，这是netlink机制最初实现的初衷，为了传递网络子系统的信息
 out:
 	return err;
 panic:

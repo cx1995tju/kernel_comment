@@ -48,6 +48,9 @@
  *		Patrick McHardy <kaber@trash.net>
  */
 
+
+//PLEASE REFER TO: https://www.kernel.org/doc/html/latest/networking/fib_trie.html
+
 #define VERSION "0.409"
 
 #include <linux/cache.h>
@@ -129,25 +132,27 @@ typedef unsigned int t_key;
 #define IS_TNODE(n)	((n)->bits)
 #define IS_LEAF(n)	(!(n)->bits)
 
+//表示结点key的相关信息？？？？？
 struct key_vector {
-	t_key key;
+	t_key key; //真的key
 	unsigned char pos;		/* 2log(KEYLENGTH) bits needed */
 	unsigned char bits;		/* 2log(KEYLENGTH) bits needed */
 	unsigned char slen;
 	union {
 		/* This list pointer if valid if (pos | bits) == 0 (LEAF) */
-		struct hlist_head leaf;
+		struct hlist_head leaf; //字典树叶子结点
 		/* This array is valid if (pos | bits) > 0 (TNODE) */
-		struct key_vector __rcu *tnode[0];
+		struct key_vector __rcu *tnode[0]; //字典树中间结点, 零长数组，动态扩展
 	};
 };
 
+//trie node, not leaf??????
 struct tnode {
 	struct rcu_head rcu;
 	t_key empty_children;		/* KEYLENGTH bits needed */
 	t_key full_children;		/* KEYLENGTH bits needed */
 	struct key_vector __rcu *parent;
-	struct key_vector kv[1];
+	struct key_vector kv[1]; //通过key_vector中的成员链成树的
 #define tn_bits kv[0].bits
 };
 
@@ -175,6 +180,7 @@ struct trie_stat {
 	unsigned int nodesizes[MAX_STAT_DEPTH];
 };
 
+//路由的字典树组织, 字典树根结点
 struct trie {
 	struct key_vector kv[1];
 #ifdef CONFIG_IP_FIB_TRIE_STATS
@@ -248,7 +254,7 @@ static inline unsigned long get_index(t_key key, struct key_vector *kv)
  * searching for a leaf - unless we are doing an insertion) we will completely
  * ignore all skipped bits we encounter. Thus we need to verify, at the end of
  * a potentially successful search, that we have indeed been walking the
- * correct key path.
+ * correct key path. //使用bits在匹配成功后，判断是不是一次成功的搜索
  *
  * Note that we can never "miss" the correct key in the tree if present by
  * following the wrong path. Path compression ensures that segments of the key
@@ -1121,6 +1127,7 @@ static bool fib_valid_key_len(u32 key, u8 plen, struct netlink_ext_ack *extack)
 }
 
 /* Caller must hold RTNL. */
+//查找到了话就不需要插入的
 int fib_table_insert(struct net *net, struct fib_table *tb,
 		     struct fib_config *cfg, struct netlink_ext_ack *extack)
 {
@@ -1150,7 +1157,7 @@ int fib_table_insert(struct net *net, struct fib_table *tb,
 	}
 
 	l = fib_find_node(t, &tp, key);
-	fa = l ? fib_find_alias(&l->leaf, slen, tos, fi->fib_priority,
+	fa = l ? fib_find_alias(&l->leaf, slen, tos, fi->fib_priority, //搜索第一个匹配的路由项目
 				tb->tb_id) : NULL;
 
 	/* Now fa, if non-NULL, points to the first fib alias
@@ -1162,8 +1169,8 @@ int fib_table_insert(struct net *net, struct fib_table *tb,
 	 * of the new alias.
 	 */
 
-	if (fa && fa->fa_tos == tos &&
-	    fa->fa_info->fib_priority == fi->fib_priority) {
+	if (fa && fa->fa_tos == tos && //已经查找到了路由项，不需要构造新的
+	    fa->fa_info->fib_priority == fi->fib_priority) { //priority也要匹配？？？？
 		struct fib_alias *fa_first, *fa_match;
 
 		err = -EEXIST;
@@ -1179,7 +1186,7 @@ int fib_table_insert(struct net *net, struct fib_table *tb,
 		 */
 		fa_match = NULL;
 		fa_first = fa;
-		hlist_for_each_entry_from(fa, fa_list) {
+		hlist_for_each_entry_from(fa, fa_list) {  //这里在遍历什么？？？？, 这些匹配的fa都hash在一起么？？？？
 			if ((fa->fa_slen != slen) ||
 			    (fa->tb_id != tb->tb_id) ||
 			    (fa->fa_tos != tos))
@@ -2092,10 +2099,12 @@ int fib_table_dump(struct fib_table *tb, struct sk_buff *skb,
 
 void __init fib_trie_init(void)
 {
+	//fib_alias的高速缓存
 	fn_alias_kmem = kmem_cache_create("ip_fib_alias",
 					  sizeof(struct fib_alias),
 					  0, SLAB_PANIC, NULL);
 
+	//字典树的叶子结点
 	trie_leaf_kmem = kmem_cache_create("ip_fib_trie",
 					   LEAF_SIZE,
 					   0, SLAB_PANIC, NULL);
@@ -2110,7 +2119,7 @@ struct fib_table *fib_trie_table(u32 id, struct fib_table *alias)
 	if (!alias)
 		sz += sizeof(struct trie);
 
-	tb = kzalloc(sz, GFP_KERNEL);
+	tb = kzalloc(sz, GFP_KERNEL); //分配一个路由表项
 	if (!tb)
 		return NULL;
 

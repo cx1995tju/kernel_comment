@@ -386,7 +386,7 @@ struct sock {
 		int		len;
 		struct sk_buff	*head;
 		struct sk_buff	*tail;
-	} sk_backlog; /* 后备接收队列，当sock结构被上锁后，有新的报文到来的时候，只能将其防止到后备接收队列中，后续用户读取TCP的时候使用，目前仅仅在TCP中使用 */
+	} sk_backlog; /* 后备接收队列，当sock结构被上锁后，有新的报文到来的时候，只能将其防止到后备接收队列中，后续用户读取TCP的时候使用，目前仅仅在TCP中使用, 解锁后会立即处理后备队列的 */
 #define sk_rmem_alloc sk_backlog.rmem_alloc // 接收sk_receivec_queue中的总报文长度
 
 	int			sk_forward_alloc;
@@ -415,7 +415,7 @@ struct sock {
 	refcount_t		sk_wmem_alloc; //所在传输控制快中，为发送而分配的SKB数据区的大小（线性 + 非线性）
 	unsigned long		sk_tsq_flags;
 	union {
-		struct sk_buff	*sk_send_head;
+		struct sk_buff	*sk_send_head; //指向下一个要发送的数据包
 		struct rb_root	tcp_rtx_queue;
 	};
 	struct sk_buff_head	sk_write_queue; //发送队列 + 重传队列，sk_send_head前重传队列，==及==之后为发送队列

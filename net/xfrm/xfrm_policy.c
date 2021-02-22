@@ -1,5 +1,5 @@
 /*
- * xfrm_policy.c
+ * xfrm_policy.c //IPSec相关的安全模块？？？？
  *
  * Changes:
  *	Mitsuru KANDA @USAGI

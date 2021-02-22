@@ -25,7 +25,7 @@
 
 #include <linux/skbuff.h>
 #include <uapi/linux/if_arp.h>
-
+//检测报文完整性，长度是否是arp头部长度 + 两个硬件地址长度 + 两个ip地址长度
 static inline struct arphdr *arp_hdr(const struct sk_buff *skb)
 {
 	return (struct arphdr *)skb_network_header(skb);

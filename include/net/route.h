@@ -48,25 +48,25 @@
 struct fib_nh;
 struct fib_info;
 struct uncached_list;
-struct rtable {
+struct rtable { //ipv4的路由缓存项条目
 	struct dst_entry	dst;
 
 	int			rt_genid;
-	unsigned int		rt_flags;
-	__u16			rt_type;
+	unsigned int		rt_flags; //%RTCF_NOTIFY
+	__u16			rt_type; //%RTN_UNSPEC
 	__u8			rt_is_input;
 	__u8			rt_uses_gateway;
 
 	int			rt_iif; /* 输入网络设备标志 */
 
 	/* Info on neighbour */
-	__be32			rt_gateway;
+	__be32			rt_gateway; //直连的时候，rt_gateway表示目的地址；其他情况表示是下一跳的网关地址
 
 	/* Miscellaneous cached information */
 	u32			rt_mtu_locked:1,
 				rt_pmtu:31;
 
-	struct list_head	rt_uncached;
+	struct list_head	rt_uncached; //链入到哪里
 	struct uncached_list	*rt_uncached_list;
 };
 
@@ -146,6 +146,7 @@ static inline struct rtable *ip_route_output(struct net *net, __be32 daddr,
 	return ip_route_output_key(net, &fl4);
 }
 
+//从TCP层调用ip_queue_xmit发送数据包的时候，如果没有路由缓存，会走慢速路径，走这里来进行选路
 static inline struct rtable *ip_route_output_ports(struct net *net, struct flowi4 *fl4,
 						   struct sock *sk,
 						   __be32 daddr, __be32 saddr,
@@ -183,6 +184,7 @@ int ip_route_input_rcu(struct sk_buff *skb, __be32 dst, __be32 src,
 		       u8 tos, struct net_device *devin,
 		       struct fib_result *res);
 
+//输入报文路由缓存查询
 static inline int ip_route_input(struct sk_buff *skb, __be32 dst, __be32 src,
 				 u8 tos, struct net_device *devin)
 {

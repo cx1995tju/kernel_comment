@@ -4756,6 +4756,7 @@ err_unlock:
 	return -EOPNOTSUPP;
 }
 
+//这个是最重要的函数，是内核RT_NTELINK的消息处理总入口
 static void rtnetlink_rcv(struct sk_buff *skb)
 {
 	netlink_rcv_skb(skb, &rtnetlink_rcv_msg);
@@ -4810,8 +4811,8 @@ static int __net_init rtnetlink_net_init(struct net *net)
 	struct sock *sk;
 	struct netlink_kernel_cfg cfg = {
 		.groups		= RTNLGRP_MAX,
-		.input		= rtnetlink_rcv,
-		.cb_mutex	= &rtnl_mutex,
+		.input		= rtnetlink_rcv, //内核侧，NETLINK_ROUTE的接收函数, 也就是说用户发送消息到内核后，就会调用这个函数
+		.cb_mutex	= &rtnl_mutex, //sock相关的锁结构, 该协议共用的一个锁
 		.flags		= NL_CFG_F_NONROOT_RECV,
 		.bind		= rtnetlink_bind,
 	};
@@ -4836,7 +4837,7 @@ static struct pernet_operations rtnetlink_net_ops = {
 
 void __init rtnetlink_init(void)
 {
-	if (register_pernet_subsys(&rtnetlink_net_ops))
+	if (register_pernet_subsys(&rtnetlink_net_ops)) //对于每个net命名空间，会调用其中的init函数，rtnetlink_net_init
 		panic("rtnetlink_init: cannot initialize rtnetlink\n");
 
 	register_netdevice_notifier(&rtnetlink_dev_notifier);

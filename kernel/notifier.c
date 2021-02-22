@@ -90,6 +90,8 @@ static int notifier_call_chain(struct notifier_block **nl,
 			continue;
 		}
 #endif
+		//这里很有意思，如果执行多个函数，v的内容被更改了，后续函数得到的通知不就有问题了么
+		//那么这个挂载执行顺序是
 		ret = nb->notifier_call(nb, val, v);
 
 		if (nr_calls)

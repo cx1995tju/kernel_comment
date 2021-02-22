@@ -142,13 +142,13 @@ struct arpreq_old {
  */
 
 struct arphdr {
-	__be16		ar_hrd;		/* format of hardware address	*/
-	__be16		ar_pro;		/* format of protocol address	*/
-	unsigned char	ar_hln;		/* length of hardware address	*/
-	unsigned char	ar_pln;		/* length of protocol address	*/
-	__be16		ar_op;		/* ARP opcode (command)		*/
+	__be16		ar_hrd;		/* format of hardware address	*/ //硬件类型 %ARPHRD_ETHER
+	__be16		ar_pro;		/* format of protocol address	*/ //协议类型 %ETH_P_IP
+	unsigned char	ar_hln;		/* length of hardware address	*/ //硬件地址长度
+	unsigned char	ar_pln;		/* length of protocol address	*/ //三层地址长度
+	__be16		ar_op;		/* ARP opcode (command)		*/ //操作码
 
-#if 0
+#if 0 //不同2层地址是不同的，这里仅仅是举一个例子
 	 /*
 	  *	 Ethernet looks like this : This bit is variable sized however...
 	  */

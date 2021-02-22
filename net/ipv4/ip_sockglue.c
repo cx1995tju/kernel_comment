@@ -387,12 +387,17 @@ int ip_ra_control(struct sock *sk, unsigned char on,
 	return 0;
 }
 
+//skb是从ICMP模块传递到传输层的ICMP差错报文，
+//err错误码
+//port是UDP出错报文的目的端口
+//info是出错的扩展信息
+//payload指向产生ICMP差错的原始数据报中应用层的内容
 void ip_icmp_error(struct sock *sk, struct sk_buff *skb, int err,
 		   __be16 port, u32 info, u8 *payload)
 {
 	struct sock_exterr_skb *serr;
 
-	skb = skb_clone(skb, GFP_ATOMIC);
+	skb = skb_clone(skb, GFP_ATOMIC); //克隆ICMP差错报文
 	if (!skb)
 		return;
 
@@ -410,7 +415,7 @@ void ip_icmp_error(struct sock *sk, struct sk_buff *skb, int err,
 
 	if (skb_pull(skb, payload - skb->data)) {
 		skb_reset_transport_header(skb);
-		if (sock_queue_err_skb(sk, skb) == 0)
+		if (sock_queue_err_skb(sk, skb) == 0) //添加到出错队列中
 			return;
 	}
 	kfree_skb(skb);

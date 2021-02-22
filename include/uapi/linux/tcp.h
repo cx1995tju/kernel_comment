@@ -30,7 +30,7 @@ struct tcphdr {
 	__be32	ack_seq; //确认号, 期待对方发送的下一个序列号
 #if defined(__LITTLE_ENDIAN_BITFIELD)
 	__u16	res1:4, 
-		doff:4,
+		doff:4, //header offset
 		fin:1,
 		syn:1,
 		rst:1,
@@ -68,7 +68,7 @@ union tcp_word_hdr {
 	__be32 		  words[5];
 }; 
 
-#define tcp_flag_word(tp) ( ((union tcp_word_hdr *)(tp))->words [3]) 
+#define tcp_flag_word(tp) ( ((union tcp_word_hdr *)(tp))->words [3])  //头部中的第4个32位字
 
 enum { 
 	TCP_FLAG_CWR = __constant_cpu_to_be32(0x00800000),

@@ -2041,7 +2041,7 @@ static int e100_rx_indicate(struct nic *nic, struct rx *rx,
 process_skb:
 		dev->stats.rx_packets++;
 		dev->stats.rx_bytes += (actual_size - fcs_pad);
-		netif_receive_skb(skb);
+		netif_receive_skb(skb); //核心的函数
 		if (work_done)
 			(*work_done)++;
 	}

@@ -48,17 +48,28 @@ enum {
 /*
  *	Neighbor Cache Entry States.
  */
+//INCOMPLETE 和 PROBE这两种状态下，尝试发送请求报文的次数大于上限，转变为NUD_FAILED状态，然后删除释放缓存队列上的保温，发送错误报告给报文的发送方, 在ARP就是目的不可达ICMP消息
 
+
+//请求报文已经发送，但是还没有收到应答的状态, 此状态还没有硬件地址，如果有报文要发送，就会缓存起来。进入该状态的时候会启动给一个定时器，在定时器到期没有接收到邻居回应的话，会重复尝试多起，如果在达到上限前成功，进入NUD_RECHABLE状态，否则进入到NUD_STALE状态
 #define NUD_INCOMPLETE	0x01
+//可达状态，进入该状态时，首先设置邻居项的output函数指针,查看是否有要发送给该邻居的报文，如果有发送出去(快速路径)。在该状态如果限制时间到达上限，且引用计数为1的话，可以通过垃圾回收机制将其删除
 #define NUD_REACHABLE	0x02
+//过期状态，如果有报文要输出到该邻居，就会进入到NUD_DELAY状态。在该状态闲置时间过久，且引用计数为1，会被垃圾回收机制回收
 #define NUD_STALE	0x04
+//报文已经发出，需要得到邻居可达性的确认，便会进入到NUD_PROBE状态，否则进入到NUD_REACHABLE状态。该状态下报文发送不受限制，用慢速发送
 #define NUD_DELAY	0x08
+//过去状态，类似于NUD_INCOMPLETE状态。该状态下，输出不受限制，也是慢速发送
 #define NUD_PROBE	0x10
+//由于没有接收到应答而无法访问的状态
 #define NUD_FAILED	0x20
 
 /* Dummy states */
+//不需要将三层地址映射到二层地址协议的支持
 #define NUD_NOARP	0x40
+//静态配置的
 #define NUD_PERMANENT	0x80
+//邻居项刚建立时的初始状态, 此状态下还没有硬件地址使用，不能发送请求报文，一旦有报文要输出到该邻居，就会触发对该邻居硬件地址的请求，进入到NUD_INCOMPLETE状态, 并缓存要发送的报文
 #define NUD_NONE	0x00
 
 /* NUD_NOARP & NUD_PERMANENT are pseudostates, they never change

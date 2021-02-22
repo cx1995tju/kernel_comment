@@ -1638,6 +1638,7 @@ int ip_mc_validate_source(struct sk_buff *skb, __be32 daddr, __be32 saddr,
 }
 
 /* called in rcu_read_lock() section */
+//组播输入选路
 static int ip_route_input_mc(struct sk_buff *skb, __be32 daddr, __be32 saddr,
 			     u8 tos, struct net_device *dev, int our)
 {
@@ -1702,14 +1703,14 @@ static void ip_handle_martian_source(struct net_device *dev,
 }
 
 /* called in rcu_read_lock() section */
-/* 创建路由缓存*/
+/* 创建输入路由缓存*/
 static int __mkroute_input(struct sk_buff *skb,
 			   const struct fib_result *res,
 			   struct in_device *in_dev,
 			   __be32 daddr, __be32 saddr, u32 tos)
 {
 	struct fib_nh_exception *fnhe;
-	struct rtable *rth;
+	struct rtable *rth; //ipv4的路由缓存项表示
 	int err;
 	struct in_device *out_dev;
 	bool do_cache;
@@ -1776,12 +1777,12 @@ static int __mkroute_input(struct sk_buff *skb,
 	rth->rt_is_input = 1;
 	RT_CACHE_STAT_INC(in_slow_tot);
 
-	rth->dst.input = ip_forward;
+	rth->dst.input = ip_forward; //这里是重要赋值, 是ip转发函数
 
 	rt_set_nexthop(rth, daddr, res, fnhe, res->fi, res->type, itag,
 		       do_cache);
 	lwtunnel_set_redirect(&rth->dst);
-	skb_dst_set(skb, &rth->dst);
+	skb_dst_set(skb, &rth->dst); //路由缓存绑定到skb
 out:
 	err = 0;
  cleanup:
@@ -1918,6 +1919,7 @@ static int ip_mkroute_input(struct sk_buff *skb,
  *	called with rcu_read_lock()
  */
 
+//对于输入报文需要判断是不是由本地接收的，从而判断是要丢弃还是转发（取决配置的模式）
 static int ip_route_input_slow(struct sk_buff *skb, __be32 daddr, __be32 saddr,
 			       u8 tos, struct net_device *dev,
 			       struct fib_result *res)
@@ -1949,18 +1951,18 @@ static int ip_route_input_slow(struct sk_buff *skb, __be32 daddr, __be32 saddr,
 		fl4.flowi4_tun_key.tun_id = 0;
 	skb_dst_drop(skb);
 
-	if (ipv4_is_multicast(saddr) || ipv4_is_lbcast(saddr))
+	if (ipv4_is_multicast(saddr) || ipv4_is_lbcast(saddr)) //不能是多播或者广播地址
 		goto martian_source;
 
 	res->fi = NULL;
 	res->table = NULL;
-	if (ipv4_is_lbcast(daddr) || (saddr == 0 && daddr == 0))
+	if (ipv4_is_lbcast(daddr) || (saddr == 0 && daddr == 0)) //校验地址有效性
 		goto brd_input;
 
 	/* Accept zero addresses only to limited broadcast;
 	 * I even do not know to fix it or not. Waiting for complains :-)
 	 */
-	if (ipv4_is_zeronet(saddr))
+	if (ipv4_is_zeronet(saddr)) //不能是广播地址
 		goto martian_source;
 
 	if (ipv4_is_zeronet(daddr))
@@ -1969,7 +1971,7 @@ static int ip_route_input_slow(struct sk_buff *skb, __be32 daddr, __be32 saddr,
 	/* Following code try to avoid calling IN_DEV_NET_ROUTE_LOCALNET(),
 	 * and call it once if daddr or/and saddr are loopback addresses
 	 */
-	if (ipv4_is_loopback(daddr)) {
+	if (ipv4_is_loopback(daddr)) { //环回地址
 		if (!IN_DEV_NET_ROUTE_LOCALNET(in_dev, net))
 			goto martian_destination;
 	} else if (ipv4_is_loopback(saddr)) {
@@ -1980,6 +1982,7 @@ static int ip_route_input_slow(struct sk_buff *skb, __be32 daddr, __be32 saddr,
 	/*
 	 *	Now we are ready to route packet.
 	 */
+	//设置查找的key, flowi
 	fl4.flowi4_oif = 0;
 	fl4.flowi4_iif = dev->ifindex;
 	fl4.flowi4_mark = skb->mark;
@@ -1998,7 +2001,7 @@ static int ip_route_input_slow(struct sk_buff *skb, __be32 daddr, __be32 saddr,
 		fl4.fl4_dport = 0;
 	}
 
-	err = fib_lookup(net, &fl4, res, 0);
+	err = fib_lookup(net, &fl4, res, 0); //查找路由项
 	if (err != 0) {
 		if (!IN_DEV_FORWARD(in_dev))
 			err = -EHOSTUNREACH;
@@ -2088,9 +2091,9 @@ local_input:
 		}
 
 		if (unlikely(!rt_cache_route(nh, rth)))
-			rt_add_uncached_list(rth);
+			rt_add_uncached_list(rth); //绑定路由缓存per-cpu的uncached list
 	}
-	skb_dst_set(skb, &rth->dst);
+	skb_dst_set(skb, &rth->dst); //与skb绑定
 	err = 0;
 	goto out;
 
@@ -2155,7 +2158,7 @@ int ip_route_input_rcu(struct sk_buff *skb, __be32 daddr, __be32 saddr,
 	   Note, that multicast routers are not affected, because
 	   route cache entry is created eventually.
 	 */
-	if (ipv4_is_multicast(daddr)) {
+	if (ipv4_is_multicast(daddr)) { //多播场景
 		struct in_device *in_dev = __in_dev_get_rcu(dev);
 		int our = 0;
 		int err = -EINVAL;
@@ -2192,6 +2195,7 @@ int ip_route_input_rcu(struct sk_buff *skb, __be32 daddr, __be32 saddr,
 }
 
 /* called with rcu_read_lock() */
+//创建输出路由缓存项
 static struct rtable *__mkroute_output(const struct fib_result *res,
 				       const struct flowi4 *fl4, int orig_oif,
 				       struct net_device *dev_out,
@@ -2590,6 +2594,7 @@ struct dst_entry *ipv4_blackhole_route(struct net *net, struct dst_entry *dst_or
 	return rt ? &rt->dst : ERR_PTR(-ENOMEM);
 }
 
+//对输出的数据报进行路由，如果缓存中没有查找到对应的项就会走到这里, 查找表项添加到缓存中
 struct rtable *ip_route_output_flow(struct net *net, struct flowi4 *flp4,
 				    const struct sock *sk)
 {
@@ -2598,7 +2603,7 @@ struct rtable *ip_route_output_flow(struct net *net, struct flowi4 *flp4,
 	if (IS_ERR(rt))
 		return rt;
 
-	if (flp4->flowi4_proto)
+	if (flp4->flowi4_proto) //存在4层协议的话, 安全模块？？？？？
 		rt = (struct rtable *)xfrm_lookup_route(net, &rt->dst,
 							flowi4_to_flowi(flp4),
 							sk, 0);
@@ -3183,23 +3188,24 @@ int __init ip_rt_init(void)
 		panic("IP: failed to allocate ip_rt_acct\n");
 #endif
 
+	//路由缓存部分的初始化
 	ipv4_dst_ops.kmem_cachep =
-		kmem_cache_create("ip_dst_cache", sizeof(struct rtable), 0,
+		kmem_cache_create("ip_dst_cache", sizeof(struct rtable), 0, //ip 路由缓存
 				  SLAB_HWCACHE_ALIGN|SLAB_PANIC, NULL);
 
 	ipv4_dst_blackhole_ops.kmem_cachep = ipv4_dst_ops.kmem_cachep;
 
-	if (dst_entries_init(&ipv4_dst_ops) < 0)
+	if (dst_entries_init(&ipv4_dst_ops) < 0) //路由缓存部门
 		panic("IP: failed to allocate ipv4_dst_ops counter\n");
 
-	if (dst_entries_init(&ipv4_dst_blackhole_ops) < 0)
+	if (dst_entries_init(&ipv4_dst_blackhole_ops) < 0) //路由缓存部分
 		panic("IP: failed to allocate ipv4_dst_blackhole_ops counter\n");
 
 	ipv4_dst_ops.gc_thresh = ~0;
 	ip_rt_max_size = INT_MAX;
 
 	devinet_init();
-	ip_fib_init();
+	ip_fib_init(); //路由子模块的初始化
 
 	if (ip_rt_proc_init())
 		pr_err("Unable to create route proc files\n");

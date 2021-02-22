@@ -190,18 +190,18 @@ bool ip_call_ra_chain(struct sk_buff *skb)
 
 static int ip_local_deliver_finish(struct net *net, struct sock *sk, struct sk_buff *skb)
 {
-	__skb_pull(skb, skb_network_header_len(skb));
+	__skb_pull(skb, skb_network_header_len(skb)); //数据报传递给传输层前，去掉ip头
 
 	rcu_read_lock();
 	{
-		int protocol = ip_hdr(skb)->protocol;
+		int protocol = ip_hdr(skb)->protocol; //获取IP头部的协议号，用于计算hash值
 		const struct net_protocol *ipprot;
 		int raw;
 
 	resubmit:
 		raw = raw_local_deliver(skb, protocol);
 
-		ipprot = rcu_dereference(inet_protos[protocol]);
+		ipprot = rcu_dereference(inet_protos[protocol]); //是否有对应的传输层接口，如果有就调用并处理之, tcp_v4_rcv
 		if (ipprot) {
 			int ret;
 
@@ -218,7 +218,7 @@ static int ip_local_deliver_finish(struct net *net, struct sock *sk, struct sk_b
 				goto resubmit;
 			}
 			__IP_INC_STATS(net, IPSTATS_MIB_INDELIVERS);
-		} else {
+		} else { //没有对应的传输层接口,可能需要产生一个目的不可达的ICMP报文给发送方
 			if (!raw) {
 				if (xfrm4_policy_check(NULL, XFRM_POLICY_IN, skb)) {
 					__IP_INC_STATS(net, IPSTATS_MIB_INUNKNOWNPROTOS);
@@ -248,8 +248,8 @@ int ip_local_deliver(struct sk_buff *skb)
 	 */
 	struct net *net = dev_net(skb->dev);
 
-	if (ip_is_fragment(ip_hdr(skb))) {
-		if (ip_defrag(net, skb, IP_DEFRAG_LOCAL_DELIVER))
+	if (ip_is_fragment(ip_hdr(skb))) { //如果是分片，要重组
+		if (ip_defrag(net, skb, IP_DEFRAG_LOCAL_DELIVER)) //返回0表示分片没有来齐, 直接返回
 			return 0;
 	}
 
@@ -397,7 +397,6 @@ drop_error:
 	goto drop;
 }
 
-/* 通过inet_protos 找到对应传输层的net_protocol结构，从而进入传输层 */
 static int ip_rcv_finish(struct net *net, struct sock *sk, struct sk_buff *skb)
 {
 	struct net_device *dev = skb->dev;
@@ -406,13 +405,13 @@ static int ip_rcv_finish(struct net *net, struct sock *sk, struct sk_buff *skb)
 	/* if ingress device is enslaved to an L3 master device pass the
 	 * skb to its handler for processing
 	 */
-	skb = l3mdev_ip_rcv(skb);
+	skb = l3mdev_ip_rcv(skb); //VRF支持的核心
 	if (!skb)
 		return NET_RX_SUCCESS;
 
-	ret = ip_rcv_finish_core(net, sk, skb, dev);
+	ret = ip_rcv_finish_core(net, sk, skb, dev); //路由缓存相关
 	if (ret != NET_RX_DROP)
-		ret = dst_input(skb);
+		ret = dst_input(skb); //ip_local_deliver 或者 ip_forward
 	return ret;
 }
 
@@ -427,19 +426,19 @@ static struct sk_buff *ip_rcv_core(struct sk_buff *skb, struct net *net)
 	/* When the interface is in promisc. mode, drop all the crap
 	 * that it receives, do not try to analyse it.
 	 */
-	if (skb->pkt_type == PACKET_OTHERHOST)
+	if (skb->pkt_type == PACKET_OTHERHOST) //只接收发往本机的数据报
 		goto drop;
 
 
 	__IP_UPD_PO_STATS(net, IPSTATS_MIB_IN, skb->len);
 
-	skb = skb_share_check(skb, GFP_ATOMIC);
+	skb = skb_share_check(skb, GFP_ATOMIC); //如果接收的是一个共享数据包，必须复制一个副本, 因为在处理过程可能会修改数据报内容
 	if (!skb) {
 		__IP_INC_STATS(net, IPSTATS_MIB_INDISCARDS);
 		goto out;
 	}
 
-	if (!pskb_may_pull(skb, sizeof(struct iphdr)))
+	if (!pskb_may_pull(skb, sizeof(struct iphdr))) //通过长度检测有效性
 		goto inhdr_error;
 
 	iph = ip_hdr(skb);
@@ -455,7 +454,7 @@ static struct sk_buff *ip_rcv_core(struct sk_buff *skb, struct net *net)
 	 *	4.	Doesn't have a bogus length
 	 */
 
-	if (iph->ihl < 5 || iph->version != 4)
+	if (iph->ihl < 5 || iph->version != 4) //头部长度至少20B
 		goto inhdr_error;
 
 	BUILD_BUG_ON(IPSTATS_MIB_ECT1PKTS != IPSTATS_MIB_NOECTPKTS + INET_ECN_ECT_1);
@@ -465,16 +464,16 @@ static struct sk_buff *ip_rcv_core(struct sk_buff *skb, struct net *net)
 		       IPSTATS_MIB_NOECTPKTS + (iph->tos & INET_ECN_MASK),
 		       max_t(unsigned short, 1, skb_shinfo(skb)->gso_segs));
 
-	if (!pskb_may_pull(skb, iph->ihl*4))
+	if (!pskb_may_pull(skb, iph->ihl*4)) //根据首部长度，检测有效性
 		goto inhdr_error;
 
 	iph = ip_hdr(skb);
 
-	if (unlikely(ip_fast_csum((u8 *)iph, iph->ihl)))
+	if (unlikely(ip_fast_csum((u8 *)iph, iph->ihl))) //根据checksum检测数据报是否有效
 		goto csum_error;
 
 	len = ntohs(iph->tot_len);
-	if (skb->len < len) {
+	if (skb->len < len) { //根据数据包总长度检测数据报是否有效
 		__IP_INC_STATS(net, IPSTATS_MIB_INTRUNCATEDPKTS);
 		goto drop;
 	} else if (len < (iph->ihl*4))
@@ -493,7 +492,7 @@ static struct sk_buff *ip_rcv_core(struct sk_buff *skb, struct net *net)
 	skb->transport_header = skb->network_header + iph->ihl*4;
 
 	/* Remove any debris in the socket control block */
-	memset(IPCB(skb), 0, sizeof(struct inet_skb_parm));
+	memset(IPCB(skb), 0, sizeof(struct inet_skb_parm)); //清零ip控制块，方便后续处理
 	IPCB(skb)->iif = skb->skb_iif;
 
 	/* Must drop socket now because of tproxy. */
@@ -514,6 +513,7 @@ out:
 /*
  * IP receive entry point
  */
+/* 通过inet_protos 找到对应传输层的net_protocol结构，从而进入传输层 */
 int ip_rcv(struct sk_buff *skb, struct net_device *dev, struct packet_type *pt,
 	   struct net_device *orig_dev)
 {

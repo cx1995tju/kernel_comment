@@ -84,9 +84,9 @@ void tcp_time_wait(struct sock *sk, int state, int timeo);
 #define TCP_MAX_WSCALE		14U
 
 /* urg_data states */
-#define TCP_URG_VALID	0x0100
-#define TCP_URG_NOTYET	0x0200
-#define TCP_URG_READ	0x0400
+#define TCP_URG_VALID	0x0100 //紧急数据是有效的，用户可以读取
+#define TCP_URG_NOTYET	0x0200 //接收的段中有紧急数据
+#define TCP_URG_READ	0x0400 //标识紧急数据已全部被读取
 
 #define TCP_RETR1	3	/*
 				 * This is how many retries it does before it
@@ -217,8 +217,8 @@ void tcp_time_wait(struct sock *sk, int state, int timeo);
 
 /* Flags in tp->nonagle */
 #define TCP_NAGLE_OFF		1	/* Nagle's algo is disabled */
-#define TCP_NAGLE_CORK		2	/* Socket is corked	    */
-#define TCP_NAGLE_PUSH		4	/* Cork is overridden for already queued data */
+#define TCP_NAGLE_CORK		2	/* Socket is corked, 对nagle算法优化，尽可能发送大的段	    */
+#define TCP_NAGLE_PUSH		4	/* Cork is overridden for already queued data, 正常的nagel算法 */
 
 /* TCP thin-stream limits */
 #define TCP_THIN_LINEAR_RETRIES 6       /* After 6 linear retries, do exp. backoff */
@@ -359,9 +359,9 @@ static inline void tcp_dec_quickack_mode(struct sock *sk,
 	}
 }
 
-#define	TCP_ECN_OK		1
-#define	TCP_ECN_QUEUE_CWR	2
-#define	TCP_ECN_DEMAND_CWR	4
+#define	TCP_ECN_OK		1 //表示本端支持显式拥塞通知
+#define	TCP_ECN_QUEUE_CWR	2//表示本端接收到了显式拥塞通知进入了拥塞状态
+#define	TCP_ECN_DEMAND_CWR	4  //表示接收的段经历了拥塞
 #define	TCP_ECN_SEEN		8
 
 enum tcp_tw_status {
@@ -649,7 +649,7 @@ static inline u32 __tcp_set_rto(const struct tcp_sock *tp)
 static inline void __tcp_fast_path_on(struct tcp_sock *tp, u32 snd_wnd)
 {
 	tp->pred_flags = htonl((tp->tcp_header_len << 26) |
-			       ntohl(TCP_FLAG_ACK) |
+			       ntohl(TCP_FLAG_ACK) | //预测的是ack标识位和接收窗口的大小
 			       snd_wnd);
 }
 
@@ -658,15 +658,16 @@ static inline void tcp_fast_path_on(struct tcp_sock *tp)
 	__tcp_fast_path_on(tp, tp->snd_wnd >> tp->rx_opt.snd_wscale);
 }
 
+/* 设置首部预测标志 */
 static inline void tcp_fast_path_check(struct sock *sk)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
 
-	if (RB_EMPTY_ROOT(&tp->out_of_order_queue) &&
-	    tp->rcv_wnd &&
-	    atomic_read(&sk->sk_rmem_alloc) < sk->sk_rcvbuf &&
-	    !tp->urg_data)
-		tcp_fast_path_on(tp);
+	if (RB_EMPTY_ROOT(&tp->out_of_order_queue) && //缓存乱序队列为空，表示网络还比较通畅
+	    tp->rcv_wnd && //接收窗口不为0，说明还能够接收数据
+	    atomic_read(&sk->sk_rmem_alloc) < sk->sk_rcvbuf && //当前使用的接收缓存没有到达上限，说明还能接收数据
+	    !tp->urg_data) //没有接收到紧急指针
+		tcp_fast_path_on(tp); //综上，可以设置预测标志了
 }
 
 /* Compute the actual rto_min value */
@@ -811,18 +812,19 @@ struct tcp_skb_cb {
 		 */
 		__u32		tcp_tw_isn;
 		struct {
-			u16	tcp_gso_segs;
+			u16	tcp_gso_segs; //gso分段数
 			u16	tcp_gso_size;
 		};
 	};
 	__u8		tcp_flags;	/* TCP header flags. (tcp[13])	*/
 
-	__u8		sacked;		/* State flags for SACK.	*/
-#define TCPCB_SACKED_ACKED	0x01	/* SKB ACK'd by a SACK block	*/
-#define TCPCB_SACKED_RETRANS	0x02	/* SKB retransmitted		*/
-#define TCPCB_LOST		0x04	/* SKB is lost			*/
+	__u8		sacked;		/* State flags for SACK.	*/ //记分牌算法的状态, 这个成员也会用来保存sack块在头部的偏移，见tcp_sacktag_write_queue
+#define TCPCB_SACKED_ACKED	0x01	/* SKB ACK'd by a SACK block	S, 表示原先发送的段已经到达接收方*/
+#define TCPCB_SACKED_RETRANS	0x02	/* SKB retransmitted		R, 原先发送和重传的段还在网络中传输*/
+#define TCPCB_LOST		0x04	/* SKB is lost			L, 原先发送的段已经丢失了*/ //L|R 表示原先发送的段已经丢失，但是重传的段还在网络中传输
+										//S|R 最先发送的段已经到达对方，但是重传的段还在网络中传输
 #define TCPCB_TAGBITS		0x07	/* All tag bits			*/
-#define TCPCB_REPAIRED		0x10	/* SKB repaired (no skb_mstamp)	*/
+#define TCPCB_REPAIRED		0x10	/* SKB repaired (no skb_mstamp)	*/ //热迁移
 #define TCPCB_EVER_RETRANS	0x80	/* Ever retransmitted frame	*/
 #define TCPCB_RETRANS		(TCPCB_SACKED_RETRANS|TCPCB_EVER_RETRANS| \
 				TCPCB_REPAIRED)
@@ -1006,28 +1008,31 @@ struct rate_sample {
 	bool is_ack_delayed;	/* is this (likely) a delayed ACK? */
 };
 
+/* linux多种拥塞算法实现的接口, 拥塞算法是socket specific的 */
+/* 不同的tcp拥塞控制算法就体现在这些函数的不同上，至于这些函数在什么地方调用则是linux的机制已经固定死的，譬如：重传包后进行重传检测，重传响应，拥塞窗口撤销等 */
+/* Linux在各处调用这些函数，是提供了框架，其整体是基于拥塞状态控制机的，我们这些算法也应该基于此 */
 struct tcp_congestion_ops {
-	struct list_head	list;
+	struct list_head	list; //注册到系统中不同的拥塞算法
 	u32 key;
 	u32 flags;
 
 	/* initialize private data (optional) */
-	void (*init)(struct sock *sk);
+	void (*init)(struct sock *sk); //拥塞算法被选中的时候调用
 	/* cleanup private data  (optional) */
-	void (*release)(struct sock *sk);
+	void (*release)(struct sock *sk); //关闭套接字的时候调用
 
 	/* return slow start threshold (required) */
-	u32 (*ssthresh)(struct sock *sk);
+	u32 (*ssthresh)(struct sock *sk); //计算并返回慢启动门限
 	/* do new cwnd calculation (required) */
-	void (*cong_avoid)(struct sock *sk, u32 ack, u32 acked);
+	void (*cong_avoid)(struct sock *sk, u32 ack, u32 acked); //计算拥塞窗口, 不仅仅是狭义的拥塞避免阶段
 	/* call before changing ca_state (optional) */
-	void (*set_state)(struct sock *sk, u8 new_state);
+	void (*set_state)(struct sock *sk, u8 new_state); //设置拥塞状态机
 	/* call when cwnd event occurs (optional) */
-	void (*cwnd_event)(struct sock *sk, enum tcp_ca_event ev);
+	void (*cwnd_event)(struct sock *sk, enum tcp_ca_event ev); //用于通知拥塞控制算法内部事件的接口 %CA_EVENT_TX_START
 	/* call when ack arrives (optional) */
 	void (*in_ack_event)(struct sock *sk, u32 flags);
 	/* new value of cwnd after loss (required) */
-	u32  (*undo_cwnd)(struct sock *sk);
+	u32  (*undo_cwnd)(struct sock *sk); //拥塞窗口撤销
 	/* hook for packet ack accounting (optional) */
 	void (*pkts_acked)(struct sock *sk, const struct ack_sample *sample);
 	/* override sysctl_tcp_min_tso_segs */
@@ -1758,7 +1763,7 @@ static inline u32 tcp_highest_sack_seq(struct tcp_sock *tp)
 	if (tp->highest_sack == NULL)
 		return tp->snd_nxt;
 
-	return TCP_SKB_CB(tp->highest_sack)->seq;
+	return TCP_SKB_CB(tp->highest_sack)->seq; //tcp控制块中有sack信息
 }
 
 static inline void tcp_advance_highest_sack(struct sock *sk, struct sk_buff *skb)

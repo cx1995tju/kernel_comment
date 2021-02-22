@@ -62,7 +62,7 @@ struct netns_ipv4 {
 #ifdef CONFIG_IP_ROUTE_CLASSID
 	int			fib_num_tclassid_users;
 #endif
-	struct hlist_head	*fib_table_hash; //转发表
+	struct hlist_head	*fib_table_hash; //转发表, 该命名空间的所有路由表hash的形式组织在这里
 	bool			fib_offload_disabled;
 	struct sock		*fibnl;
 

@@ -14,6 +14,8 @@
 #include <net/dst.h>
 #include <net/fib_rules.h>
 
+//3层隔离 VRF, 支持VRF的技术之一，linux的VRF还需要策略路由支持, l3mdev就是一种支持三层虚拟网卡的技术，利用虚拟网卡来隐藏网卡之间的可见性
+
 /**
  * struct l3mdev_ops - l3mdev operations
  *

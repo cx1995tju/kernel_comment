@@ -36,12 +36,12 @@
 struct fib4_rule {
 	struct fib_rule		common;
 	u8			dst_len;
-	u8			src_len;
-	u8			tos;
+	u8			src_len; //目的IP地址与源IP地址长度
+	u8			tos; //匹配ip首部的TOS字段
 	__be32			src;
-	__be32			srcmask;
+	__be32			srcmask; //只有从(src, srcmask)为源网络发送的报文才被接受
 	__be32			dst;
-	__be32			dstmask;
+	__be32			dstmask; //表示只能向该网络发送报文
 #ifdef CONFIG_IP_ROUTE_CLASSID
 	u32			tclassid;
 #endif
@@ -105,6 +105,7 @@ int __fib_lookup(struct net *net, struct flowi4 *flp,
 }
 EXPORT_SYMBOL_GPL(__fib_lookup);
 
+//在策略关联的路由表中，根据key查找路由项。 rule是已经查找到的路由策略（路由表），flp是key，arg保存查找到的路由项
 static int fib4_rule_action(struct fib_rule *rule, struct flowi *flp,
 			    int flags, struct fib_lookup_arg *arg)
 {
@@ -112,7 +113,7 @@ static int fib4_rule_action(struct fib_rule *rule, struct flowi *flp,
 	struct fib_table *tbl;
 	u32 tb_id;
 
-	switch (rule->action) {
+	switch (rule->action) { //检测该策略是否有动作
 	case FR_ACT_TO_TBL:
 		break;
 
@@ -129,12 +130,12 @@ static int fib4_rule_action(struct fib_rule *rule, struct flowi *flp,
 
 	rcu_read_lock();
 
-	tb_id = fib_rule_get_table(rule, arg);
+	tb_id = fib_rule_get_table(rule, arg); //获取路由表
 	tbl = fib_get_table(rule->fr_net, tb_id);
 	if (tbl)
 		err = fib_table_lookup(tbl, &flp->u.ip4,
 				       (struct fib_result *)arg->result,
-				       arg->flags);
+				       arg->flags); //查找路由项
 
 	rcu_read_unlock();
 	return err;
@@ -168,6 +169,7 @@ suppress_route:
 	return true;
 }
 
+//查找路由的时候，根据源地址，目的地址，和服务类型来匹配策略
 static int fib4_rule_match(struct fib_rule *rule, struct flowi *fl, int flags)
 {
 	struct fib4_rule *r = (struct fib4_rule *) rule;
@@ -211,6 +213,7 @@ static const struct nla_policy fib4_rule_policy[FRA_MAX+1] = {
 	[FRA_FLOW]	= { .type = NLA_U32 },
 };
 
+//添加新策略的时候，对策略中的成员进行赋值， rule是需要设置的策略，frh是陆游策略消息中的策略首部
 static int fib4_rule_configure(struct fib_rule *rule, struct sk_buff *skb,
 			       struct fib_rule_hdr *frh,
 			       struct nlattr **tb,
@@ -297,6 +300,7 @@ errout:
 	return err;
 }
 
+//删除策略的时候，根据条件进行策略的比较和查找。
 static int fib4_rule_compare(struct fib_rule *rule, struct fib_rule_hdr *frh,
 			     struct nlattr **tb)
 {
@@ -325,6 +329,7 @@ static int fib4_rule_compare(struct fib_rule *rule, struct fib_rule_hdr *frh,
 	return 1;
 }
 
+//应用程序获取具体的策略信息的时候，返回时填充相应信息
 static int fib4_rule_fill(struct fib_rule *rule, struct sk_buff *skb,
 			  struct fib_rule_hdr *frh)
 {

@@ -67,21 +67,22 @@ enum {
 	NEIGH_VAR_MAX
 };
 
+//一个邻居协议对应一个参数配置块
 struct neigh_parms {
 	possible_net_t net;
-	struct net_device *dev;
+	struct net_device *dev; //对应的网络设备, 一个邻居协议只对应一个网络设备？？？
 	struct list_head list;
 	int	(*neigh_setup)(struct neighbour *);
 	void	(*neigh_cleanup)(struct neighbour *);
-	struct neigh_table *tbl;
+	struct neigh_table *tbl; //对应的邻居表
 
-	void	*sysctl_table;
+	void	*sysctl_table; //邻居表的sysctl表，通过proc来读写邻居表的参数
 
-	int dead;
+	int dead; //为1，表示正在被删除
 	refcount_t refcnt;
 	struct rcu_head rcu_head;
 
-	int	reachable_time;
+	int	reachable_time; //NUD_REACHABLE状态的超时时间
 	int	data[NEIGH_VAR_DATA_MAX];
 	DECLARE_BITMAP(data_state, NEIGH_VAR_DATA_MAX);
 };
@@ -132,39 +133,40 @@ struct neigh_statistics {
 
 #define NEIGH_CACHE_STAT_INC(tbl, field) this_cpu_inc((tbl)->stats->field)
 
+/* 邻居表中的邻居项, 以散列表的形式存在 */
 struct neighbour {
-	struct neighbour __rcu	*next;
-	struct neigh_table	*tbl;
-	struct neigh_parms	*parms;
-	unsigned long		confirmed;
-	unsigned long		updated;
+	struct neighbour __rcu	*next; //插入到散列表中的链
+	struct neigh_table	*tbl; //指向其所在散列表
+	struct neigh_parms	*parms; //指向该邻居项相关的参数块
+	unsigned long		confirmed; //最近一次被证实可达邻居的时间
+	unsigned long		updated; //最近一次被neigh_update的时间
 	rwlock_t		lock;
 	refcount_t		refcnt;
-	struct sk_buff_head	arp_queue; /* 邻居项无效的时候缓存报文 */
+	struct sk_buff_head	arp_queue; /* 邻居项无效的时候缓存报文, 该邻居可达后，从其中取出报文输出 */
 	unsigned int		arp_queue_len_bytes;
-	struct timer_list	timer;
-	unsigned long		used;
-	atomic_t		probes;
-	__u8			flags;
-	__u8			nud_state; /* 邻居项状态，邻居项是有一个状态机的 */
-	__u8			type;
-	__u8			dead;
+	struct timer_list	timer; //邻居项状态处理定时器，处理函数是neigh_timer_handler,参见：neigh_alloc
+	unsigned long		used; //最近一次被使用
+	atomic_t		probes; //尝试发送请求报文没有得到应答的次数，当该值达到上限后，邻居项进入NUD_FAILED状态
+	__u8			flags; //一些标志位
+	__u8			nud_state; /* 邻居项状态，邻居项是有一个状态机的, %NUD_NONE */
+	__u8			type; //邻居项的地址类型，%RTN_UNICAST
+	__u8			dead; //设置为1的话，表示正在被删除
 	seqlock_t		ha_lock;
 	unsigned char		ha[ALIGN(MAX_ADDR_LEN, sizeof(unsigned long))]; /* 二层地址 */
 	struct hh_cache		hh; /* 二层头部缓存 , 缓存后就可以直接复制了，而不是一个域一个域的设置头部，加速报文传输 */ 
 	int			(*output)(struct neighbour *, struct sk_buff *); /* 输出报文到该邻居的函数 */
-	const struct neigh_ops	*ops;
+	const struct neigh_ops	*ops; //操作集合
 	struct rcu_head		rcu;
 	struct net_device	*dev; /* 通过此网络设备可以访问到邻居 */
-	u8			primary_key[0]; /* 三层地址 */
+	u8			primary_key[0]; /* 三层地址 */ //0字节是ip地址最左边的, 即类似于大端方式，低字节保存高位数字，即左边的数字
 } __randomize_layout;
 
 struct neigh_ops {
 	int			family;
 	void			(*solicit)(struct neighbour *, struct sk_buff *); /* 发送请求报文函数 */
 	void			(*error_report)(struct neighbour *, struct sk_buff *);
-	int			(*output)(struct neighbour *, struct sk_buff *);
-	int			(*connected_output)(struct neighbour *, struct sk_buff *);
+	int			(*output)(struct neighbour *, struct sk_buff *); //最通用的输出函数，会慢一些
+	int			(*connected_output)(struct neighbour *, struct sk_buff *); //确定邻居可达的时候的输出函数，会快些
 };
 
 struct pneigh_entry {
@@ -189,42 +191,43 @@ struct neigh_hash_table {
 };
 
 
-struct neigh_table {
-	int			family;
-	unsigned int		entry_size;
-	unsigned int		key_len;
+struct neigh_table { //系统中的所有邻居表是按照family组织成数组保存的，譬如：ipv4的arp的arp_tbl, 参见neigh_find_table, linux支持三种
+	int			family; //所属协议族
+	unsigned int		entry_size; //每个邻居项的大小
+	unsigned int		key_len; //hash函数使用的key的长度, 实际上就是三层地址，在ipv4中就是ip地址，长度为4B
 	__be16			protocol;
-	__u32			(*hash)(const void *pkey,
+	__u32			(*hash)(const void *pkey, //计算key的hash函数
 					const struct net_device *dev,
 					__u32 *hash_rnd);
 	bool			(*key_eq)(const struct neighbour *, const void *pkey);
-	int			(*constructor)(struct neighbour *);
+	int			(*constructor)(struct neighbour *); //邻居项初始化函数
 	int			(*pconstructor)(struct pneigh_entry *);
-	void			(*pdestructor)(struct pneigh_entry *);
-	void			(*proxy_redo)(struct sk_buff *skb);
-	char			*id;
-	struct neigh_parms	parms;
+	void			(*pdestructor)(struct pneigh_entry *); //创建和释放一个代理项的时候被调用, ipv4中没有使用
+	void			(*proxy_redo)(struct sk_buff *skb); //处理neigh_table_proxy_queue缓存队列中的代理arp报文
+	char			*id; //分配neighbour结构实例的缓冲池字符串
+	struct neigh_parms	parms; //存储一些与协议相关的可调节参数
 	struct list_head	parms_list;
-	int			gc_interval;
-	int			gc_thresh1;
-	int			gc_thresh2;
-	int			gc_thresh3;
-	unsigned long		last_flush;
-	struct delayed_work	gc_work;
+	int			gc_interval; //垃圾回收时钟，gc_timer的到期间隔时间
+	int			gc_thresh1; //缓存中的邻居项小于thresh1的话，不会执行垃圾回收
+	int			gc_thresh2; //如果邻居项数目超过thresh2的话，新建邻居项的时候超过5s没有属性，立即强制刷新并强制垃圾回收
+	int			gc_thresh3; //如果超过thresh3的话，新建邻居项的时候，必须立即刷新并强制垃圾回收
+	unsigned long		last_flush; //最近一次调用neigh_forced_gc强制刷新邻居表的时间
+	struct delayed_work	gc_work; //垃圾回收work
 	struct timer_list 	proxy_timer;
 	struct sk_buff_head	proxy_queue;
-	atomic_t		entries;
-	rwlock_t		lock;
-	unsigned long		last_rand;
+	atomic_t		entries; //整个表中邻居项的数目
+	rwlock_t		lock; //邻居表读写锁
+	unsigned long		last_rand; //neigh_parms结构中reachable_time成员最近一次被更新的时间
 	struct neigh_statistics	__percpu *stats;
 	struct neigh_hash_table __rcu *nht;
 	struct pneigh_entry	**phash_buckets;
 };
 
+//linux支持的三种邻居发现协议
 enum {
-	NEIGH_ARP_TABLE = 0,
-	NEIGH_ND_TABLE = 1,
-	NEIGH_DN_TABLE = 2,
+	NEIGH_ARP_TABLE = 0, //ipv4的arp
+	NEIGH_ND_TABLE = 1,//ipv6的ND(邻居发现)
+	NEIGH_DN_TABLE = 2, //DECNet
 	NEIGH_NR_TABLES,
 	NEIGH_LINK_TABLE = NEIGH_NR_TABLES /* Pseudo table for neigh_xmit */
 };
@@ -426,13 +429,14 @@ static inline struct neighbour * neigh_clone(struct neighbour *neigh)
 
 #define neigh_hold(n)	refcount_inc(&(n)->refcnt)
 
+//检查邻居项状态是否有效
 static inline int neigh_event_send(struct neighbour *neigh, struct sk_buff *skb)
 {
 	unsigned long now = jiffies;
 	
 	if (neigh->used != now)
 		neigh->used = now;
-	if (!(neigh->nud_state&(NUD_CONNECTED|NUD_DELAY|NUD_PROBE)))
+	if (!(neigh->nud_state&(NUD_CONNECTED|NUD_DELAY|NUD_PROBE))) //如果不是这三个状态就需要进一步检测，否则可以直接发送
 		return __neigh_event_send(neigh, skb);
 	return 0;
 }

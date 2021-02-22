@@ -74,7 +74,7 @@ enum {
 
 enum {
 	FR_ACT_UNSPEC,
-	FR_ACT_TO_TBL,		/* Pass to fixed table */
+	FR_ACT_TO_TBL,		/* Pass to fixed table */ //该策略允许访问，可以通过策略查抄路由
 	FR_ACT_GOTO,		/* Jump to another rule */
 	FR_ACT_NOP,		/* No operation */
 	FR_ACT_RES3,

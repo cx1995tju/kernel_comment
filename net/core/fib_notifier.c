@@ -27,7 +27,7 @@ int call_fib_notifiers(struct net *net, enum fib_event_type event_type,
 	int err;
 
 	info->net = net;
-	err = atomic_notifier_call_chain(&fib_chain, event_type, info);
+	err = atomic_notifier_call_chain(&fib_chain, event_type, info); //event_type是action， info是回调函数的data
 	return notifier_to_errno(err);
 }
 EXPORT_SYMBOL(call_fib_notifiers);

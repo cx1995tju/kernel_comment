@@ -80,6 +80,7 @@ static bool fib4_has_custom_rules(struct net *net)
 }
 #else
 
+//这个函数名字真的愚蠢
 struct fib_table *fib_new_table(struct net *net, u32 id)
 {
 	struct fib_table *tb, *alias = NULL;
@@ -100,6 +101,7 @@ struct fib_table *fib_new_table(struct net *net, u32 id)
 
 	switch (id) {
 	case RT_TABLE_MAIN:
+		/* 在什么地方注册了异步通知机制？？？？ */
 		rcu_assign_pointer(net->ipv4.fib_main, tb);
 		break;
 	case RT_TABLE_DEFAULT:
@@ -771,6 +773,7 @@ errout:
 	return err;
 }
 
+//通过netlink通道调用这个函数的时候，已经加锁了rtnl_lock()
 static int inet_rtm_newroute(struct sk_buff *skb, struct nlmsghdr *nlh,
 			     struct netlink_ext_ack *extack)
 {

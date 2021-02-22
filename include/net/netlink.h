@@ -163,12 +163,12 @@
   * Standard attribute types to specify validation policy
   */
 enum {
-	NLA_UNSPEC,
+	NLA_UNSPEC, //表类型和长度未知
 	NLA_U8,
 	NLA_U16,
-	NLA_U32,
+	NLA_U32, //表u32
 	NLA_U64,
-	NLA_STRING,
+	NLA_STRING, //表变长字符串
 	NLA_FLAG,
 	NLA_MSECS,
 	NLA_NESTED,

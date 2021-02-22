@@ -118,7 +118,7 @@ struct inet_connection_sock {
 	struct {
 		__u8		  pending;	 /* ACK is pending,标识当前ack发送的紧急程度，在调用send的时候会检测该状态，如果需要就立即发送ack，%ICSK_ACK_SCHED			   */
 		__u8		  quick;	 /* Scheduled number of quick acks,快速ack模式，可以发送的ack数目	   */
-		__u8		  pingpong;	 /* The session is interactive,标识是否开启了快速ack模式		   */
+		__u8		  pingpong;	 /* The session is interactive,标识是否开启了快速ack模式, pingpong为0表示快速确认，见tcp_enter_quickack_mode		   */
 		__u8		  blocked;	 /* Delayed ACK was blocked by socket lock, socket被进程占据了，现在不能立即发送ack，有机会立即发送 */
 		__u32		  ato;		 /* Predicted tick of soft clock, 延时确认定时器的估值	   */
 		unsigned long	  timeout;	 /* Currently scheduled timeout,当前的延时确认时间		   */
@@ -168,7 +168,7 @@ struct sock *inet_csk_clone_lock(const struct sock *sk,
 enum inet_csk_ack_state_t {
 	ICSK_ACK_SCHED	= 1,  //有ack需要发送，是立即发送还是delay需要看其他标志，是发送ack的前提，在接收到有负荷的TCP包后，会设置
 	ICSK_ACK_TIMER  = 2, //延时发送ack定时器已经启动
-	ICSK_ACK_PUSHED = 4, //如果pingpong是0，立即发送ack
+	ICSK_ACK_PUSHED = 4, //如果pingpong是0，立即发送ack, pingpong为0表示是快速ack阶段
 	ICSK_ACK_PUSHED2 = 8, //无条件立即发送ack
 	ICSK_ACK_NOW = 16	/* Send the next ACK immediately (once) */
 };

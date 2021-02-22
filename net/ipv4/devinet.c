@@ -237,7 +237,7 @@ void in_dev_finish_destroy(struct in_device *idev)
 }
 EXPORT_SYMBOL(in_dev_finish_destroy);
 
-/* 分配in_device结构，并与net_device关联起来 */
+/* 分配in_device结构(inet的相关结构保存ip层相关信息，当然包括ip地址等)，并与net_device关联起来 */
 static struct in_device *inetdev_init(struct net_device *dev)
 {
 	struct in_device *in_dev;
@@ -351,7 +351,8 @@ static void __inet_del_ifa(struct in_device *in_dev, struct in_ifaddr **ifap,
 	 * unless alias promotion is set
 	 **/
 
-	if (!(ifa1->ifa_flags & IFA_F_SECONDARY)) {
+	if (!(ifa1->ifa_flags & IFA_F_SECONDARY)) { //如果删除的是主ip地址，则需要对从属ip地址做相应的处理
+		//如果没有启用promote_secondaries则删除对应的所有从属地址，否则选择一个成为主地址
 		struct in_ifaddr **ifap1 = &ifa1->ifa_next;
 
 		while ((ifa = *ifap1) != NULL) {
@@ -410,7 +411,7 @@ no_promotions:
 	   So that, this order is correct.
 	 */
 	rtmsg_ifa(RTM_DELADDR, ifa1, nlh, portid);
-	blocking_notifier_call_chain(&inetaddr_chain, NETDEV_DOWN, ifa1);
+	blocking_notifier_call_chain(&inetaddr_chain, NETDEV_DOWN, ifa1); //通知链问题
 
 	if (promote) {
 		struct in_ifaddr *next_sec = promote->ifa_next;
@@ -429,7 +430,7 @@ no_promotions:
 			if (ifa1->ifa_mask != ifa->ifa_mask ||
 			    !inet_ifa_match(ifa1->ifa_address, ifa))
 					continue;
-			fib_add_ifaddr(ifa);
+			fib_add_ifaddr(ifa); //需要将从属ip地址添加到local路由表中
 		}
 
 	}
@@ -462,7 +463,7 @@ static int __inet_insert_ifa(struct in_ifaddr *ifa, struct nlmsghdr *nlh,
 		return 0;
 	}
 
-	ifa->ifa_flags &= ~IFA_F_SECONDARY;
+	ifa->ifa_flags &= ~IFA_F_SECONDARY; //清除地址的从属标志，因为配置的ip地址是主还是从，不是根据标志，而是根据当前已经配置的ip地址
 	last_primary = &in_dev->ifa_list;
 
 	for (ifap = &in_dev->ifa_list; (ifa1 = *ifap) != NULL;
@@ -519,7 +520,7 @@ static int __inet_insert_ifa(struct in_ifaddr *ifa, struct nlmsghdr *nlh,
 	   Notifier will trigger FIB update, so that
 	   listeners of netlink will know about new ifaddr */
 	rtmsg_ifa(RTM_NEWADDR, ifa, nlh, portid);
-	blocking_notifier_call_chain(&inetaddr_chain, NETDEV_UP, ifa);
+	blocking_notifier_call_chain(&inetaddr_chain, NETDEV_UP, ifa); //inetaddr_chain通知链
 
 	return 0;
 }
@@ -949,6 +950,7 @@ static int inet_rtm_newaddr(struct sk_buff *skb, struct nlmsghdr *nlh,
  *	Determine a default network mask, based on the IP address.
  */
 
+//基于ip地址，获取默认掩码铲毒
 static int inet_abc_len(__be32 addr)
 {
 	int rc = -1;	/* Something else, probably a multicast. */
@@ -1256,7 +1258,7 @@ static __be32 in_dev_select_addr(const struct in_device *in_dev,
 	return 0;
 }
 
-/* 发送报文的时候如果没有指定源地址，会调用这个函数选择一个地址
+/* 发送报文的时候如果没有指定源地址，会调用这个函数选择一个地址. 譬如发送arp报文的时候
  *	选择scope指定范围内的主ip地址
  * scope:
  *	RT_SCOPE_HOST 报文发送到本地
@@ -1293,7 +1295,7 @@ __be32 inet_select_addr(const struct net_device *dev, __be32 dst, int scope)
 no_in_dev:
 	master_idx = l3mdev_master_ifindex_rcu(dev);
 
-	/* For VRFs, the VRF device takes the place of the loopback device,
+	/* For VRFs, the VRF device takes the place of the loopback device, VRF3层隔离，virtual routing forard
 	 * with addresses on it being preferred.  Note in such cases the
 	 * loopback device will be among the devices that fail the master_idx
 	 * equality check in the loop below.

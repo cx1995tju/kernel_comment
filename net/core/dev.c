@@ -6329,7 +6329,7 @@ static __latent_entropy void net_rx_action(struct softirq_action *h)
 			if (!sd_has_rps_ipi_waiting(sd) && list_empty(&repoll))
 				goto out;
 			break;
-		}
+j	}
 
 		n = list_first_entry(&list, struct napi_struct, poll_list); //从 poll_list中获取第一个节点, 没有取下来的
 		budget -= napi_poll(n, &repoll); //取节点，调用到具体的poll函数

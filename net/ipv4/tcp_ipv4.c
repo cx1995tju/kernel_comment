@@ -1721,7 +1721,7 @@ int tcp_v4_rcv(struct sk_buff *skb)
 
 	/* An explanation is required here, I think.
 	 * Packet length and doff are validated by header prediction,
-	 * provided case of th->doff==0 is eliminated.
+	 * provided(假设前提) case of th->doff==0 is eliminated.
 	 * So, we defer the checks. */
 
 	if (skb_checksum_init(skb, IPPROTO_TCP, inet_compute_pseudo)) //checksum 伪头部
@@ -1814,7 +1814,7 @@ process:
 		goto discard_and_relse;
 	th = (const struct tcphdr *)skb->data;
 	iph = ip_hdr(skb);
-	tcp_v4_fill_cb(skb, iph, th); /* 填充tcp_cb */
+	tcp_v4_fill_cb(skb, iph, th); /* 填充tcp_skb_cb */
 
 	skb->dev = NULL;
 
@@ -1829,8 +1829,8 @@ process:
 	tcp_segs_in(tcp_sk(sk), skb);
 	ret = 0;
 	if (!sock_owned_by_user(sk)) {
-		ret = tcp_v4_do_rcv(sk, skb);
-	} else if (tcp_add_backlog(sk, skb)) {
+		ret = tcp_v4_do_rcv(sk, skb); //正常的入口，sock结构没有被上锁
+	} else if (tcp_add_backlog(sk, skb)) { //sock被上锁了，加入到backlog队列, 现在没有prequue了，就两条路径，正常的或者backlog队列
 		goto discard_and_relse;
 	}
 	bh_unlock_sock(sk);

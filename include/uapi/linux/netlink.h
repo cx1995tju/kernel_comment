@@ -65,10 +65,10 @@ struct nlmsghdr {
 #define NLM_F_DUMP	(NLM_F_ROOT|NLM_F_MATCH)
 
 /* Modifiers to NEW request */
-#define NLM_F_REPLACE	0x100	/* Override existing		*/
-#define NLM_F_EXCL	0x200	/* Do not touch, if it exists	*/
-#define NLM_F_CREATE	0x400	/* Create, if it does not exist	*/
-#define NLM_F_APPEND	0x800	/* Add to end of list		*/
+#define NLM_F_REPLACE	0x100	/* Override existing		*/ //如果存在就替换
+#define NLM_F_EXCL	0x200	/* Do not touch, if it exists	*/ //如果存在就不添加
+#define NLM_F_CREATE	0x400	/* Create, if it does not exist	*/ //如果不存在就创建
+#define NLM_F_APPEND	0x800	/* Add to end of list		*/ //添加到最后
 
 /* Modifiers to DELETE request */
 #define NLM_F_NONREC	0x100	/* Do not delete recursively	*/
@@ -209,7 +209,7 @@ enum {
 
 struct nlattr {
 	__u16           nla_len;
-	__u16           nla_type;
+	__u16           nla_type; //%NLA_U8
 };
 
 /*

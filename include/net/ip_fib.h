@@ -26,27 +26,28 @@
 #include <linux/notifier.h>
 #include <linux/refcount.h>
 
+//fib_table_insert的参数, 用来查找匹配路由表项
 struct fib_config {
-	u8			fc_dst_len;
-	u8			fc_tos;
-	u8			fc_protocol;
-	u8			fc_scope;
-	u8			fc_type;
+	u8			fc_dst_len; //目的掩码长度
+	u8			fc_tos; //路由的TOS字段
+	u8			fc_protocol; //该路由的特性
+	u8			fc_scope; //该路由的范围
+	u8			fc_type; //该路由表项的类型
 	/* 3 bytes unused */
-	u32			fc_table;
-	__be32			fc_dst;
-	__be32			fc_gw;
-	int			fc_oif;
-	u32			fc_flags;
-	u32			fc_priority;
-	__be32			fc_prefsrc;
+	u32			fc_table; //对应的路由表id
+	__be32			fc_dst; //路由项的目的地址
+	__be32			fc_gw; //路由项的网关地址
+	int			fc_oif; //路由项的输出网络设备索引
+	u32			fc_flags; //一些标志
+	u32			fc_priority; //路由项的优先级，越小越优先
+	__be32			fc_prefsrc; //首选源地址
 	struct nlattr		*fc_mx;
 	struct rtnexthop	*fc_mp;
 	int			fc_mx_len;
 	int			fc_mp_len;
-	u32			fc_flow;
-	u32			fc_nlflags;
-	struct nl_info		fc_nlinfo;
+	u32			fc_flow; //基于策略路由的分类标签
+	u32			fc_nlflags; //操作模式 %NLM_F_REPLACE
+	struct nl_info		fc_nlinfo; //配置路由的netlink数据包信息
 	struct nlattr		*fc_encap;
 	u16			fc_encap_type;
 };
@@ -76,21 +77,22 @@ struct fnhe_hash_bucket {
 #define FNHE_HASH_SIZE		(1 << FNHE_HASH_SHIFT)
 #define FNHE_RECLAIM_DEPTH	5
 
+/* 下一跳路由的信息， next hop */
 struct fib_nh {
-	struct net_device	*nh_dev;
+	struct net_device	*nh_dev; //该路由表项的输出设备
 	struct hlist_node	nh_hash;
-	struct fib_info		*nh_parent;
+	struct fib_info		*nh_parent; //指向所属路由表项的fib_info结构
 	unsigned int		nh_flags;
-	unsigned char		nh_scope;
+	unsigned char		nh_scope; //路由范围
 #ifdef CONFIG_IP_ROUTE_MULTIPATH
 	int			nh_weight;
 	atomic_t		nh_upper_bound;
 #endif
 #ifdef CONFIG_IP_ROUTE_CLASSID
-	__u32			nh_tclassid;
+	__u32			nh_tclassid; //基于策略路由的分类标签
 #endif
-	int			nh_oif;
-	__be32			nh_gw;
+	int			nh_oif; //该路由表项的输出网络设备索引
+	__be32			nh_gw; //路由项的网关地址
 	__be32			nh_saddr;
 	int			nh_saddr_genid;
 	struct rtable __rcu * __percpu *nh_pcpu_rth_output;
@@ -102,29 +104,29 @@ struct fib_nh {
 /*
  * This structure contains data shared by many of routes.
  */
-
+//记录如何处理与该路由匹配的数据报的信息
 struct fib_info {
-	struct hlist_node	fib_hash;
-	struct hlist_node	fib_lhash;
+	struct hlist_node	fib_hash; //插入到fib_info_hash散列表中的, 所有的fib_info实例都插入到这个散列表中
+	struct hlist_node	fib_lhash; //插入到fib_info_laddrhash散列表中，当路由表项有一个首选源地址的时候，插入到该散列表
 	struct net		*fib_net;
 	int			fib_treeref;
 	refcount_t		fib_clntref;
 	unsigned int		fib_flags;
-	unsigned char		fib_dead;
-	unsigned char		fib_protocol;
-	unsigned char		fib_scope;
+	unsigned char		fib_dead; //路由表项正在被删除
+	unsigned char		fib_protocol; //设置路由的协议
+	unsigned char		fib_scope; //路由表项的作用范围
 	unsigned char		fib_type;
-	__be32			fib_prefsrc;
+	__be32			fib_prefsrc; //首选源地址
 	u32			fib_tb_id;
-	u32			fib_priority;
-	struct dst_metrics	*fib_metrics;
+	u32			fib_priority; //路由优先级，值越小，优先级越高
+	struct dst_metrics	*fib_metrics; //与路由相关的一组度量值
 #define fib_mtu fib_metrics->metrics[RTAX_MTU-1]
 #define fib_window fib_metrics->metrics[RTAX_WINDOW-1]
 #define fib_rtt fib_metrics->metrics[RTAX_RTT-1]
 #define fib_advmss fib_metrics->metrics[RTAX_ADVMSS-1]
-	int			fib_nhs;
+	int			fib_nhs; //下一跳数量，通常为1，只有当内核支持多路径路由的时候，才可能大于1
 	struct rcu_head		rcu;
-	struct fib_nh		fib_nh[0];
+	struct fib_nh		fib_nh[0]; //支持多路径路由的时候，保存下一跳的散列表
 #define fib_dev		fib_nh[0].nh_dev
 };
 
@@ -214,12 +216,12 @@ void __net_exit fib4_notifier_exit(struct net *net);
 void fib_notify(struct net *net, struct notifier_block *nb);
 
 struct fib_table {
-	struct hlist_node	tb_hlist;
-	u32			tb_id; //路由表id，在支持策略路由的场景下，主机最多可以有256个路由表
+	struct hlist_node	tb_hlist; //所有的路由表组织在一个hash表中
+	u32			tb_id; //路由表id，在支持策略路由的场景下，主机最多可以有256个路由表，即fib_rule中的table成员
 	int			tb_num_default;
 	struct rcu_head		rcu;
-	unsigned long 		*tb_data;
-	unsigned long		__data[0];
+	unsigned long 		*tb_data; //一颗字典树，保存路由表项
+	unsigned long		__data[0]; //零长数组
 };
 
 int fib_table_lookup(struct fib_table *tb, const struct flowi4 *flp,
@@ -237,8 +239,8 @@ void fib_free_table(struct fib_table *tb);
 
 #ifndef CONFIG_IP_MULTIPLE_TABLES
 
-#define TABLE_LOCAL_INDEX	(RT_TABLE_LOCAL & (FIB_TABLE_HASHSZ - 1))
-#define TABLE_MAIN_INDEX	(RT_TABLE_MAIN  & (FIB_TABLE_HASHSZ - 1))
+#define TABLE_LOCAL_INDEX	(RT_TABLE_LOCAL & (FIB_TABLE_HASHSZ - 1)) //这个表用于本地地址，存储了所有的本地地址，如果在该表中查找到匹配的表项，表示数据报是发送给本机的
+#define TABLE_MAIN_INDEX	(RT_TABLE_MAIN  & (FIB_TABLE_HASHSZ - 1)) //这个表是用于查找所有其他路由的, 路由表项是手工配置或者路由发现协议动态配置的
 
 static inline struct fib_table *fib_get_table(struct net *net, u32 id)
 {
@@ -259,9 +261,11 @@ static inline struct fib_table *fib_new_table(struct net *net, u32 id)
 	return fib_get_table(net, id);
 }
 
+//这个函数有两个版本，支不支持策略路由是不同的, CONFIG_IP_MULTIPLE_TABLES
 static inline int fib_lookup(struct net *net, const struct flowi4 *flp,
 			     struct fib_result *res, unsigned int flags)
 {
+	//res用于保存结果
 	struct fib_table *tb;
 	int err = -ENETUNREACH;
 
@@ -301,7 +305,7 @@ static inline bool fib4_rules_early_flow_dissect(struct net *net,
 {
 	return false;
 }
-#else /* CONFIG_IP_MULTIPLE_TABLES */
+#else /* CONFIG_IP_MULTIPLE_TABLES, 策略路由 */
 int __net_init fib4_rules_init(struct net *net);
 void __net_exit fib4_rules_exit(struct net *net);
 

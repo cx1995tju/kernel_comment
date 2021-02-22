@@ -22,7 +22,7 @@
 struct netlink_sock {
 	/* struct sock has to be the first member of netlink_sock */
 	struct sock		sk;
-	u32			portid;
+	u32			portid; //就是id，内核是0，对于各个进程我们一般会取pid避免冲突
 	u32			dst_portid;
 	u32			dst_group;
 	u32			flags;
@@ -38,7 +38,7 @@ struct netlink_sock {
 	struct netlink_callback	cb;
 	struct mutex		*cb_mutex;
 	struct mutex		cb_def_mutex;
-	void			(*netlink_rcv)(struct sk_buff *skb);
+	void			(*netlink_rcv)(struct sk_buff *skb); //接收到用户态数据后的处理函数
 	int			(*netlink_bind)(struct net *net, int group);
 	void			(*netlink_unbind)(struct net *net, int group);
 	struct module		*module;
@@ -54,11 +54,11 @@ static inline struct netlink_sock *nlk_sk(struct sock *sk)
 }
 
 struct netlink_table {
-	struct rhashtable	hash;
-	struct hlist_head	mc_list;
-	struct listeners __rcu	*listeners;
+	struct rhashtable	hash; //索引该协议相关的socket套接字
+	struct hlist_head	mc_list; //多播使用的sock散列表
+	struct listeners __rcu	*listeners; //监听者掩码
 	unsigned int		flags;
-	unsigned int		groups;
+	unsigned int		groups; //协议支持的最大多播组数量
 	struct mutex		*cb_mutex;
 	struct module		*module;
 	int			(*bind)(struct net *net, int group);

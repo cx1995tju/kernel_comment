@@ -429,6 +429,7 @@ static void tcp_fastopen_synack_timer(struct sock *sk)
  *
  *  Returns: Nothing (void)
  */
+/* 超时重传发生后，要调用重传检测算法的，譬如：F-RTO */
 void tcp_retransmit_timer(struct sock *sk)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
