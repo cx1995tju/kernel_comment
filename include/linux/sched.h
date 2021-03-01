@@ -445,14 +445,14 @@ struct sched_statistics {
 
 struct sched_entity {
 	/* For load-balancing: */
-	struct load_weight		load;
+	struct load_weight		load; //权重，各个实体占队列总符合的比例。计算符合权重是调度器的一项任务
 	unsigned long			runnable_weight;
-	struct rb_node			run_node;
+	struct rb_node			run_node; //用于红黑树的结点
 	struct list_head		group_node;
-	unsigned int			on_rq;
+	unsigned int			on_rq; //在不在就绪队列
 
 	u64				exec_start;
-	u64				sum_exec_runtime;
+	u64				sum_exec_runtime; //记录消耗的CPU时间 update_curr会更新
 	u64				vruntime;
 	u64				prev_sum_exec_runtime;
 
@@ -642,7 +642,7 @@ struct task_struct {
 	unsigned int			rt_priority;
 
 	const struct sched_class	*sched_class;
-	struct sched_entity		se;
+	struct sched_entity		se; //用于调度的调度实体
 	struct sched_rt_entity		rt;
 #ifdef CONFIG_CGROUP_SCHED
 	struct task_group		*sched_task_group;
@@ -743,8 +743,9 @@ struct task_struct {
 
 	struct restart_block		restart_block;
 
-	pid_t				pid;
-	pid_t				tgid;
+	//这两个都是全局的id
+	pid_t				pid; //这是pid，就是用户空间看到的线程id
+	pid_t				tgid; //所有处于同一个线程组的id就是这个，就是用户空间看到的PID
 
 #ifdef CONFIG_STACKPROTECTOR
 	/* Canary value for the -fstack-protector GCC feature: */
@@ -779,8 +780,8 @@ struct task_struct {
 	struct list_head		ptrace_entry;
 
 	/* PID/PID hash table linkage. */
-	struct pid			*thread_pid;
-	struct hlist_node		pid_links[PIDTYPE_MAX];
+	struct pid			*thread_pid; //这里很奇怪，为什么struct pid结构中表示，多个进程会共享这个pid结构
+	struct hlist_node		pid_links[PIDTYPE_MAX]; //不同的类型不同
 	struct list_head		thread_group;
 	struct list_head		thread_node;
 

@@ -116,12 +116,12 @@ executed to make module versioning work.
 	precondition that a successful "make" has been executed for the
 	kernel.
 
-	modules 默认target
+	modules									默认target
 		The default target for external modules. It has the
 		same functionality as if no target was specified. See
 		description above.
 
-	modules_install 安装外部模块，默认位置是， 可以使用INSTALL_MOD_PATH更改
+	modules_install								安装外部模块，默认位置是， 可以使用INSTALL_MOD_PATH更改
 		Install the external module(s). The default location is
 		/lib/modules/<kernel_release>/extra/, but a prefix may
 		be added with INSTALL_MOD_PATH (discussed in section 5).
@@ -154,15 +154,15 @@ build file is required. Contained in this file will be the name of
 the module(s) being built, along with the list of requisite source
 files. The file may be as simple as a single line:
 
-	obj-m := <module_name>.o //这种功能是Kbuild系统提供的，与传统makefile最大不同之处
+	obj-m := <module_name>.o						//这种功能是Kbuild系统提供的，与传统makefile最大不同之处
 
 The kbuild system will build <module_name>.o from <module_name>.c,
-and, after linking, will result in the kernel module <module_name>.ko. //这种linking还不是加载后的动态linking
+and, after linking, will result in the kernel module <module_name>.ko.			//这种linking还不是加载后的动态linking
 The above line can be put in either a "Kbuild" file or a "Makefile."
 When the module is built from multiple sources, an additional line is
 needed listing the files:
 
-	<module_name>-y := <src1>.o <src2>.o ...  //同时提供多个源
+	<module_name>-y := <src1>.o <src2>.o ...					//同时提供多个源
 
 NOTE: Further documentation describing the syntax used by kbuild is
 located in Documentation/kbuild/makefiles.txt.
@@ -212,10 +212,10 @@ module 8123.ko, which is built from the following files:
 	line; the second pass is by the kbuild system, which is
 	initiated by the parameterized "make" in the default target.
 
---- 3.2 Separate Kbuild File and Makefile   前文说过obj-m的功能是Kbuild提供了，所以可以将Kbuild文件
+--- 3.2 Separate Kbuild File and Makefile					前文说过obj-m的功能是Kbuild提供了，所以可以将Kbuild文件
 
 	In newer versions of the kernel, kbuild will first look for a
-	file named "Kbuild," and only if that is not found, will it   Kbuild系统会首先搜寻Kbuild文件，找不到的话，就进一步找Makefile文件
+	file named "Kbuild," and only if that is not found, will it		Kbuild系统会首先搜寻Kbuild文件，找不到的话，就进一步找Makefile文件
 	then look for a makefile. Utilizing a "Kbuild" file allows us
 	to split up the makefile from example 1 into two files:
 
@@ -383,7 +383,7 @@ according to the following rule:
 	For the header files, kbuild must be explicitly told where to
 	look. When kbuild executes, the current directory is always the
 	root of the kernel tree (the argument to "-C") and therefore an
-	absolute path is needed. $(src) provides the absolute path by                      $(src)来提供绝对路径，不要用.. .来提供相对路径
+	absolute path is needed. $(src) provides the absolute path by				$(src)来提供绝对路径，不要用.. .来提供相对路径
 	pointing to the directory where the currently executing kbuild
 	file is located.
 
@@ -393,11 +393,11 @@ according to the following rule:
 Modules which are included in the kernel are installed in the
 directory:
 
-	/lib/modules/$(KERNELRELEASE)/kernel/   内建在内核的模块安装维护
+	/lib/modules/$(KERNELRELEASE)/kernel/					内建在内核的模块安装维护
 
 And external modules are installed in:
 
-	/lib/modules/$(KERNELRELEASE)/extra/ 外部模块安装位置
+	/lib/modules/$(KERNELRELEASE)/extra/					外部模块安装位置
 
 --- 5.1 INSTALL_MOD_PATH
 

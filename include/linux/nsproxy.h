@@ -30,7 +30,7 @@ struct fs_struct;
  */
 struct nsproxy {
 	atomic_t count;
-	struct uts_namespace *uts_ns; /* UNIX Timesharing System */
+	struct uts_namespace *uts_ns; /* UNIX Timesharing System, 包含内核名称，版本，底层体系结构类型等信息 */
 	struct ipc_namespace *ipc_ns; /* 进程间通信命名空间， 譬如信号量 */
 	struct mnt_namespace *mnt_ns; /* 挂载的文件系统命名空间 */
 	struct pid_namespace *pid_ns_for_children; /* pid命名空间 */

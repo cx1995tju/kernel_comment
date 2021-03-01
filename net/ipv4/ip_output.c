@@ -444,7 +444,7 @@ int __ip_queue_xmit(struct sock *sk, struct sk_buff *skb, struct flowi *fl,
 	 * f.e. by something like SCTP.
 	 */
 	rcu_read_lock();
-	inet_opt = rcu_dereference(inet->inet_opt);
+	inet_opt = rcu_dereference(inet->inet_opt); //获取选项
 	fl4 = &fl->u.ip4;
 	rt = skb_rtable(skb); //路由缓存项
 	if (rt)

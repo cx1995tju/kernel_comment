@@ -70,7 +70,7 @@ struct net {
 						 */
 	struct llist_node	cleanup_list;	/* namespaces on death row */
 
-	struct user_namespace   *user_ns;	/* Owning user namespace */
+	struct user_namespace   *user_ns;	/* Owning user namespace */ //对应的user namespace, 见setup_net
 	struct ucounts		*ucounts;
 	spinlock_t		nsid_lock;
 	struct idr		netns_ids;
@@ -90,10 +90,10 @@ struct net {
 	struct uevent_sock	*uevent_sock;		/* uevent socket */
 
 	struct list_head 	dev_base_head;  /* 网络设备使用net_device表示, 所有的串在这里 */
-	struct hlist_head 	*dev_name_head;
-	struct hlist_head	*dev_index_head;
+	struct hlist_head 	*dev_name_head; //对应的网络设备hash表，key是名字
+	struct hlist_head	*dev_index_head; //网络设备hahs表，key是index
 	unsigned int		dev_base_seq;	/* protected by rtnl_mutex */
-	int			ifindex;
+	int			ifindex; //最后一个分配到net namespace的设备index,其中loopback设备永远是1
 	unsigned int		dev_unreg_count;
 
 	/* core fib_rules */
@@ -107,7 +107,7 @@ struct net {
 	struct netns_mib	mib;
 	struct netns_packet	packet;
 	struct netns_unix	unx;
-	struct netns_ipv4	ipv4;
+	struct netns_ipv4	ipv4; //表示ipv4子系统在不同namespace中不同的部分
 #if IS_ENABLED(CONFIG_IPV6)
 	struct netns_ipv6	ipv6;
 #endif

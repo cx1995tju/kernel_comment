@@ -335,7 +335,7 @@ static int ip_rcv_finish_core(struct net *net, struct sock *sk,
 	 *	Initialise the virtual path cache for the packet. It describes
 	 *	how the packet travels inside Linux networking.
 	 */
-	if (!skb_valid_dst(skb)) {
+	if (!skb_valid_dst(skb)) { //本质就是查找输入路由, 什么场景下，在进入这个函数前，skb就已经有dst成员了呢？？？？？？
 		err = ip_route_input_noref(skb, iph->daddr, iph->saddr,
 					   iph->tos, dev);
 		if (unlikely(err))
@@ -411,7 +411,7 @@ static int ip_rcv_finish(struct net *net, struct sock *sk, struct sk_buff *skb)
 
 	ret = ip_rcv_finish_core(net, sk, skb, dev); //路由缓存相关
 	if (ret != NET_RX_DROP)
-		ret = dst_input(skb); //ip_local_deliver 或者 ip_forward
+		ret = dst_input(skb); //ip_local_deliver 或者 ip_forward, 这就是输入路由最大的作用
 	return ret;
 }
 

@@ -4214,16 +4214,16 @@ static int enqueue_to_backlog(struct sk_buff *skb, int cpu,
 	unsigned long flags;
 	unsigned int qlen;
 
-	sd = &per_cpu(softnet_data, cpu);
+	sd = &per_cpu(softnet_data, cpu); //获取核心结构
 
 	local_irq_save(flags);
 
 	rps_lock(sd);
 	if (!netif_running(skb->dev))
 		goto drop;
-	qlen = skb_queue_len(&sd->input_pkt_queue);
+	qlen = skb_queue_len(&sd->input_pkt_queue); //非NAPI会挂载到这个队列的
 	if (qlen <= netdev_max_backlog && !skb_flow_limit(skb, qlen)) {
-		if (qlen) {
+		if (qlen) { //输入队列非空, 说明现在忙着呢，把数据包加入队列就可以返回了
 enqueue:
 			__skb_queue_tail(&sd->input_pkt_queue, skb);
 			input_queue_tail_incr_save(sd, qtail);
@@ -4232,12 +4232,13 @@ enqueue:
 			return NET_RX_SUCCESS;
 		}
 
+		//输入队列为空，现在还闲着呢，将backog函数调度起来
 		/* Schedule NAPI for backlog device
 		 * We can use non atomic operation since we own the queue lock
 		 */
 		if (!__test_and_set_bit(NAPI_STATE_SCHED, &sd->backlog.state)) {
 			if (!rps_ipi_queued(sd))
-				____napi_schedule(sd, &sd->backlog);
+				____napi_schedule(sd, &sd->backlog); //如果是虚拟设备的话，就是process_backlog
 		}
 		goto enqueue;
 	}

@@ -2965,7 +2965,7 @@ struct softnet_data {
 #endif
 	struct Qdisc		*output_queue; /* 数据包tx软中断中会轮询这个网络设备队列。 处于报文rx状态的网络设备就添加到这个队列，*/
 	struct Qdisc		**output_queue_tailp;
-	struct sk_buff		*completion_queue; /* tx完成后的数据包链接在这个队列上，等待被释放, tx软中断中会检测 */
+	struct sk_buff		*completion_queue; /* tx完成后的数据包链接在这个队列上，等待被释放, tx软中断中会检测. 如果处于中断中，或者中断被禁止的时候，就会加入这个队列，否则直接被释放 */
 #ifdef CONFIG_XFRM_OFFLOAD
 	struct sk_buff_head	xfrm_backlog;
 #endif
@@ -2983,8 +2983,8 @@ struct softnet_data {
 #endif
 	unsigned int		dropped;
 	struct sk_buff_head	input_pkt_queue; /* 非NAPI的接口层报文缓冲队列，对于非NAPI的话，都是在硬中断或者轮询中读豹纹，调用netif_rx()将
-	报文传递到上层，即先将报文缓存到这个队列，然后产生一个rx软中断，软中断将报文向上层传递。 队列上限是netdev_max_backlog  */
-	struct napi_struct	backlog;
+	报文传递到上层，即先将报文缓存到这个队列，然后产生一个rx软中断，软中断将报文向上层传递。 队列上限是netdev_max_backlog, 参见 enqueue_to_backlog  */
+	struct napi_struct	backlog //为非napi方式准备的结构;
 
 };
 

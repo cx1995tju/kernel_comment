@@ -12,6 +12,7 @@ struct sk_buff;
 struct sock;
 struct net;
 
+//%ipv4_dst_ops
 struct dst_ops {
 	unsigned short		family;
 	unsigned int		gc_thresh; //路由缓存的容量，垃圾回收会使用的，在ip_rt_init中被初始化

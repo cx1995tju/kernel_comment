@@ -1207,7 +1207,7 @@ int tcp_sendmsg_locked(struct sock *sk, struct msghdr *msg, size_t size) //data 
 		}
 
 		skb = tcp_write_queue_tail(sk);
-		uarg = sock_zerocopy_realloc(sk, size, skb_zcopy(skb)); //zerocopy的相关参数在skb中有保存，控制区
+		uarg = sock_zerocopy_realloc(sk, size, skb_zcopy(skb)); //zerocopy的相关参数在skb中有保存，控制区, 见sock_zerocopy_callback
 		if (!uarg) {
 			err = -ENOBUFS;
 			goto out_err;
@@ -1745,7 +1745,7 @@ EXPORT_SYMBOL(tcp_set_rcvlowat);
 
 #ifdef CONFIG_MMU
 /* 所有函数操作集合都是空，特别是vm_fault为空，那么执行mmap是会成功的，但是直接访问相关内存
- * 触发页面异常会得到一个segmentation fault */
+ * 触发页面异常会得到一个segmentation fault , 参考： https://lwn.net/Articles/752188/解决recv方向的zerocopy的, 底层的zerocopy机制会直接为其建立起映射，而不是通过页面异常建立 */
 static const struct vm_operations_struct tcp_vm_ops = {
 };
 
@@ -1956,7 +1956,7 @@ int tcp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int nonblock,
 	bool has_cmsg;
 
 	if (unlikely(flags & MSG_ERRQUEUE))
-		return inet_recv_error(sk, msg, len, addr_len);
+		return inet_recv_error(sk, msg, len, addr_len); //这个就对应了sock的错误队列，在TCP场景下的处理, 也会将报文copy到msg中, 但是msg->flags中带有ERRQUEUE的标志
 
 	if (sk_can_busy_loop(sk) && skb_queue_empty(&sk->sk_receive_queue) && //没有数据的时候可以busy looping的时间
 	    (sk->sk_state == TCP_ESTABLISHED))

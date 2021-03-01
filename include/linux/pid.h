@@ -49,19 +49,21 @@ enum pid_type
  * find_pid_ns() using the int nr and struct pid_namespace *ns.
  */
 
+//命名空间内部使用的表示
 struct upid {
-	int nr;
-	struct pid_namespace *ns;
+	int nr; //命名空间内id的数值
+	struct pid_namespace *ns; //指向依赖的命名空间
 };
 
+//内核自己使用的表示, 因为父进程空间能够看到子进程空间中的进程，所以用这个结构来组织
 struct pid
 {
 	atomic_t count;
-	unsigned int level;
-	/* lists of tasks that use this pid */
-	struct hlist_head tasks[PIDTYPE_MAX];
+	unsigned int level; //可以看到这个结构的命名空间深度, 也就是能够看到这个进程的命名空间数目
+	/* lists of tasks that use this pid */ //为什么一个该结构可能被多个进程引用？？？？????????????
+	struct hlist_head tasks[PIDTYPE_MAX]; //使用这个pid结构的所有task, 每个槽是不同的id类型
 	struct rcu_head rcu;
-	struct upid numbers[1];
+	struct upid numbers[1]; //每个数组项对应一个命名空间
 };
 
 extern struct pid init_struct_pid;

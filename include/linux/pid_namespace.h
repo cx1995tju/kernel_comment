@@ -21,15 +21,15 @@ enum { /* definitions for pid_namespace's hide_pid field */
 	HIDEPID_INVISIBLE = 2,
 };
 
-struct pid_namespace {
+struct pid_namespace { 
 	struct kref kref;
 	struct idr idr;
 	struct rcu_head rcu;
 	unsigned int pid_allocated;
-	struct task_struct *child_reaper;
+	struct task_struct *child_reaper;//每个pid命名空间都有一个进程充当init,即这个指针
 	struct kmem_cache *pid_cachep;
-	unsigned int level;
-	struct pid_namespace *parent;
+	unsigned int level; //初始命名空间level是0, init_pid_ns
+	struct pid_namespace *parent; //指向父命名空间
 #ifdef CONFIG_PROC_FS
 	struct vfsmount *proc_mnt;
 	struct dentry *proc_self;

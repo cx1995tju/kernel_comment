@@ -35,7 +35,7 @@ struct sk_buff;
 /* 路由缓存中独立于协议的部分，三层协议会在另外的结构中缓存更多的信息，譬如ipv4使用rtable结构 */
 struct dst_entry {
 	struct net_device       *dev;
-	struct  dst_ops	        *ops; //相关操作
+	struct  dst_ops	        *ops; //相关操作, %ipv4_dst_ops
 	unsigned long		_metrics;
 	unsigned long           expires; //该表项过期的时间
 #ifdef CONFIG_XFRM

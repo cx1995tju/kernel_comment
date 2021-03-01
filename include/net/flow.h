@@ -66,6 +66,7 @@ union flowi_uli {
 	} mht;
 };
 
+//ipv4 路由lookup的key
 struct flowi4 {
 	struct flowi_common	__fl_common;
 #define flowi4_oif		__fl_common.flowic_oif

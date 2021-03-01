@@ -189,7 +189,7 @@ struct sock_common {
 		struct hlist_node	skc_portaddr_node;
 	};
 	struct proto		*skc_prot; //指向网络接口层的指针
-	possible_net_t		skc_net;
+	possible_net_t		skc_net; //namespace
 
 #if IS_ENABLED(CONFIG_IPV6)
 	struct in6_addr		skc_v6_daddr;
@@ -319,7 +319,7 @@ struct sock_common {
   *	@sk_state_change: callback to indicate change in the state of the sock
   *	@sk_data_ready: callback to indicate there is data to be processed
   *	@sk_write_space: callback to indicate there is bf sending space available
-  *	@sk_error_report: callback to indicate errors (e.g. %MSG_ERRQUEUE)
+  *	@sk_error_report: callback to indicate errors (e.g. %MSG_ERRQUEUE) %sock_def_error_report
   *	@sk_backlog_rcv: callback to process the backlog 用于TCP PPPoE中，在TCP中用于接收预备队列和后备队列中的TCP段，
   *	@sk_destruct: called at sock freeing time, i.e. when all refcnt == 0
   *	@sk_reuseport_cb: reuseport group container

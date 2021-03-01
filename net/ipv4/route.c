@@ -723,6 +723,7 @@ out_unlock:
 	spin_unlock_bh(&fnhe_lock);
 }
 
+//处理 ip重定向消息接收事件
 static void __ip_do_redirect(struct rtable *rt, struct sk_buff *skb, struct flowi4 *fl4,
 			     bool kill_route)
 {
@@ -857,6 +858,7 @@ static struct dst_entry *ipv4_negative_advice(struct dst_entry *dst)
  * and "frag. need" (breaks PMTU discovery) in icmp.c.
  */
 
+//发送一个ip重定向消息
 void ip_rt_send_redirect(struct sk_buff *skb)
 {
 	struct rtable *rt = skb_rtable(skb);
@@ -2030,7 +2032,7 @@ static int ip_route_input_slow(struct sk_buff *skb, __be32 daddr, __be32 saddr,
 		goto martian_destination;
 
 make_route:
-	err = ip_mkroute_input(skb, res, in_dev, daddr, saddr, tos, flkeys);
+	err = ip_mkroute_input(skb, res, in_dev, daddr, saddr, tos, flkeys); //创建输入路由缓存项
 out:	return err;
 
 brd_input:
@@ -2091,7 +2093,7 @@ local_input:
 		}
 
 		if (unlikely(!rt_cache_route(nh, rth)))
-			rt_add_uncached_list(rth); //绑定路由缓存per-cpu的uncached list
+			rt_add_uncached_list(rth); //绑定路由缓存per-cpu的uncached list, 不用cache的话
 	}
 	skb_dst_set(skb, &rth->dst); //与skb绑定
 	err = 0;
@@ -2144,6 +2146,7 @@ int ip_route_input_noref(struct sk_buff *skb, __be32 daddr, __be32 saddr,
 EXPORT_SYMBOL(ip_route_input_noref);
 
 /* called with rcu_read_lock held */
+//输入路由查询，从ip_rcv会调用到这里
 int ip_route_input_rcu(struct sk_buff *skb, __be32 daddr, __be32 saddr,
 		       u8 tos, struct net_device *dev, struct fib_result *res)
 {
@@ -3177,7 +3180,7 @@ int __init ip_rt_init(void)
 		panic("IP: failed to allocate ip_tstamps\n");
 
 	for_each_possible_cpu(cpu) {
-		struct uncached_list *ul = &per_cpu(rt_uncached_list, cpu);
+		struct uncached_list *ul = &per_cpu(rt_uncached_list, cpu); //路由缓存的保存结构？？？？？？
 
 		INIT_LIST_HEAD(&ul->head);
 		spin_lock_init(&ul->lock);

@@ -833,7 +833,7 @@ int inet_recvmsg(struct socket *sock, struct msghdr *msg, size_t size,
 	int addr_len = 0;
 	int err;
 
-	if (likely(!(flags & MSG_ERRQUEUE)))
+	if (likely(!(flags & MSG_ERRQUEUE))) //出错了
 		sock_rps_record_flow(sk);
 
 	err = sk->sk_prot->recvmsg(sk, msg, size, flags & MSG_DONTWAIT,

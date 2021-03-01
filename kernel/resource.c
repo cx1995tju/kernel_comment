@@ -29,7 +29,7 @@
 struct resource ioport_resource = {
 	.name	= "PCI IO",
 	.start	= 0,
-	.end	= IO_SPACE_LIMIT,
+	.end	= IO_SPACE_LIMIT, //IOport空间，与iomem是隔离的
 	.flags	= IORESOURCE_IO,
 };
 EXPORT_SYMBOL(ioport_resource);

@@ -1498,15 +1498,16 @@ extern const u32		sched_prio_to_wmult[40];
 
 #define RETRY_TASK		((void *)-1UL)
 
+//每个进程都会关联到一个调度器类
 struct sched_class {
 	const struct sched_class *next;
 
-	void (*enqueue_task) (struct rq *rq, struct task_struct *p, int flags);
-	void (*dequeue_task) (struct rq *rq, struct task_struct *p, int flags);
-	void (*yield_task)   (struct rq *rq);
+	void (*enqueue_task) (struct rq *rq, struct task_struct *p, int flags); //向就绪队列添加新进程
+	void (*dequeue_task) (struct rq *rq, struct task_struct *p, int flags); //从就绪队列删除进程
+	void (*yield_task)   (struct rq *rq); //进程想要放弃的时候
 	bool (*yield_to_task)(struct rq *rq, struct task_struct *p, bool preempt);
 
-	void (*check_preempt_curr)(struct rq *rq, struct task_struct *p, int flags);
+	void (*check_preempt_curr)(struct rq *rq, struct task_struct *p, int flags); //调用该函数，用一个新的进程来抢占当前进程
 
 	/*
 	 * It is the responsibility of the pick_next_task() method that will
@@ -1516,7 +1517,7 @@ struct sched_class {
 	 * May return RETRY_TASK when it finds a higher prio class has runnable
 	 * tasks.
 	 */
-	struct task_struct * (*pick_next_task)(struct rq *rq,
+	struct task_struct * (*pick_next_task)(struct rq *rq, //选择下一个要运行的进程, 返回用户空间的时候，发现要调度的时候就可能会调用
 					       struct task_struct *prev,
 					       struct rq_flags *rf);
 	void (*put_prev_task)(struct rq *rq, struct task_struct *p);
@@ -1535,7 +1536,7 @@ struct sched_class {
 #endif
 
 	void (*set_curr_task)(struct rq *rq);
-	void (*task_tick)(struct rq *rq, struct task_struct *p, int queued);
+	void (*task_tick)(struct rq *rq, struct task_struct *p, int queued); //周期性调度器被激活的时候，会调用该函数
 	void (*task_fork)(struct task_struct *p);
 	void (*task_dead)(struct task_struct *p);
 

@@ -54,10 +54,10 @@ struct rtable { //ipv4的路由缓存项条目
 	int			rt_genid;
 	unsigned int		rt_flags; //%RTCF_NOTIFY
 	__u16			rt_type; //%RTN_UNSPEC
-	__u8			rt_is_input;
-	__u8			rt_uses_gateway;
+	__u8			rt_is_input; //是输入路由
+	__u8			rt_uses_gateway; //下一跳是不是gateway
 
-	int			rt_iif; /* 输入网络设备标志 */
+	int			rt_iif; /* 输入网络设备索引 */
 
 	/* Info on neighbour */
 	__be32			rt_gateway; //直连的时候，rt_gateway表示目的地址；其他情况表示是下一跳的网关地址
@@ -66,7 +66,7 @@ struct rtable { //ipv4的路由缓存项条目
 	u32			rt_mtu_locked:1,
 				rt_pmtu:31;
 
-	struct list_head	rt_uncached; //链入到哪里
+	struct list_head	rt_uncached; //链入到哪里,？？？？？？过期了，挂上去等待回收
 	struct uncached_list	*rt_uncached_list;
 };
 

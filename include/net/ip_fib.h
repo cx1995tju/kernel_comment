@@ -28,9 +28,9 @@
 
 //fib_table_insert的参数, 用来查找匹配路由表项
 struct fib_config {
-	u8			fc_dst_len; //目的掩码长度
+	u8			fc_dst_len;  //目的地址掩码长度
 	u8			fc_tos; //路由的TOS字段
-	u8			fc_protocol; //该路由的特性
+	u8			fc_protocol; //
 	u8			fc_scope; //该路由的范围
 	u8			fc_type; //该路由表项的类型
 	/* 3 bytes unused */
@@ -55,6 +55,8 @@ struct fib_config {
 struct fib_info;
 struct rtable;
 
+//当一个路由项不是由于userspace的动作导致的改变，而是ICMPv4重定向消息或者PMTU发现导致的改变的话，会用到这个结构
+//hash key是dst addr
 struct fib_nh_exception {
 	struct fib_nh_exception __rcu	*fnhe_next;
 	int				fnhe_genid;
@@ -105,28 +107,30 @@ struct fib_nh {
  * This structure contains data shared by many of routes.
  */
 //记录如何处理与该路由匹配的数据报的信息
+//多个fib_alias可能共享fib_info
+//fib_table表示一张路由表, 路由表的entry是fib_alias(必须关联到一个fib_info结构, fib_info被组织成fib_info_hash 后 fib_info_laddrhash中)结构，被组织成一个trie
 struct fib_info {
 	struct hlist_node	fib_hash; //插入到fib_info_hash散列表中的, 所有的fib_info实例都插入到这个散列表中
 	struct hlist_node	fib_lhash; //插入到fib_info_laddrhash散列表中，当路由表项有一个首选源地址的时候，插入到该散列表
-	struct net		*fib_net;
-	int			fib_treeref;
-	refcount_t		fib_clntref;
+	struct net		*fib_net; //命名空间
+	int			fib_treeref; //fib_alias引用这个结构的时候的引用计数
+	refcount_t		fib_clntref; //引用计数， 参见fib_create_info fib_info_put
 	unsigned int		fib_flags;
 	unsigned char		fib_dead; //路由表项正在被删除
-	unsigned char		fib_protocol; //设置路由的协议
-	unsigned char		fib_scope; //路由表项的作用范围
-	unsigned char		fib_type;
-	__be32			fib_prefsrc; //首选源地址
+	unsigned char		fib_protocol; //这个路由是谁设置的， %RTPROT_STATIC, 参考ip route add proto static 命令,
+	unsigned char		fib_scope; //路由表项的作用范围 %RT_SCOPE_HOST
+	unsigned char		fib_type; //路由的类型，%RTN_PROHIBIT, 以前这个结构仅仅是在fib_alias中的 参考ip route add prohibit 命令
+	__be32			fib_prefsrc; //首选源地址, 如果需要给lookup函数提供一个特定的源地址作为key的话，就是这个参数
 	u32			fib_tb_id;
-	u32			fib_priority; //路由优先级，值越小，优先级越高
+	u32			fib_priority; //路由优先级，值越小，优先级越高, 默认是0
 	struct dst_metrics	*fib_metrics; //与路由相关的一组度量值
-#define fib_mtu fib_metrics->metrics[RTAX_MTU-1]
+#define fib_mtu fib_metrics->metrics[RTAX_MTU-1] //路由的其他度量值
 #define fib_window fib_metrics->metrics[RTAX_WINDOW-1]
 #define fib_rtt fib_metrics->metrics[RTAX_RTT-1]
 #define fib_advmss fib_metrics->metrics[RTAX_ADVMSS-1]
 	int			fib_nhs; //下一跳数量，通常为1，只有当内核支持多路径路由的时候，才可能大于1
 	struct rcu_head		rcu;
-	struct fib_nh		fib_nh[0]; //支持多路径路由的时候，保存下一跳的散列表
+	struct fib_nh		fib_nh[0]; //支持多路径路由的时候，保存下一跳的数组
 #define fib_dev		fib_nh[0].nh_dev
 };
 
@@ -136,16 +140,16 @@ struct fib_rule;
 #endif
 
 struct fib_table;
-struct fib_result {
-	__be32		prefix;
+struct fib_result { //路由查找的结果, 路由查找结束后也会创建一个dst成员
+	__be32		prefix; //掩码长度
 	unsigned char	prefixlen;
-	unsigned char	nh_sel;
-	unsigned char	type;
+	unsigned char	nh_sel; //下一跳的序号，如果只有一个下一跳，那么就是0。对于多路径路由可以有多个下一跳, 下一跳的信息在fib_info中
+	unsigned char	type; //表示如何处理包，%RTN_UNICAST
 	unsigned char	scope;
 	u32		tclassid;
-	struct fib_info *fi;
-	struct fib_table *table;
-	struct hlist_head *fa_head;
+	struct fib_info *fi; //指向对应的fib_info, fib_info中包含了下一跳的信息fib_nh
+	struct fib_table *table; //指向fib_table
+	struct hlist_head *fa_head; //指向一个fib_alias的list, 所有的fib_alias按照fa_tos递减和fib_priority的递增的顺序存储. fa_tos为0的时候表通配
 };
 
 struct fib_result_nl {
@@ -195,7 +199,7 @@ struct fib_entry_notifier_info {
 	int dst_len;
 	struct fib_info *fi;
 	u8 tos;
-	u8 type;
+	u8 type; //即fib_alias中的type
 	u32 tb_id;
 };
 
@@ -215,12 +219,13 @@ void __net_exit fib4_notifier_exit(struct net *net);
 
 void fib_notify(struct net *net, struct notifier_block *nb);
 
+//表示一张路由表, 路由表的entry是fib_alias(必须关联到一个fib_info结构, fib_info被组织成fib_info_hash 后 fib_info_laddrhash中)结构，被组织成一个trie
 struct fib_table {
 	struct hlist_node	tb_hlist; //所有的路由表组织在一个hash表中
-	u32			tb_id; //路由表id，在支持策略路由的场景下，主机最多可以有256个路由表，即fib_rule中的table成员
-	int			tb_num_default;
+	u32			tb_id; //路由表id，在支持策略路由的场景下，主机最多可以有256个路由表，即fib_rule中的table成员, %RT_TABLE_MAIN
+	int			tb_num_default; //表中的默认路由数目
 	struct rcu_head		rcu;
-	unsigned long 		*tb_data; //一颗字典树，保存路由表项
+	unsigned long 		*tb_data; //一颗字典树，保存路由表项, trie结构
 	unsigned long		__data[0]; //零长数组
 };
 
@@ -322,7 +327,7 @@ static inline int fib_lookup(struct net *net, struct flowi4 *flp,
 	int err = -ENETUNREACH;
 
 	flags |= FIB_LOOKUP_NOREF;
-	if (net->ipv4.fib_has_custom_rules)
+	if (net->ipv4.fib_has_custom_rules) //设置了路由策略
 		return __fib_lookup(net, flp, res, flags);
 
 	rcu_read_lock();

@@ -192,7 +192,7 @@ void dst_release(struct dst_entry *dst)
 			call_rcu(&dst->rcu_head, dst_destroy_rcu);
 	}
 }
-EXPORT_SYMBOL(dst_release);
+EXPORT_SYMBOL(dst_release); //会release uncached_list队列上挂载的没有用的dst
 
 void dst_release_immediate(struct dst_entry *dst)
 {

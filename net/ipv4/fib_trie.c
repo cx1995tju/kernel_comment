@@ -140,7 +140,7 @@ struct key_vector {
 	unsigned char slen;
 	union {
 		/* This list pointer if valid if (pos | bits) == 0 (LEAF) */
-		struct hlist_head leaf; //字典树叶子结点
+		struct hlist_head leaf; //字典树叶子结点, 见fib_alias结构, 为什么这个槽上会挂载多个路由entry，是为了映射到统一fib_info???????
 		/* This array is valid if (pos | bits) > 0 (TNODE) */
 		struct key_vector __rcu *tnode[0]; //字典树中间结点, 零长数组，动态扩展
 	};
@@ -1150,7 +1150,7 @@ int fib_table_insert(struct net *net, struct fib_table *tb,
 
 	pr_debug("Insert table=%u %08x/%d\n", tb->tb_id, key, plen);
 
-	fi = fib_create_info(cfg, extack);
+	fi = fib_create_info(cfg, extack); //根据配置信息创建fib_info信息
 	if (IS_ERR(fi)) {
 		err = PTR_ERR(fi);
 		goto err;
@@ -1186,6 +1186,7 @@ int fib_table_insert(struct net *net, struct fib_table *tb,
 		 */
 		fa_match = NULL;
 		fa_first = fa;
+		//搜索完全match的选项
 		hlist_for_each_entry_from(fa, fa_list) {  //这里在遍历什么？？？？, 这些匹配的fa都hash在一起么？？？？
 			if ((fa->fa_slen != slen) ||
 			    (fa->tb_id != tb->tb_id) ||
@@ -1576,6 +1577,7 @@ int fib_table_delete(struct net *net, struct fib_table *tb,
 	pr_debug("Deleting %08x/%d tos=%d t=%p\n", key, plen, tos, t);
 
 	fa_to_delete = NULL;
+	//找待删除的匹配项
 	hlist_for_each_entry_from(fa, fa_list) {
 		struct fib_info *fi = fa->fa_info;
 

@@ -89,7 +89,7 @@ passed down from above. The kbuild Makefile uses information from the
 .config file to construct various file lists used by kbuild to build
 any built-in or modular targets.
 
-scrpts/Makefile.* 中包含了各种基本定义和规则
+scripts/Makefile.* 中包含了各种基本定义和规则
 scripts/Makefile.* contains all the definitions/rules etc. that
 are used to build the kernel based on the kbuild makefiles.
 
