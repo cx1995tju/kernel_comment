@@ -791,6 +791,7 @@ static void neigh_connect(struct neighbour *neigh)
 	neigh->output = neigh->ops->connected_output;
 }
 
+//邻居项异步垃圾回收机制
 static void neigh_periodic_work(struct work_struct *work)
 {
 	struct neigh_table *tbl = container_of(work, struct neigh_table, gc_work.work);
@@ -809,12 +810,12 @@ static void neigh_periodic_work(struct work_struct *work)
 	 *	periodically recompute ReachableTime from random function
 	 */
 
-	if (time_after(jiffies, tbl->last_rand + 300 * HZ)) {
+	if (time_after(jiffies, tbl->last_rand + 300 * HZ)) { //超时时间被更新已经过了300s了
 		struct neigh_parms *p;
 		tbl->last_rand = jiffies;
 		list_for_each_entry(p, &tbl->parms_list, list)
 			p->reachable_time =
-				neigh_rand_reach_time(NEIGH_VAR(p, BASE_REACHABLE_TIME));
+				neigh_rand_reach_time(NEIGH_VAR(p, BASE_REACHABLE_TIME)); //重新计算reachable_time
 	}
 
 	if (atomic_read(&tbl->entries) < tbl->gc_thresh1)
@@ -830,18 +831,18 @@ static void neigh_periodic_work(struct work_struct *work)
 			write_lock(&n->lock);
 
 			state = n->nud_state;
-			if ((state & (NUD_PERMANENT | NUD_IN_TIMER)) ||
+			if ((state & (NUD_PERMANENT | NUD_IN_TIMER)) || //这两种状态不处理
 			    (n->flags & NTF_EXT_LEARNED)) {
 				write_unlock(&n->lock);
 				goto next_elt;
 			}
 
 			if (time_before(n->used, n->confirmed))
-				n->used = n->confirmed;
+				n->used = n->confirmed; //用confirmed时间来更新used的时间
 
 			if (refcount_read(&n->refcnt) == 1 &&
 			    (state == NUD_FAILED ||
-			     time_after(jiffies, n->used + NEIGH_VAR(n->parms, GC_STALETIME)))) {
+			     time_after(jiffies, n->used + NEIGH_VAR(n->parms, GC_STALETIME)))) { //使用时间已经超过拉垃圾回收间隔了，回收
 				*np = n->next;
 				n->dead = 1;
 				write_unlock(&n->lock);
@@ -914,7 +915,7 @@ static void neigh_probe(struct neighbour *neigh)
 	if (skb)
 		skb = skb_clone(skb, GFP_ATOMIC);
 	write_unlock(&neigh->lock);
-	if (neigh->ops->solicit)
+	if (neigh->ops->solicit) //参考arp_generic_ops
 		neigh->ops->solicit(neigh, skb);
 	atomic_inc(&neigh->probes);
 	kfree_skb(skb);
@@ -997,7 +998,7 @@ static void neigh_timer_handler(struct timer_list *t)
 			neigh_hold(neigh);
 	}
 	if (neigh->nud_state & (NUD_INCOMPLETE | NUD_PROBE)) {
-		neigh_probe(neigh);
+		neigh_probe(neigh); //probe状态要主动去探测
 	} else {
 out:
 		write_unlock(&neigh->lock);
@@ -1405,7 +1406,7 @@ int neigh_connected_output(struct neighbour *neigh, struct sk_buff *skb)
 	do {
 		__skb_pull(skb, skb_network_offset(skb));
 		seq = read_seqbegin(&neigh->ha_lock);
-		err = dev_hard_header(skb, dev, ntohs(skb->protocol),
+		err = dev_hard_header(skb, dev, ntohs(skb->protocol), //快速路径，快速增加头部
 				      neigh->ha, NULL, skb->len);
 	} while (read_seqretry(&neigh->ha_lock, seq));
 

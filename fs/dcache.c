@@ -488,6 +488,7 @@ void __d_drop(struct dentry *dentry)
 }
 EXPORT_SYMBOL(__d_drop);
 
+//将dentry从全局散列表删除
 void d_drop(struct dentry *dentry)
 {
 	spin_lock(&dentry->d_lock);

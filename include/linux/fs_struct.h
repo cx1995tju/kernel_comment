@@ -6,13 +6,14 @@
 #include <linux/spinlock.h>
 #include <linux/seqlock.h>
 
+//每个进程都有一个该结构，管理其他特定于进程的数据
 struct fs_struct {
 	int users;
 	spinlock_t lock;
 	seqcount_t seq;
-	int umask;
+	int umask; //新建文件的默认掩码
 	int in_exec;
-	struct path root, pwd;
+	struct path root, pwd; //根目录，当前工作目录
 } __randomize_layout;
 
 extern struct kmem_cache *fs_cachep;

@@ -94,8 +94,8 @@ extern int page_group_by_mobility_disabled;
 			PB_migrate_end, MIGRATETYPE_MASK)
 
 struct free_area {
-	struct list_head	free_list[MIGRATE_TYPES];
-	unsigned long		nr_free;
+	struct list_head	free_list[MIGRATE_TYPES]; //连接空闲页的链表
+	unsigned long		nr_free; //该内存域zone中各阶内存块数目
 };
 
 struct pglist_data;
@@ -344,7 +344,7 @@ enum zone_type {
 	 * table entries on i386) for each page that the kernel needs to
 	 * access.
 	 */
-	ZONE_HIGHMEM,
+	ZONE_HIGHMEM, //通过mapping机制，内核才能访问的区域
 #endif
 	ZONE_MOVABLE,
 #ifdef CONFIG_ZONE_DEVICE
@@ -356,6 +356,7 @@ enum zone_type {
 
 #ifndef __GENERATING_BOUNDS_H
 
+//内存域 结构
 struct zone {
 	/* Read-mostly fields */
 
@@ -373,13 +374,13 @@ struct zone {
 	 * recalculated at runtime if the sysctl_lowmem_reserve_ratio sysctl
 	 * changes.
 	 */
-	long lowmem_reserve[MAX_NR_ZONES];
+	long lowmem_reserve[MAX_NR_ZONES]; //为各个域保留了一些内存页，用于处理无论如何都不能分配失败的场景
 
 #ifdef CONFIG_NUMA
 	int node;
 #endif
 	struct pglist_data	*zone_pgdat;
-	struct per_cpu_pageset __percpu *pageset;
+	struct per_cpu_pageset __percpu *pageset; //用于实现内存的冷热分配器的
 
 #ifndef CONFIG_SPARSEMEM
 	/*
@@ -390,7 +391,7 @@ struct zone {
 #endif /* CONFIG_SPARSEMEM */
 
 	/* zone_start_pfn == zone_start_paddr >> PAGE_SHIFT */
-	unsigned long		zone_start_pfn;
+	unsigned long		zone_start_pfn; //该内存域的第一个物理页索引
 
 	/*
 	 * spanned_pages is the total pages spanned by the zone, including
@@ -459,7 +460,7 @@ struct zone {
 	ZONE_PADDING(_pad1_)
 
 	/* free areas of different sizes */
-	struct free_area	free_area[MAX_ORDER];
+	struct free_area	free_area[MAX_ORDER]; //用于实现伙伴系统的
 
 	/* zone flags, see below */
 	unsigned long		flags;
@@ -504,7 +505,7 @@ struct zone {
 
 	ZONE_PADDING(_pad3_)
 	/* Zone statistics */
-	atomic_long_t		vm_stat[NR_VM_ZONE_STAT_ITEMS];
+	atomic_long_t		vm_stat[NR_VM_ZONE_STAT_ITEMS]; //统计信息 
 	atomic_long_t		vm_numa_stat[NR_VM_NUMA_STAT_ITEMS];
 } ____cacheline_internodealigned_in_smp;
 
@@ -622,11 +623,11 @@ extern struct page *mem_map;
  */
 struct bootmem_data;
 typedef struct pglist_data {
-	struct zone node_zones[MAX_NR_ZONES];
-	struct zonelist node_zonelists[MAX_ZONELISTS];
+	struct zone node_zones[MAX_NR_ZONES]; //包含了该结点的所有内存域管理结构，参考zone_type
+	struct zonelist node_zonelists[MAX_ZONELISTS]; //备用结点列表，结点内存不够分配的时候，从备用结点分配
 	int nr_zones;
 #ifdef CONFIG_FLAT_NODE_MEM_MAP	/* means !SPARSEMEM */
-	struct page *node_mem_map;
+	struct page *node_mem_map; //指向该结点管理的所有page结构
 #ifdef CONFIG_PAGE_EXTENSION
 	struct page_ext *node_page_ext;
 #endif
@@ -648,12 +649,12 @@ typedef struct pglist_data {
 	 */
 	spinlock_t node_size_lock;
 #endif
-	unsigned long node_start_pfn;
-	unsigned long node_present_pages; /* total number of physical pages */
+	unsigned long node_start_pfn; //该numa结点，第一个物理页的逻辑编号，所有结点的逻辑编号依次增加，全局唯一
+	unsigned long node_present_pages; /* total number of physical pages 结点page数目*/
 	unsigned long node_spanned_pages; /* total size of physical page
 					     range, including holes */
-	int node_id;
-	wait_queue_head_t kswapd_wait;
+	int node_id; //全局结点ID
+	wait_queue_head_t kswapd_wait; //kswap守护进程睡眠队列
 	wait_queue_head_t pfmemalloc_wait;
 	struct task_struct *kswapd;	/* Protected by
 					   mem_hotplug_begin/end() */

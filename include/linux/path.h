@@ -6,8 +6,8 @@ struct dentry;
 struct vfsmount;
 
 struct path {
-	struct vfsmount *mnt;
-	struct dentry *dentry;
+	struct vfsmount *mnt; //挂载点信息
+	struct dentry *dentry; //dentry信息，file->dentry->inode
 } __randomize_layout;
 
 extern void path_get(const struct path *);

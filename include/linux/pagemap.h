@@ -266,6 +266,7 @@ struct page *pagecache_get_page(struct address_space *mapping, pgoff_t offset,
  *
  * Otherwise, %NULL is returned.
  */
+//查找该地址空间上，给定偏移量的页
 static inline struct page *find_get_page(struct address_space *mapping,
 					pgoff_t offset)
 {
@@ -291,6 +292,7 @@ static inline struct page *find_get_page_flags(struct address_space *mapping,
  *
  * find_lock_page() may sleep.
  */
+//与find_get_page类似，但是会锁定该页，可能会睡眠，一直等到页解锁
 static inline struct page *find_lock_page(struct address_space *mapping,
 					pgoff_t offset)
 {

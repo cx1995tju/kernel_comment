@@ -196,7 +196,7 @@ __be32 fib_info_update_nh_saddr(struct net *net, struct fib_nh *nh);
 struct fib_entry_notifier_info {
 	struct fib_notifier_info info; /* must be first */
 	u32 dst;
-	int dst_len;
+	int dst_len; //目的掩码长度
 	struct fib_info *fi;
 	u8 tos;
 	u8 type; //即fib_alias中的type

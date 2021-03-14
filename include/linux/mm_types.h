@@ -68,8 +68,8 @@ struct hmm;
 #endif
 
 struct page {
-	unsigned long flags;		/* Atomic flags, some possibly
-					 * updated asynchronously */
+	unsigned long flags;		/* Atomic flags, some possibly, 存储了一些体系无关的标志，描述页的属性
+					 * updated asynchronously */ //见page-flags.h, %PG_locked
 	/*
 	 * Five words (20/40 bytes) are available in this union.
 	 * WARNING: bit 0 of the first word is used for PageTail(). That
@@ -83,9 +83,9 @@ struct page {
 			 * zone_lru_lock.  Sometimes used as a generic list
 			 * by the page owner.
 			 */
-			struct list_head lru;
+			struct list_head lru; //实现LRU回收的挂链结构
 			/* See page-flags.h for PAGE_MAPPING_FLAGS */
-			struct address_space *mapping;
+			struct address_space *mapping; //该页所在地址空间, 如果mapping值为1的话，则其指向anon_vma结构, 如果是二进制可执行文件的话，这个address_space可能表示的是一个文件
 			pgoff_t index;		/* Our offset within mapping. */
 			/**
 			 * @private: Mapping-private opaque data.
@@ -165,7 +165,7 @@ struct page {
 		 * If the page can be mapped to userspace, encodes the number
 		 * of times this page is referenced by a page table.
 		 */
-		atomic_t _mapcount;
+		atomic_t _mapcount;  //页表中有多少项指向该页
 
 		/*
 		 * If the page is neither PageSlab nor mappable to userspace,
@@ -180,7 +180,7 @@ struct page {
 	};
 
 	/* Usage count. *DO NOT USE DIRECTLY*. See page_ref.h */
-	atomic_t _refcount;
+	atomic_t _refcount; //引用计数
 
 #ifdef CONFIG_MEMCG
 	struct mem_cgroup *mem_cgroup;
@@ -197,7 +197,7 @@ struct page {
 	 * WANT_PAGE_VIRTUAL in asm/page.h
 	 */
 #if defined(WANT_PAGE_VIRTUAL)
-	void *virtual;			/* Kernel virtual address (NULL if
+	void *virtual;			/* Kernel virtual address (NULL if //用于高端内存，保存内核虚拟地址
 					   not kmapped, ie. highmem) */
 #endif /* WANT_PAGE_VIRTUAL */
 
@@ -271,7 +271,7 @@ struct vm_area_struct {
 	/* linked list of VM areas per task, sorted by address */
 	struct vm_area_struct *vm_next, *vm_prev;
 
-	struct rb_node vm_rb;
+	struct rb_node vm_rb; //通过该成员，组织到红黑树管理
 
 	/*
 	 * Largest free memory gap in bytes to the left of this VMA.
@@ -284,7 +284,7 @@ struct vm_area_struct {
 	/* Second cache line starts here. */
 
 	struct mm_struct *vm_mm;	/* The address space we belong to. */
-	pgprot_t vm_page_prot;		/* Access permissions of this VMA. */
+	pgprot_t vm_page_prot;		/* Access permissions of this VMA. */ //访问权限
 	unsigned long vm_flags;		/* Flags, see mm.h. */
 
 	/*
@@ -294,7 +294,7 @@ struct vm_area_struct {
 	struct {
 		struct rb_node rb;
 		unsigned long rb_subtree_last;
-	} shared;
+	} shared; //如果有后备存储器的话，这个结点会链接到对应的address_space的i_mapping成员的
 
 	/*
 	 * A file's MAP_PRIVATE vma can be in both i_mmap tree and anon_vma
@@ -302,7 +302,7 @@ struct vm_area_struct {
 	 * can only be in the i_mmap tree.  An anonymous MAP_PRIVATE, stack
 	 * or brk vma (with NULL file) can only be in an anon_vma list.
 	 */
-	struct list_head anon_vma_chain; /* Serialized by mmap_sem &
+	struct list_head anon_vma_chain; /* Serialized by mmap_sem & //管理匿名页的
 					  * page_table_lock */
 	struct anon_vma *anon_vma;	/* Serialized by page_table_lock */
 
@@ -310,9 +310,9 @@ struct vm_area_struct {
 	const struct vm_operations_struct *vm_ops;
 
 	/* Information about our backing store: */
-	unsigned long vm_pgoff;		/* Offset (within vm_file) in PAGE_SIZE
+	unsigned long vm_pgoff;		/* Offset (within vm_file) in PAGE_SIZE //文件映射的偏移，单位是页
 					   units */
-	struct file * vm_file;		/* File we map to (can be NULL). */
+	struct file * vm_file;		/* File we map to (can be NULL). */ //描述了一个被映射的文件
 	void * vm_private_data;		/* was vm_pte (shared mem) */
 
 	atomic_long_t swap_readahead_info;
@@ -408,7 +408,7 @@ struct mm_struct {
 
 		spinlock_t arg_lock; /* protect the below fields */
 		unsigned long start_code, end_code, start_data, end_data;
-		unsigned long start_brk, brk, start_stack;
+		unsigned long start_brk, brk, start_stack; //堆信息
 		unsigned long arg_start, arg_end, env_start, env_end;
 
 		unsigned long saved_auxv[AT_VECTOR_SIZE]; /* for /proc/PID/auxv */

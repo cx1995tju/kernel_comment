@@ -796,7 +796,7 @@ static inline u32 tcp_skb_timestamp(const struct sk_buff *skb)
  * If this grows please adjust skbuff.h:skbuff->cb[xxx] size appropriately.
  */
 /* 保存在sk_buff的cb成员中的传输层的私有数据（到达别的层后，cb会保存其他层的私有数据）*/
-/* rx的时候，在tcp_v4_Rcv中设置，tx的在发送的时候，譬如tcp_fragment的时候设置
+/* rx的时候，在tcp_v4_rcv中设置，tx的在发送的时候，譬如tcp_fragment的时候设置
  *
  *
  * */

@@ -3695,6 +3695,7 @@ static u16 __netdev_pick_tx(struct net_device *dev, struct sk_buff *skb,
 	return queue_index;
 }
 
+//选取发送队列的queue
 struct netdev_queue *netdev_pick_tx(struct net_device *dev,
 				    struct sk_buff *skb,
 				    struct net_device *sb_dev)
@@ -3711,7 +3712,7 @@ struct netdev_queue *netdev_pick_tx(struct net_device *dev,
 	if (dev->real_num_tx_queues != 1) {
 		const struct net_device_ops *ops = dev->netdev_ops;
 
-		if (ops->ndo_select_queue)
+		if (ops->ndo_select_queue) //linux总是这样拉，这个函数提供发送方向的负载均衡机制，各个驱动在通过函数指针实现策略
 			queue_index = ops->ndo_select_queue(dev, skb, sb_dev,
 							    __netdev_pick_tx);
 		else

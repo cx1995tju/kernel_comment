@@ -2047,6 +2047,7 @@ static void shrink_readahead_size_eio(struct file *filp,
  * This is really ugly. But the goto's actually try to clarify some
  * of the logic when it comes to error handling etc.
  */
+//内核提供的通用读取函数
 static ssize_t generic_file_buffered_read(struct kiocb *iocb,
 		struct iov_iter *iter, ssize_t written)
 {
@@ -2489,6 +2490,7 @@ static void do_async_mmap_readahead(struct vm_area_struct *vma,
  *
  * We never return with VM_FAULT_RETRY and a bit from VM_FAULT_ERROR set.
  */
+//最常用的vm_fault函数了，vma->vm_ops->fault，内核提供的文件相关操作的通用函数之一
 vm_fault_t filemap_fault(struct vm_fault *vmf)
 {
 	int error;

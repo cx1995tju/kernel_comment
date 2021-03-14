@@ -77,6 +77,7 @@ struct mmsghdr {
  *	(cmsghdr, cmsg_data[])
  */
 
+//Unix Socket会基于此以控制报文的形式传递fd
 struct cmsghdr {
 	__kernel_size_t	cmsg_len;	/* data byte count, including hdr */
         int		cmsg_level;	/* originating protocol, 控制消息的level，SOL_SOCKET等 */

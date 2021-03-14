@@ -489,6 +489,7 @@ pte_t *addr_pte(struct task_struct *task, unsigned long addr)
 	return pte_offset_map(pmd, addr);
 }
 
+//刷新整个TLB，影响系统整个进程和处理器
 void flush_tlb_all(void)
 {
 	flush_tlb_mm(current->mm);
@@ -524,6 +525,7 @@ void flush_tlb_range(struct vm_area_struct *vma, unsigned long start,
 }
 EXPORT_SYMBOL(flush_tlb_range);
 
+//刷新指定范围内的TLB
 void flush_tlb_mm_range(struct mm_struct *mm, unsigned long start,
 			unsigned long end)
 {
@@ -537,6 +539,7 @@ void flush_tlb_mm_range(struct mm_struct *mm, unsigned long start,
 	fix_range(mm, start, end, 0);
 }
 
+//刷新mm相关的TLB
 void flush_tlb_mm(struct mm_struct *mm)
 {
 	struct vm_area_struct *vma = mm->mmap;

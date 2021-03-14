@@ -68,6 +68,7 @@ static struct file_system_type **find_filesystem(const char *name, unsigned len)
  *	unregistered.
  */
  
+//注册文件系统到内核, 每一类文件系统在内核中只有一个实例, 单链表形式保存
 int register_filesystem(struct file_system_type * fs)
 {
 	int res = 0;

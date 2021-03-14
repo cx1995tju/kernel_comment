@@ -424,7 +424,8 @@ EXPORT_SYMBOL(tcp_req_err);
  *
  */
 
-void tcp_v4_err(struct sk_buff *icmp_skb, u32 info)
+//tcp_protocol->tcp_v4_err, TCP的差错处理函数，在ICMP模块接收到了差错报文后，如果传输层是TCP的话，就会通过net_protocol结构索引到该函数
+void tcp_v4_err(struct sk_buff *icmp_skb, u32 info) //info是ICMP的辅助信息，参考ICMP理论
 {
 	const struct iphdr *iph = (const struct iphdr *)icmp_skb->data;
 	struct tcphdr *th = (struct tcphdr *)(icmp_skb->data + (iph->ihl << 2));
@@ -442,6 +443,7 @@ void tcp_v4_err(struct sk_buff *icmp_skb, u32 info)
 	int err;
 	struct net *net = dev_net(icmp_skb->dev);
 
+	//ICMP报文是在IP报文中的，所以可以获取到IP等信息，索引到sock结构
 	sk = __inet_lookup_established(net, &tcp_hashinfo, iph->daddr,
 				       th->dest, iph->saddr, ntohs(th->source),
 				       inet_iif(icmp_skb), 0);

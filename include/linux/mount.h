@@ -55,8 +55,8 @@ struct mnt_namespace;
 
 #define MNT_LOCK_ATIME		0x040000
 #define MNT_LOCK_NOEXEC		0x080000
-#define MNT_LOCK_NOSUID		0x100000
-#define MNT_LOCK_NODEV		0x200000
+#define MNT_LOCK_NOSUID		0x100000 //禁止setuid操作
+#define MNT_LOCK_NODEV		0x200000 //表示是伪文件系统，没有实际的后备设备的
 #define MNT_LOCK_READONLY	0x400000
 #define MNT_LOCKED		0x800000
 #define MNT_DOOMED		0x1000000
@@ -64,10 +64,11 @@ struct mnt_namespace;
 #define MNT_MARKED		0x4000000
 #define MNT_UMOUNT		0x8000000
 
+//每个挂载的文件系统对应一个该结构，不是每个注册的文件系统
 struct vfsmount {
-	struct dentry *mnt_root;	/* root of the mounted tree */
-	struct super_block *mnt_sb;	/* pointer to superblock */
-	int mnt_flags;
+	struct dentry *mnt_root;	/* root of the mounted tree */ //当前文件系统根目录的dentry
+	struct super_block *mnt_sb;	/* pointer to superblock */ //挂载多次的文件系统是会有多个超级块结构的, 但每个有且只有一个
+	int mnt_flags;  //see above
 } __randomize_layout;
 
 struct file; /* forward dec */

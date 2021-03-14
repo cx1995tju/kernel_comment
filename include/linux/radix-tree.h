@@ -89,6 +89,7 @@ static inline bool radix_tree_is_internal_node(void *ptr)
  * either radix_tree_exceptional_entry() or is a sibling entry for an
  * exceptional entry.
  */
+//基数树中的每个结点都需要包含额外tags信息，用来判断页的状态，干净否等? 2.4内核是直接在address_space中维护了各种页的链表
 struct radix_tree_node {
 	unsigned char	shift;		/* Bits remaining in each slot */
 	unsigned char	offset;		/* Slot offset in parent */
@@ -101,7 +102,7 @@ struct radix_tree_node {
 		struct rcu_head	rcu_head;	/* Used when freeing node */
 	};
 	void __rcu	*slots[RADIX_TREE_MAP_SIZE];
-	unsigned long	tags[RADIX_TREE_MAX_TAGS][RADIX_TREE_TAG_LONGS];
+	unsigned long	tags[RADIX_TREE_MAX_TAGS][RADIX_TREE_TAG_LONGS]; //这个二维数组就保存了标记信息, %radix_tree_tag_set %radix_tree_tagged
 };
 
 /* The IDR tag is stored in the low bits of the GFP flags */
@@ -109,10 +110,11 @@ struct radix_tree_node {
 /* The top bits of gfp_mask are used to store the root tags */
 #define ROOT_TAG_SHIFT	(__GFP_BITS_SHIFT)
 
+//组织物理页的基数树
 struct radix_tree_root {
 	spinlock_t		xa_lock;
-	gfp_t			gfp_mask;
-	struct radix_tree_node	__rcu *rnode;
+	gfp_t			gfp_mask; //指定了从那个内存域分配
+	struct radix_tree_node	__rcu *rnode; //指向树的第一额结点
 };
 
 #define RADIX_TREE_INIT(name, mask)	{				\

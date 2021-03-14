@@ -160,7 +160,7 @@ struct swap_extent {
 	  offsetof(union swap_header, info.badpages)) / sizeof(int))
 
 enum {
-	SWP_USED	= (1 << 0),	/* is slot in swap_info[] used? */
+	SWP_USED	= (1 << 0),	/* is slot in swap_info[] used? */ //当前项在交换数组中处于使用状态
 	SWP_WRITEOK	= (1 << 1),	/* ok to write to this swap?	*/
 	SWP_DISCARDABLE = (1 << 2),	/* blkdev support discard */
 	SWP_DISCARDING	= (1 << 3),	/* now discarding a free cluster */
@@ -228,26 +228,27 @@ struct swap_cluster_list {
 /*
  * The in-memory structure used to track swap areas.
  */
+//表交换分区的结构
 struct swap_info_struct {
 	unsigned long	flags;		/* SWP_USED etc: see above */
-	signed short	prio;		/* swap priority of this type */
+	signed short	prio;		/* swap priority of this type */ //优先级
 	struct plist_node list;		/* entry in swap_active_head */
 	signed char	type;		/* strange name for an index */
-	unsigned int	max;		/* extent of the swap_map */
+	unsigned int	max;		/* extent of the swap_map */ //交换分区当前包含的页数目，包含那些损坏或用于管理的page
 	unsigned char *swap_map;	/* vmalloc'ed array of usage counts */
 	struct swap_cluster_info *cluster_info; /* cluster info. Only for SSD */
 	struct swap_cluster_list free_clusters; /* free clusters list */
 	unsigned int lowest_bit;	/* index of first free in swap_map */
 	unsigned int highest_bit;	/* index of last free in swap_map */
-	unsigned int pages;		/* total of usable pages of swap */
+	unsigned int pages;		/* total of usable pages of swap */ //该交换分区可用的page数目
 	unsigned int inuse_pages;	/* number of those currently in use */
 	unsigned int cluster_next;	/* likely index for next allocation */
 	unsigned int cluster_nr;	/* countdown to next cluster search */
 	struct percpu_cluster __percpu *percpu_cluster; /* per cpu's swap location */
-	struct swap_extent *curr_swap_extent;
+	struct swap_extent *curr_swap_extent; //用于实现非连续的交换区
 	struct swap_extent first_swap_extent;
-	struct block_device *bdev;	/* swap device or bdev of swap file */
-	struct file *swap_file;		/* seldom referenced */
+	struct block_device *bdev;	/* swap device or bdev of swap file */ //指向该交换设备的底层设备
+	struct file *swap_file;		/* seldom referenced */ //该交换分区对应的file结构, 如果是交换分区会指向/dev/swap_partition,如果是交换文件就指向文件
 	unsigned int old_block_size;	/* seldom referenced */
 #ifdef CONFIG_FRONTSWAP
 	unsigned long *frontswap_map;	/* frontswap in-use, one bit per page */

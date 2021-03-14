@@ -40,15 +40,16 @@
 
 struct neighbour;
 
+//参考neigh_parms->data
 enum {
-	NEIGH_VAR_MCAST_PROBES,
-	NEIGH_VAR_UCAST_PROBES,
-	NEIGH_VAR_APP_PROBES,
-	NEIGH_VAR_MCAST_REPROBES,
-	NEIGH_VAR_RETRANS_TIME,
-	NEIGH_VAR_BASE_REACHABLE_TIME,
+	NEIGH_VAR_MCAST_PROBES, //多播或广播标识一个邻居项不可达之前的最大尝试次数, 默认为3
+	NEIGH_VAR_UCAST_PROBES, //请求ARP守护进程进行单播探测的最大尝试次数，默认为3
+	NEIGH_VAR_APP_PROBES, //退回到多播探测之前，通过netlink向用户空间的ARP守护进程最多发送的探测的次数
+	NEIGH_VAR_MCAST_REPROBES, 
+	NEIGH_VAR_RETRANS_TIME, // 重传一个请求前延迟的jiffies值，默认为1s
+	NEIGH_VAR_BASE_REACHABLE_TIME, //邻居项有效期初始值, 每隔300s会随机更新的
 	NEIGH_VAR_DELAY_PROBE_TIME,
-	NEIGH_VAR_GC_STALETIME,
+	NEIGH_VAR_GC_STALETIME, //多久检测一次邻居项过期，如果一个邻居项被确定为过期，则在向它发数据之前会再次确认，默认值是60s。
 	NEIGH_VAR_QUEUE_LEN_BYTES,
 	NEIGH_VAR_PROXY_QLEN,
 	NEIGH_VAR_ANYCAST_DELAY,
@@ -82,8 +83,8 @@ struct neigh_parms {
 	refcount_t refcnt;
 	struct rcu_head rcu_head;
 
-	int	reachable_time; //NUD_REACHABLE状态的超时时间
-	int	data[NEIGH_VAR_DATA_MAX];
+	int	reachable_time; //NUD_REACHABLE状态的超时时间, 一般每300s更新一次，会更新位一个介于base_reachable_time, 1.5base_reachable_time之间的一个随机值
+	int	data[NEIGH_VAR_DATA_MAX]; //保存了各种参数，譬如：base_reachable_time, %NEIGH_VAR_BASE_REACHABLE_TIME
 	DECLARE_BITMAP(data_state, NEIGH_VAR_DATA_MAX);
 };
 
@@ -145,7 +146,7 @@ struct neighbour {
 	struct sk_buff_head	arp_queue; /* 邻居项无效的时候缓存报文, 该邻居可达后，从其中取出报文输出 */
 	unsigned int		arp_queue_len_bytes;
 	struct timer_list	timer; //邻居项状态处理定时器，处理函数是neigh_timer_handler,参见：neigh_alloc
-	unsigned long		used; //最近一次被使用
+	unsigned long		used; //最近一次被使用, 该值也有可能在neigh_event_send中更新，也有可能在异步垃圾回收work中更新，不一定与数据传输同步。
 	atomic_t		probes; //尝试发送请求报文没有得到应答的次数，当该值达到上限后，邻居项进入NUD_FAILED状态
 	__u8			flags; //一些标志位
 	__u8			nud_state; /* 邻居项状态，邻居项是有一个状态机的, %NUD_NONE */
@@ -219,7 +220,7 @@ struct neigh_table { //系统中的所有邻居表是按照family组织成数组
 	rwlock_t		lock; //邻居表读写锁
 	unsigned long		last_rand; //neigh_parms结构中reachable_time成员最近一次被更新的时间
 	struct neigh_statistics	__percpu *stats;
-	struct neigh_hash_table __rcu *nht;
+	struct neigh_hash_table __rcu *nht; //保存邻居项的散列表
 	struct pneigh_entry	**phash_buckets;
 };
 

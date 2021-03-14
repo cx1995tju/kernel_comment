@@ -136,7 +136,7 @@ struct netns_ipv4 {
 	int sysctl_tcp_early_retrans;
 	int sysctl_tcp_recovery;
 	int sysctl_tcp_thin_linear_timeouts;
-	int sysctl_tcp_slow_start_after_idle;
+	int sysctl_tcp_slow_start_after_idle; /* If set, provide RFC2861 behavior and time out the congestion window after an idle period. An idle period is defined at the current RTO. If unset, the congestion window will not be timed out after an idle period. Default: 1 */ //参考拥塞窗口校验 tcp_cwnd_validate
 	int sysctl_tcp_retrans_collapse;
 	int sysctl_tcp_stdurg;
 	int sysctl_tcp_rfc1337;

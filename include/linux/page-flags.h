@@ -69,14 +69,14 @@
  */
 enum pageflags {
 	PG_locked,		/* Page is locked. Don't touch. */
-	PG_error,
-	PG_referenced,
-	PG_uptodate,
-	PG_dirty,
-	PG_lru,
-	PG_active,
+	PG_error, //涉及该页的IO操作错误的话，就置位
+	PG_referenced, //表示该页的活跃度
+	PG_uptodate, //该页已经从块设备读取，没有出错
+	PG_dirty, //该页脏了
+	PG_lru, //用于页回收的LRU算法
+	PG_active, //表示该页的活跃度
 	PG_waiters,		/* Page has waiters, check its waitqueue. Must be bit #7 and in the same byte as "PG_locked" */
-	PG_slab,
+	PG_slab, //如果该页在slab中被使用
 	PG_owner_priv_1,	/* Owner use. If pagecache, fs may use*/
 	PG_arch_1,
 	PG_reserved,
@@ -85,7 +85,7 @@ enum pageflags {
 	PG_writeback,		/* Page is under writeback */
 	PG_head,		/* A head page */
 	PG_mappedtodisk,	/* Has blocks allocated on-disk */
-	PG_reclaim,		/* To be reclaimed asap */
+	PG_reclaim,		/* To be reclaimed asap */ //内核决定回收该位后，置位
 	PG_swapbacked,		/* Page is backed by RAM/swap */
 	PG_unevictable,		/* Page is "unevictable"  */
 #ifdef CONFIG_MMU
@@ -107,7 +107,7 @@ enum pageflags {
 	PG_checked = PG_owner_priv_1,
 
 	/* SwapBacked */
-	PG_swapcache = PG_owner_priv_1,	/* Swap page: swp_entry_t in private */
+	PG_swapcache = PG_owner_priv_1,	/* Swap page: swp_entry_t in private */ //如果该页用于交换，page的private指向swp_entry_t结构，同时该位置位
 
 	/* Two page bits are conscripted by FS-Cache to maintain local caching
 	 * state.  These bits are set on pages belonging to the netfs's inodes

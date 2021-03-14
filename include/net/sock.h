@@ -395,7 +395,7 @@ struct sock {
 	/* ===== mostly read cache line ===== */
 	unsigned int		sk_napi_id;
 #endif
-	int			sk_rcvbuf; //recvbuffer上限
+	int			sk_rcvbuf; //recvbuffer上限, 一般情况下，接收队列中的所有段的数据总长度sk_rmem_alloc不能超过这个值。
 
 	struct sk_filter __rcu	*sk_filter;
 	union {

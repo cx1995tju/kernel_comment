@@ -1127,7 +1127,7 @@ static int linear_payload_sz(bool first_skb)
 }
 
 static int select_size(bool first_skb, bool zc)
-{
+{//确定线性区长度，如果支持zc的话，没有线性区
 	if (zc)
 		return 0;
 	return linear_payload_sz(first_skb);
@@ -1213,7 +1213,7 @@ int tcp_sendmsg_locked(struct sock *sk, struct msghdr *msg, size_t size) //data 
 			goto out_err;
 		}
 
-		zc = sk->sk_route_caps & NETIF_F_SG;
+		zc = sk->sk_route_caps & NETIF_F_SG; //目的设备应该要支持SG功能
 		if (!zc)
 			uarg->zerocopy = 0;
 	}
@@ -1284,7 +1284,7 @@ restart:
 
 		skb = tcp_write_queue_tail(sk); //获取的是尾部的包？？？, 因为链表的插入是头插？？？
 		if (skb)
-			copy = size_goal - skb->len;
+			copy = size_goal - skb->len; //因为一个skb的最多数据不能超过size_gola
 
 		if (copy <= 0 || !tcp_skb_can_collapse_to(skb)) { //size_goal 小于skb->len. 即skb的已使用空间大于等于size_goal了，要分配新的段了
 			bool first_skb;
@@ -1298,8 +1298,8 @@ new_segment:
 				process_backlog = false;
 				goto restart;
 			}
-			first_skb = tcp_rtx_and_write_queues_empty(sk);
-			linear = select_size(first_skb, zc);
+			first_skb = tcp_rtx_and_write_queues_empty(sk); //都是空的么？
+			linear = select_size(first_skb, zc); //确定线性区长度，如果支持zc的话，没有线性区
 			skb = sk_stream_alloc_skb(sk, linear, sk->sk_allocation, //分配skb
 						  first_skb);
 			if (!skb)
@@ -1320,7 +1320,7 @@ new_segment:
 		}
 
 		/* Try to append data to the end of skb. */
-		if (copy > msg_data_left(msg))
+		if (copy > msg_data_left(msg)) //能够全部在这个skb上copy下去
 			copy = msg_data_left(msg);
 
 		/* Where to copy to? */
@@ -1544,7 +1544,7 @@ static int tcp_peek_sndq(struct sock *sk, struct msghdr *msg, int len)
  * calculation of whether or not we must ACK for the sake of
  * a window update.
  */
-/* 接收队列中的数据复制到用户空间后被调用，为满负荷的段清理接收缓存区，然后确定是否需要发送ack段 */
+/* 接收队列中的数据复制到用户空间后被调用，为满负荷的段清理接收缓存区，因为窗口可能更新，确定是否需要发送ack段 */
 static void tcp_cleanup_rbuf(struct sock *sk, int copied)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
@@ -1608,6 +1608,7 @@ static struct sk_buff *tcp_recv_skb(struct sock *sk, u32 seq, u32 *off)
 	struct sk_buff *skb;
 	u32 offset;
 
+	//能够peek到包
 	while ((skb = skb_peek(&sk->sk_receive_queue)) != NULL) {
 		offset = seq - TCP_SKB_CB(skb)->seq;
 		if (unlikely(TCP_SKB_CB(skb)->tcp_flags & TCPHDR_SYN)) {
@@ -1746,6 +1747,7 @@ EXPORT_SYMBOL(tcp_set_rcvlowat);
 #ifdef CONFIG_MMU
 /* 所有函数操作集合都是空，特别是vm_fault为空，那么执行mmap是会成功的，但是直接访问相关内存
  * 触发页面异常会得到一个segmentation fault , 参考： https://lwn.net/Articles/752188/解决recv方向的zerocopy的, 底层的zerocopy机制会直接为其建立起映射，而不是通过页面异常建立 */
+/* 参考tcp_zerocopy_receive函数, 在应用调用getsockopt函数的时候就会建立起一定的page映射，即接收了数据，也会判断来释放掉skb结构的，但是不会释放pge数据的也会判断来释放掉skb结构的，但是不会释放pge数据的,而且报文应该是skb的page SG方式组织的。 用户用完后，调用munmap释放 */
 static const struct vm_operations_struct tcp_vm_ops = {
 };
 
@@ -1839,7 +1841,7 @@ out:
 		tcp_rcv_space_adjust(sk);
 
 		/* Clean up data we have read: This will do ACK frames. */
-		tcp_recv_skb(sk, seq, &offset);
+		tcp_recv_skb(sk, seq, &offset); //skb指向的page已经被映射了，增加了引用计数了
 		tcp_cleanup_rbuf(sk, length);
 		ret = 0;
 		if (length == zc->length)
@@ -3574,7 +3576,7 @@ static int do_tcp_getsockopt(struct sock *sk, int level,
 			return -EFAULT;
 		if (len != sizeof(zc))
 			return -EINVAL;
-		if (copy_from_user(&zc, optval, len))
+		if (copy_from_user(&zc, optval, len)) //参数复制
 			return -EFAULT;
 		lock_sock(sk);
 		err = tcp_zerocopy_receive(sk, &zc);

@@ -730,7 +730,7 @@ struct sk_buff {
 	 * want to keep them across layers you have to do a skb_clone()
 	 * first. This is owned by whoever has the skb queued ATM.
 	 */
-	char			cb[48] __aligned(8);//控制缓冲区，各层可以自由使用
+	char			cb[48] __aligned(8);//控制缓冲区，各层可以自由使用 %tcp_skb_cb
 
 	union {
 		struct {
@@ -749,7 +749,7 @@ struct sk_buff {
 #if IS_ENABLED(CONFIG_BRIDGE_NETFILTER)
 	struct nf_bridge_info	*nf_bridge;
 #endif
-	unsigned int		len,// 实际数据长度
+	unsigned int		len,// 实际数据长度, 线性区 + SG区
 				data_len; //SG区长度
 	__u16			mac_len, 
 				hdr_len;
@@ -1038,9 +1038,9 @@ struct sk_buff *alloc_skb_with_frags(unsigned long header_len,
 
 /* Layout of fast clones : [skb1][skb2][fclone_ref] */
 struct sk_buff_fclones {
-	struct sk_buff	skb1;
+	struct sk_buff	skb1; //父skb
 
-	struct sk_buff	skb2;
+	struct sk_buff	skb2; //子skb
 
 	refcount_t	fclone_ref; /* 0 or 1 or 2, skb1 skb2中有几个被使用, 一对用于克隆的sk_buff，会指向同一个缓冲区的 */
 };

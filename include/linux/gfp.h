@@ -53,6 +53,8 @@ struct vm_area_struct;
  * without the underscores and use them consistently. The definitions here may
  * be used in bit comparisons.
  */
+//GFP get free page
+//分配内存时候的内存域修饰码
 #define __GFP_DMA	((__force gfp_t)___GFP_DMA)
 #define __GFP_HIGHMEM	((__force gfp_t)___GFP_HIGHMEM)
 #define __GFP_DMA32	((__force gfp_t)___GFP_DMA32)
@@ -188,13 +190,14 @@ struct vm_area_struct;
  * loop around allocator.
  * Using this flag for costly allocations is _highly_ discouraged.
  */
-#define __GFP_IO	((__force gfp_t)___GFP_IO)
-#define __GFP_FS	((__force gfp_t)___GFP_FS)
+//分配内存时候的，内存操作修饰符号
+#define __GFP_IO	((__force gfp_t)___GFP_IO) //查找内存的空闲期间，内核可以进行IO操作，意味着内核在内存分配区域换页的话，必须设置了该操作，才能写到硬盘
+#define __GFP_FS	((__force gfp_t)___GFP_FS) //允许分配期间，内核执行VFS操作，与VFS有联系的内核子系统要禁用，避免递归调用
 #define __GFP_DIRECT_RECLAIM	((__force gfp_t)___GFP_DIRECT_RECLAIM) /* Caller can reclaim */
 #define __GFP_KSWAPD_RECLAIM	((__force gfp_t)___GFP_KSWAPD_RECLAIM) /* kswapd can wake */
 #define __GFP_RECLAIM ((__force gfp_t)(___GFP_DIRECT_RECLAIM|___GFP_KSWAPD_RECLAIM))
 #define __GFP_RETRY_MAYFAIL	((__force gfp_t)___GFP_RETRY_MAYFAIL)
-#define __GFP_NOFAIL	((__force gfp_t)___GFP_NOFAIL)
+#define __GFP_NOFAIL	((__force gfp_t)___GFP_NOFAIL) //分配失败后一直重试到成功
 #define __GFP_NORETRY	((__force gfp_t)___GFP_NORETRY)
 
 /**
@@ -286,6 +289,7 @@ struct vm_area_struct;
  * version does not attempt reclaim/compaction at all and is by default used
  * in page fault path, while the non-light is used by khugepaged.
  */
+//常用的内存掩码分配组合
 #define GFP_ATOMIC	(__GFP_HIGH|__GFP_ATOMIC|__GFP_KSWAPD_RECLAIM)
 #define GFP_KERNEL	(__GFP_RECLAIM | __GFP_IO | __GFP_FS)
 #define GFP_KERNEL_ACCOUNT (GFP_KERNEL | __GFP_ACCOUNT)

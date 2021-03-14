@@ -341,8 +341,10 @@ static inline pte_t pte_modify(pte_t pte, pgprot_t newprot)
 #define pte_unmap(pte) do { } while (0)
 
 struct mm_struct;
-extern pte_t *virt_to_pte(struct mm_struct *mm, unsigned long addr);
+extern pte_t *virt_to_pte(struct mm_struct *
+		, unsigned long addr);
 
+//处理页失效后调用，在MMU中加入信息，虚拟地址address，由ptep描述
 #define update_mmu_cache(vma,address,ptep) do ; while (0)
 
 /* Encode and de-code a swap entry */

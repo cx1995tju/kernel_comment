@@ -265,10 +265,10 @@ struct hh_cache {
 #define LL_RESERVED_SPACE_EXTRA(dev,extra) \
 	((((dev)->hard_header_len+(dev)->needed_headroom+(extra))&~(HH_DATA_MOD - 1)) + HH_DATA_MOD)
 
-struct header_ops {
+struct header_ops { //二层协议相关的一些函数
 	int	(*create) (struct sk_buff *skb, struct net_device *dev,
 			   unsigned short type, const void *daddr,
-			   const void *saddr, unsigned int len);
+			   const void *saddr, unsigned int len); //用于构建硬件头部, %ether_header_ops
 	int	(*parse)(const struct sk_buff *skb, unsigned char *haddr);
 	int	(*cache)(const struct neighbour *neigh, struct hh_cache *hh, __be16 type);
 	void	(*cache_update)(struct hh_cache *hh,
@@ -562,13 +562,13 @@ enum netdev_queue_state_t {
  * netif_xmit*stopped functions, they should only be using netif_tx_*.
  */
 
-struct netdev_queue {
+struct netdev_queue { //表示网络设备的queue
 /*
  * read-mostly part
  */
 	struct net_device	*dev;
 	struct Qdisc __rcu	*qdisc;
-	struct Qdisc		*qdisc_sleeping;
+	struct Qdisc		*qdisc_sleeping; //当前配置的排队规则，生效的时候会设置到net_device->qdisc成员
 #ifdef CONFIG_SYSFS
 	struct kobject		kobj;
 #endif
@@ -1233,7 +1233,7 @@ struct net_device_ops { //各种函数应有尽有
 	netdev_features_t	(*ndo_features_check)(struct sk_buff *skb,
 						      struct net_device *dev,
 						      netdev_features_t features);
-	u16			(*ndo_select_queue)(struct net_device *dev,
+	u16			(*ndo_select_queue)(struct net_device *dev, //实现发送方向负载均衡的策略, 见netdev_pick_tx函数
 						    struct sk_buff *skb,
 						    struct net_device *sb_dev,
 						    select_queue_fallback_t fallback);
@@ -1461,7 +1461,7 @@ struct net_device_ops { //各种函数应有尽有
 enum netdev_priv_flags {
 	IFF_802_1Q_VLAN			= 1<<0,
 	IFF_EBRIDGE			= 1<<1,
-	IFF_BONDING			= 1<<2,
+	IFF_BONDING			= 1<<2, //表示是bonding的master或slave设备
 	IFF_ISATAP			= 1<<3,
 	IFF_WAN_HDLC			= 1<<4,
 	IFF_XMIT_DST_RELEASE		= 1<<5,
@@ -1760,7 +1760,7 @@ struct net_device {
 	 *	part of the usual set specified in Space.c.
 	 */
 
-	unsigned long		state; //设备状态，也包含QoS排队规则状态
+	unsigned long		state; //设备状态，也包含QoS排队规则状态, %__LINK_STATE_START %__LINK_STATE_SCHED
 
 	struct list_head	dev_list;
 	struct list_head	napi_list;
@@ -1774,7 +1774,7 @@ struct net_device {
 		struct list_head lower;
 	} adj_list;
 
-	netdev_features_t	features; //这个接口支持的各种features
+	netdev_features_t	features; //这个接口支持的各种features, 会在接口初始化的时候设置，内核用来判断这个设备到底支持哪些feature %NETIF_F_SG
 	netdev_features_t	hw_features;
 	netdev_features_t	wanted_features;
 	netdev_features_t	vlan_features;
@@ -1821,10 +1821,10 @@ struct net_device {
 
 	const struct header_ops *header_ops; //硬件首部描述
 
-	unsigned int		flags; //各种flags
-	unsigned int		priv_flags;
+	unsigned int		flags; //各种flags, 也是用来表明接口的特性或者能力 %IFF_UP
+	unsigned int		priv_flags; //flags类似，但是对用户不可见，%IFF_BONDING
 
-	unsigned short		gflags;
+	unsigned short		gflags; //记录设备的IFF_PROMISC IFF_ALLMULTI, 搭配flags使用
 	unsigned short		padded;
 
 	unsigned char		operstate;
@@ -1833,11 +1833,11 @@ struct net_device {
 	unsigned char		if_port; //多端口设备上指定使用哪个端口
 	unsigned char		dma; //为设备分配的dma通道
 
-	unsigned int		mtu; //接口mtu值
+	unsigned int		mtu; //接口mtu值, 其中以太网是%ETH_DATA_MTU
 	unsigned int		min_mtu;
 	unsigned int		max_mtu;
-	unsigned short		type; //接口硬件类型，
-	unsigned short		hard_header_len;
+	unsigned short		type; //接口硬件类型，, ARP模块中会使用type来判断接口的硬件地址类型，以太网是%ARPHRD_ETHER
+	unsigned short		hard_header_len; //硬件首部长度， 以太网是%ETH_HLEN
 	unsigned char		min_header_len;
 
 	unsigned short		needed_headroom;
@@ -1846,7 +1846,7 @@ struct net_device {
 	/* Interface address info. */ //接口地址信息
 	unsigned char		perm_addr[MAX_ADDR_LEN]; //mac地址，一搬在初始化的时候从硬件读取
 	unsigned char		addr_assign_type;
-	unsigned char		addr_len;
+	unsigned char		addr_len; //硬件地址长度
 	unsigned short		neigh_priv_len;
 	unsigned short          dev_id;
 	unsigned short          dev_port;
@@ -1855,12 +1855,12 @@ struct net_device {
 	bool			uc_promisc;
 	struct netdev_hw_addr_list	uc;
 	struct netdev_hw_addr_list	mc;
-	struct netdev_hw_addr_list	dev_addrs;
+	struct netdev_hw_addr_list	dev_addrs; //设备的硬件地址
 
 #ifdef CONFIG_SYSFS
 	struct kset		*queues_kset;
 #endif
-	unsigned int		promiscuity;
+	unsigned int		promiscuity; //混杂模式计数器，每一次设置或退出的时候，会++或--，直到为0的时候，才表示真的退出混杂模式
 	unsigned int		allmulti;
 
 
@@ -1910,7 +1910,7 @@ struct net_device {
 #ifdef CONFIG_NET_CLS_ACT
 	struct mini_Qdisc __rcu	*miniq_ingress;
 #endif
-	struct netdev_queue __rcu *ingress_queue;
+	struct netdev_queue __rcu *ingress_queue; //输入的queue, 
 #ifdef CONFIG_NETFILTER_INGRESS
 	struct nf_hook_entries __rcu *nf_hooks_ingress;
 #endif
@@ -1924,14 +1924,14 @@ struct net_device {
 /*
  * Cache lines mostly used on transmit path
  */
-	struct netdev_queue	*_tx ____cacheline_aligned_in_smp;
-	unsigned int		num_tx_queues;
+	struct netdev_queue	*_tx ____cacheline_aligned_in_smp; //输出的queue, 不同的设备queue的数目不一样，所以是指针，而不是数组
+	unsigned int		num_tx_queues; //txqueue数目
 	unsigned int		real_num_tx_queues;
-	struct Qdisc		*qdisc; //排队规则
+	struct Qdisc		*qdisc; //排队规则, 用于TC子系统
 #ifdef CONFIG_NET_SCHED
 	DECLARE_HASHTABLE	(qdisc_hash, 4);
 #endif
-	unsigned int		tx_queue_len;
+	unsigned int		tx_queue_len; //设备发送队列中排队的最大数据包，以太网驱动默认值是1000， 可以通过ifconfig设置 ifconfig eth0 txqueuelen 2000
 	spinlock_t		tx_global_lock;
 	int			watchdog_timeo;
 
@@ -2345,7 +2345,7 @@ struct packet_type {
 };
 
 struct offload_callbacks {
-	struct sk_buff		*(*gso_segment)(struct sk_buff *skb, //网络设备如果不支持GSO功能的话，通过这个接口调用到传输层的GSO函数
+	struct sk_buff		*(*gso_segment)(struct sk_buff *skb, //网络设备如果不支持GSO功能的话，通过这个接口调用到传输层的GSO函数。这种场景发生在，TCP层设置了GSO标志，所以一直没有做分片，但是到了设备层，发现设备根本不支持，所以要回调，在TCP层做分段
 						netdev_features_t features);
 	struct sk_buff		*(*gro_receive)(struct list_head *head,
 						struct sk_buff *skb);
@@ -4139,7 +4139,7 @@ void netdev_notify_peers(struct net_device *dev);
 void netdev_features_change(struct net_device *dev);
 /* Load a device via the kmod */
 void dev_load(struct net *net, const char *name);
-struct rtnl_link_stats64 *dev_get_stats(struct net_device *dev,
+struct rtnl_link_stats64 *dev_get_stats(struct net_device *dev, //提供给应用程序获得接口统计信息
 					struct rtnl_link_stats64 *storage);
 void netdev_stats_to_stats64(struct rtnl_link_stats64 *stats64,
 			     const struct net_device_stats *netdev_stats);

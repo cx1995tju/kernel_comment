@@ -545,6 +545,7 @@ static void ip_copy_metadata(struct sk_buff *to, struct sk_buff *from)
 	skb_copy_secmark(to, from);
 }
 
+//分片的功能几乎不会使用的，UDP场景下，应该由用户控制报文不要太大。TCP场景下，协议栈几乎限制住了TCP报文的大小
 static int ip_fragment(struct net *net, struct sock *sk, struct sk_buff *skb,
 		       unsigned int mtu,
 		       int (*output)(struct net *, struct sock *, struct sk_buff *))

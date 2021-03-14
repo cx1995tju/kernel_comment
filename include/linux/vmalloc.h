@@ -14,9 +14,9 @@ struct vm_area_struct;		/* vma defining user mapping in mm_types.h */
 struct notifier_block;		/* in notifier.h */
 
 /* bits in flags of vmalloc's vm_struct below */
-#define VM_IOREMAP		0x00000001	/* ioremap() and friends */
-#define VM_ALLOC		0x00000002	/* vmalloc() */
-#define VM_MAP			0x00000004	/* vmap()ed pages */
+#define VM_IOREMAP		0x00000001	/* ioremap() and friends , 几乎随机的物理区域映射到vmalloc区域 */
+#define VM_ALLOC		0x00000002	/* vmalloc() , 由vmalloc产生的子区域*/
+#define VM_MAP			0x00000004	/* vmap()ed pages , 将现存的page集合映射到vmalloc区域 */
 #define VM_USERMAP		0x00000008	/* suitable for remap_vmalloc_range */
 #define VM_UNINITIALIZED	0x00000020	/* vm_struct is not fully initialized */
 #define VM_NO_GUARD		0x00000040      /* don't add guard page */
@@ -31,14 +31,15 @@ struct notifier_block;		/* in notifier.h */
 #define IOREMAP_MAX_ORDER	(7 + PAGE_SHIFT)	/* 128 pages */
 #endif
 
+//每个vmalloc区域都有一个该结构
 struct vm_struct {
-	struct vm_struct	*next;
-	void			*addr;
+	struct vm_struct	*next; //所有的vmalloc保存在单链表
+	void			*addr; //分配的区域的虚拟地址
 	unsigned long		size;
-	unsigned long		flags;
-	struct page		**pages;
+	unsigned long		flags; //相关标志 %VM_ALLOC
+	struct page		**pages; //相关的pages
 	unsigned int		nr_pages;
-	phys_addr_t		phys_addr;
+	phys_addr_t		phys_addr; //仅当用ioremap映射了由物理地址描述的物理内存区域时才需要.该信息保存在phys_addr中
 	const void		*caller;
 };
 

@@ -1592,7 +1592,7 @@ unsigned int tcp_current_mss(struct sock *sk)
 	return mss_now;
 }
 
-/* RFC2861, slow part. Adjust cwnd, after it was not full during one rto.
+/* RFC2861, slow part. Adjust cwnd, after it was not full during one rto. 一个rto内，cwnd没有满
  * As additional protections, we do not touch cwnd in retransmission phases,
  * and if application hit its sndbuf limit recently.
  */

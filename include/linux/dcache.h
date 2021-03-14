@@ -92,14 +92,14 @@ struct dentry {
 	struct hlist_bl_node d_hash;	/* lookup hash list */
 	struct dentry *d_parent;	/* parent directory */
 	struct qstr d_name;
-	struct inode *d_inode;		/* Where the name belongs to - NULL is
+	struct inode *d_inode;		/* Where the name belongs to - NULL is			文件名所属的inode, 多个硬链接可能是同一个inode结构，但是不同的dentry结构,主要是为了加速inode的查找，如果是NUL则是加速不存在的文件路径的查找
 					 * negative */
-	unsigned char d_iname[DNAME_INLINE_LEN];	/* small names */
+	unsigned char d_iname[DNAME_INLINE_LEN];	/* small names */ //如果文件名只有少量字符的话，就保存在这里，加速查找
 
 	/* Ref lookup also touches following */
 	struct lockref d_lockref;	/* per-dentry lock and refcount */
 	const struct dentry_operations *d_op;
-	struct super_block *d_sb;	/* The root of the dentry tree */
+	struct super_block *d_sb;	/* The root of the dentry tree */ //指向超级块
 	unsigned long d_time;		/* used by d_revalidate */
 	void *d_fsdata;			/* fs-specific data */
 
@@ -108,12 +108,12 @@ struct dentry {
 		wait_queue_head_t *d_wait;	/* in-lookup ones only */
 	};
 	struct list_head d_child;	/* child of parent list */
-	struct list_head d_subdirs;	/* our children */
+	struct list_head d_subdirs;	/* our children */ //dentry结构通过这两个结构组织成树状网络
 	/*
 	 * d_alias and d_rcu can share memory
 	 */
 	union {
-		struct hlist_node d_alias;	/* inode alias list */
+		struct hlist_node d_alias;	/* inode alias list */ //链接相同inode的不同dentry，硬链接会发生该情况
 		struct hlist_bl_node d_in_lookup_hash;	/* only for in-lookup ones */
 	 	struct rcu_head d_rcu;
 	} d_u;
@@ -132,16 +132,19 @@ enum dentry_d_lock_class
 };
 
 struct dentry_operations {
+	/*
+	 对网络文件系统特别重要。它检查内存中的各个dentry对象构成的结构是否仍 然能够反映当前文件系统中的情况。因为网络文件系统并不直接关联到内核/VFS，所有信息 都必须通过网络连接收集，可能由于文件系统在存储端的改变，致使某些dentry不再有效。 该函数用于确保一致性。
+	 * */
 	int (*d_revalidate)(struct dentry *, unsigned int);
 	int (*d_weak_revalidate)(struct dentry *, unsigned int);
-	int (*d_hash)(const struct dentry *, struct qstr *);
+	int (*d_hash)(const struct dentry *, struct qstr *); //散列值计算
 	int (*d_compare)(const struct dentry *,
-			unsigned int, const char *, const struct qstr *);
+			unsigned int, const char *, const struct qstr *); //比较两个dentry的字符串
 	int (*d_delete)(const struct dentry *);
 	int (*d_init)(struct dentry *);
-	void (*d_release)(struct dentry *);
+	void (*d_release)(struct dentry *); //删除之前调用release
 	void (*d_prune)(struct dentry *);
-	void (*d_iput)(struct dentry *, struct inode *);
+	void (*d_iput)(struct dentry *, struct inode *); //释放inode对象
 	char *(*d_dname)(struct dentry *, char *, int);
 	struct vfsmount *(*d_automount)(struct path *);
 	int (*d_manage)(const struct path *, bool);

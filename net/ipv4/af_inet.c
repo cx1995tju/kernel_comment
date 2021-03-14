@@ -1297,6 +1297,7 @@ void inet_sk_state_store(struct sock *sk, int newstate)
 	smp_store_release(&sk->sk_state, newstate);
 }
 
+//主要作用就是来回调TCP层的分段函数
 struct sk_buff *inet_gso_segment(struct sk_buff *skb,
 				 netdev_features_t features)
 {
@@ -1347,7 +1348,7 @@ struct sk_buff *inet_gso_segment(struct sk_buff *skb,
 	}
 
 	ops = rcu_dereference(inet_offloads[proto]);
-	if (likely(ops && ops->callbacks.gso_segment))
+	if (likely(ops && ops->callbacks.gso_segment)) //会调用到tcp4_gso_segment
 		segs = ops->callbacks.gso_segment(skb, features);
 
 	if (IS_ERR_OR_NULL(segs))
