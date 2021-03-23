@@ -250,7 +250,7 @@ struct sock_common {
   *	@sk_rcvbuf: size of receive buffer in bytes 接收缓冲区上界 接收缓冲区上界
   *	@sk_wq: sock wait queue and async head
   *	@sk_rx_dst: receive input route used by early demux
-  *	@sk_dst_cache: destination cache 目的路由缓存, 某些情况下会刷行该结构
+  *	@sk_dst_cache: destination cache 目的路由缓存, 某些情况下会刷行该结构, 基于下一跳保存的
   *	@sk_dst_pending_confirm: need to confirm neighbour
   *	@sk_policy: flow policy IPsec相关的传输策略 
   *	@sk_receive_queue: incoming packets
@@ -290,7 +290,7 @@ struct sock_common {
   *	@sk_ack_backlog: current listen backlog  接收syn的时候++, accept的时候--
   *	@sk_max_ack_backlog: listen backlog set in listen()
   *	@sk_uid: user id of owner
-  *	@sk_priority: %SO_PRIORITY setting QoS类型, 见SO_PRIORITY 和 IP_TOS选项，将TC子系统
+  *	@sk_priority: %SO_PRIORITY setting QoS类型, 见SO_PRIORITY 和 IP_TOS选项，见TC子系统
   *	@sk_type: socket type (%SOCK_STREAM, etc)
   *	@sk_protocol: which protocol this socket belongs in this network family
   *	@sk_peer_pid: &struct pid for this socket's peer
@@ -406,7 +406,7 @@ struct sock {
 	struct xfrm_policy __rcu *sk_policy[2];
 #endif
 	struct dst_entry	*sk_rx_dst;
-	struct dst_entry __rcu	*sk_dst_cache; //路由缓存, 某些情况会刷新缓存：断开连接，TCP重传
+	struct dst_entry __rcu	*sk_dst_cache; //路由缓存, 某些情况会刷新缓存：断开连接，TCP重传, 但是现在不缓存路由层，而是下一跳了, 这个不仅仅是针对ip协议的，是通用的dst_entry
 	atomic_t		sk_omem_alloc; //分配辅助缓冲区的上界
 	int			sk_sndbuf;
 
@@ -421,7 +421,7 @@ struct sock {
 	struct sk_buff_head	sk_write_queue; //发送队列 + 重传队列，sk_send_head前重传队列，==及==之后为发送队列
 	__s32			sk_peek_off;
 	int			sk_write_pending; //标记马上有数据写入套接字
-	__u32			sk_dst_pending_confirm;
+	__u32			sk_dst_pending_confirm; //标记是否需要confirm neighbour
 	u32			sk_pacing_status; /* see enum sk_pacing */
 	long			sk_sndtimeo;
 	struct timer_list	sk_timer; /* 定时器呀，实现各种TCP中用到的定时器，保活， FIN_WAIT_2 */

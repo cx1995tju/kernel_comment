@@ -72,6 +72,7 @@ void tcp_rate_skb_sent(struct sock *sk, struct sk_buff *skb)
  * called multiple times. We favor the information from the most recently
  * sent skb, i.e., the skb with the highest prior_delivered count.
  */
+//各种采样？？？
 void tcp_rate_skb_delivered(struct sock *sk, struct sk_buff *skb,
 			    struct rate_sample *rs)
 {

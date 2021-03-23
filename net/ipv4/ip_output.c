@@ -221,9 +221,9 @@ static int ip_finish_output2(struct net *net, struct sock *sk, struct sk_buff *s
 
 	rcu_read_lock_bh();
 	nexthop = (__force u32) rt_nexthop(rt, ip_hdr(skb)->daddr);
-	neigh = __ipv4_neigh_lookup_noref(dev, nexthop);
+	neigh = __ipv4_neigh_lookup_noref(dev, nexthop); //这里查找到了就不需要分配了
 	if (unlikely(!neigh))
-		neigh = __neigh_create(&arp_tbl, &nexthop, dev, false);
+		neigh = __neigh_create(&arp_tbl, &nexthop, dev, false); //没有邻居项就创建。
 	if (!IS_ERR(neigh)) {
 		int res;
 
@@ -428,7 +428,7 @@ static void ip_copy_addrs(struct iphdr *iph, const struct flowi4 *fl4)
 }
 
 /* Note: skb->sk can be different from sk, in case of tunnels */
-//如果没有路由缓存的话，需要查找路由表的
+//如果没有路由缓存的话，需要查找路由表的, 现在已经没有真正的路由缓存了，只会缓存下一跳了
 int __ip_queue_xmit(struct sock *sk, struct sk_buff *skb, struct flowi *fl,
 		    __u8 tos)
 {
@@ -446,7 +446,7 @@ int __ip_queue_xmit(struct sock *sk, struct sk_buff *skb, struct flowi *fl,
 	rcu_read_lock();
 	inet_opt = rcu_dereference(inet->inet_opt); //获取选项
 	fl4 = &fl->u.ip4;
-	rt = skb_rtable(skb); //路由缓存项
+	rt = skb_rtable(skb); //路由缓存项, 这表示skb已经被路由过了
 	if (rt)
 		goto packet_routed;
 
@@ -464,6 +464,7 @@ int __ip_queue_xmit(struct sock *sk, struct sk_buff *skb, struct flowi *fl,
 		 * keep trying until route appears or the connection times
 		 * itself out.
 		 */
+		//现在没有路由缓存了，必须查找
 		rt = ip_route_output_ports(net, fl4, sk,
 					   daddr, inet->inet_saddr,
 					   inet->inet_dport,
@@ -475,7 +476,7 @@ int __ip_queue_xmit(struct sock *sk, struct sk_buff *skb, struct flowi *fl,
 			goto no_route;
 		sk_setup_caps(sk, &rt->dst);
 	}
-	skb_dst_set_noref(skb, &rt->dst);
+	skb_dst_set_noref(skb, &rt->dst); //skb已经被路由了
 
 packet_routed:
 	if (inet_opt && inet_opt->opt.is_strictroute && rt->rt_uses_gateway)

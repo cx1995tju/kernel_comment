@@ -48,8 +48,8 @@
 struct fib_nh;
 struct fib_info;
 struct uncached_list;
-struct rtable { //ipv4的路由缓存项条目
-	struct dst_entry	dst;
+struct rtable { //ipv4的路由缓存项条目, 主要是缓存下一跳的信息
+	struct dst_entry	dst; //这是general的
 
 	int			rt_genid;
 	unsigned int		rt_flags; //%RTCF_NOTIFY
@@ -60,7 +60,7 @@ struct rtable { //ipv4的路由缓存项条目
 	int			rt_iif; /* 输入网络设备索引 */
 
 	/* Info on neighbour */
-	__be32			rt_gateway; //直连的时候，rt_gateway表示目的地址；其他情况表示是下一跳的网关地址
+	__be32			rt_gateway; //直连的时候，rt_gateway表示目的地址；其他情况表示是下一跳的网关地址, 缓存了下一跳地址，非常重要。
 
 	/* Miscellaneous cached information */
 	u32			rt_mtu_locked:1,

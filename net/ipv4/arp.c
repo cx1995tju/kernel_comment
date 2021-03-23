@@ -877,7 +877,7 @@ static int arp_process(struct net *net, struct sock *sk, struct sk_buff *skb)
 		}
 	}
 
-	/* Update our ARP tables */
+	/* Update our ARP tables */ //是ARP REPLAY报文
 
 	n = __neigh_lookup(&arp_tbl, &sip, dev, 0);
 

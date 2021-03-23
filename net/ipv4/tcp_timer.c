@@ -766,6 +766,7 @@ static enum hrtimer_restart tcp_compressed_ack_kick(struct hrtimer *timer)
 }
 
 /* tcp定时器初始化, 创建套接口的时候调用, tcp_sock的时候调用 */
+//仅仅是初始化，各个定时器的激活是各不相同的
 void tcp_init_xmit_timers(struct sock *sk)
 {
 	inet_csk_init_xmit_timers(sk, &tcp_write_timer, &tcp_delack_timer,

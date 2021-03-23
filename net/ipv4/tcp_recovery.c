@@ -198,6 +198,7 @@ void tcp_rack_reo_timeout(struct sock *sk)
  * reo_wnd is tracked in terms of steps (of min_rtt/4), rather than
  * absolute value to account for change in rtt.
  */
+//更新rack的丢包时间阈值
 void tcp_rack_update_reo_wnd(struct sock *sk, struct rate_sample *rs)
 {
 	struct tcp_sock *tp = tcp_sk(sk);

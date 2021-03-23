@@ -581,6 +581,7 @@ EXPORT_SYMBOL(tcp_create_openreq_child);
  * We don't need to initialize tmp_opt.sack_ok as we don't use the results
  */
 
+//第三次握手的ack在这里被处理
 struct sock *tcp_check_req(struct sock *sk, struct sk_buff *skb,
 			   struct request_sock *req,
 			   bool fastopen, bool *req_stolen)

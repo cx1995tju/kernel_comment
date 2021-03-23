@@ -819,7 +819,7 @@ struct tcp_skb_cb {
 	__u8		tcp_flags;	/* TCP header flags. (tcp[13])	*/
 
 	__u8		sacked;		/* State flags for SACK.	*/ //记分牌算法的状态, 这个成员也会用来保存sack块在头部的偏移，见tcp_sacktag_write_queue
-#define TCPCB_SACKED_ACKED	0x01	/* SKB ACK'd by a SACK block	S, 表示原先发送的段已经到达接收方*/
+#define TCPCB_SACKED_ACKED	0x01	/* SKB ACK'd by a SACK block	S, 表示原先发送的段已经到达接收方, 就是被sacked了*/
 #define TCPCB_SACKED_RETRANS	0x02	/* SKB retransmitted		R, 原先发送和重传的段还在网络中传输*/
 #define TCPCB_LOST		0x04	/* SKB is lost			L, 原先发送的段已经丢失了*/ //L|R 表示原先发送的段已经丢失，但是重传的段还在网络中传输
 										//S|R 最先发送的段已经到达对方，但是重传的段还在网络中传输
@@ -1120,6 +1120,7 @@ void tcp_rate_check_app_limited(struct sock *sk);
  *
  * tcp_is_sack - SACK enabled
  * tcp_is_reno - No SACK
+ * linux的tcp实现用了统一的方式来表达sack与reno方式, 在快速重传中会使用
  */
 static inline int tcp_is_sack(const struct tcp_sock *tp)
 {
@@ -1328,6 +1329,7 @@ static inline void tcp_sack_reset(struct tcp_options_received *rx_opt)
 u32 tcp_default_init_rwnd(u32 mss);
 void tcp_cwnd_restart(struct sock *sk, s32 delta);
 
+//判断是否要在idle之后进入slow start, RFC2861, CWV机制的第一部分
 static inline void tcp_slow_start_after_idle_check(struct sock *sk)
 {
 	const struct tcp_congestion_ops *ca_ops = inet_csk(sk)->icsk_ca_ops;
@@ -1335,7 +1337,7 @@ static inline void tcp_slow_start_after_idle_check(struct sock *sk)
 	s32 delta;
 
 	if (!sock_net(sk)->ipv4.sysctl_tcp_slow_start_after_idle || tp->packets_out ||
-	    ca_ops->cong_control)
+	    ca_ops->cong_control) //开启了的话
 		return;
 	delta = tcp_jiffies32 - tp->lsndtime;
 	if (delta > inet_csk(sk)->icsk_rto)
@@ -1410,7 +1412,7 @@ static inline int tcp_fin_time(const struct sock *sk)
 	int fin_timeout = tcp_sk(sk)->linger2 ? : sock_net(sk)->ipv4.sysctl_tcp_fin_timeout;
 	const int rto = inet_csk(sk)->icsk_rto;
 
-	if (fin_timeout < (rto << 2) - (rto >> 1))
+	if (fin_timeout < (rto << 2) - (rto >> 1)) //3.5rto??????
 		fin_timeout = (rto << 2) - (rto >> 1);
 
 	return fin_timeout;
@@ -1757,13 +1759,13 @@ static inline void tcp_push_pending_frames(struct sock *sk)
  */
 static inline u32 tcp_highest_sack_seq(struct tcp_sock *tp)
 {
-	if (!tp->sacked_out)
+	if (!tp->sacked_out) //没有sack块
 		return tp->snd_una;
 
-	if (tp->highest_sack == NULL)
+	if (tp->highest_sack == NULL) //最大的sack块为空
 		return tp->snd_nxt;
 
-	return TCP_SKB_CB(tp->highest_sack)->seq; //tcp控制块中有sack信息
+	return TCP_SKB_CB(tp->highest_sack)->seq; //tcp控制块中有sack信息, 最大sack块序号, 为什么是start seq？
 }
 
 static inline void tcp_advance_highest_sack(struct sock *sk, struct sk_buff *skb)
@@ -1776,6 +1778,7 @@ static inline struct sk_buff *tcp_highest_sack(struct sock *sk)
 	return tcp_sk(sk)->highest_sack;
 }
 
+//当前没有sack块的时候，需要重置sack
 static inline void tcp_highest_sack_reset(struct sock *sk)
 {
 	tcp_sk(sk)->highest_sack = tcp_rtx_queue_head(sk);

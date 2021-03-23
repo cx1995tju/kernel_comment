@@ -95,7 +95,7 @@ struct inet_connection_sock {
 	struct request_sock_queue icsk_accept_queue; //TCP层接收到连接请求后，会创建一个sock结构存档到这里, 等待accept来获取
 	struct inet_bind_bucket	  *icsk_bind_hash; //绑定的端口信息
 	unsigned long		  icsk_timeout; //即超时重传时间, 一般等于jiffies + icsk_rto
- 	struct timer_list	  icsk_retransmit_timer; //重传定时器或持续定时器，使用icsk_pending来区分
+ 	struct timer_list	  icsk_retransmit_timer; //重传定时器或持续定时器，使用icsk_pending来区分%ICSK_TIME_RETRANS
  	struct timer_list	  icsk_delack_timer; //延迟ack定时器
 	__u32			  icsk_rto; //RTO
 	__u32			  icsk_pmtu_cookie; //最近一次更新的PMTU
@@ -148,7 +148,7 @@ struct inet_connection_sock {
 #define ICSK_TIME_DACK		2	/* Delayed ack timer */
 #define ICSK_TIME_PROBE0	3	/* Zero window probe timer */
 #define ICSK_TIME_EARLY_RETRANS 4	/* Early retransmit timer */
-#define ICSK_TIME_LOSS_PROBE	5	/* Tail loss probe timer */
+#define ICSK_TIME_LOSS_PROBE	5	/* Tail loss probe timer , 与retransmit公用定时器 */
 #define ICSK_TIME_REO_TIMEOUT	6	/* Reordering timer */
 
 static inline struct inet_connection_sock *inet_csk(const struct sock *sk)

@@ -1160,7 +1160,7 @@ static int __tcp_transmit_skb(struct sock *sk, struct sk_buff *skb,
 	memset(skb->cb, 0, max(sizeof(struct inet_skb_parm),
 			       sizeof(struct inet6_skb_parm)));
 
-	err = icsk->icsk_af_ops->queue_xmit(sk, skb, &inet->cork.fl); //调用ip层的发送接口，ip_queue_xmit
+	err = icsk->icsk_af_ops->queue_xmit(sk, skb, &inet->cork.fl); //调用ip(v4 或者 v6)层的发送接口，ip_queue_xmit
 
 	if (unlikely(err > 0)) {
 		tcp_enter_cwr(sk); //出错了，进入拥塞控制
@@ -2971,7 +2971,7 @@ int tcp_retransmit_skb(struct sock *sk, struct sk_buff *skb, int segs)
 
 	if (tp->undo_retrans < 0)
 		tp->undo_retrans = 0;
-	tp->undo_retrans += tcp_skb_pcount(skb);
+	tp->undo_retrans += tcp_skb_pcount(skb); //重传的时候，要设置undo计数的，后续用于撤销等
 	return err;
 }
 
@@ -3521,7 +3521,7 @@ int tcp_connect(struct sock *sk)
 	if (unlikely(!buff))
 		return -ENOBUFS;
 
-	tcp_init_nondata_skb(buff, tp->write_seq++, TCPHDR_SYN);
+	tcp_init_nondata_skb(buff, tp->write_seq++, TCPHDR_SYN); //构造syn包
 	tcp_mstamp_refresh(tp);
 	tp->retrans_stamp = tcp_time_stamp(tp);
 	tcp_connect_queue_skb(sk, buff);
@@ -3547,6 +3547,7 @@ int tcp_connect(struct sock *sk)
 	TCP_INC_STATS(sock_net(sk), TCP_MIB_ACTIVEOPENS);
 
 	/* Timer for repeating the SYN until an answer. */
+	//启动一个timer，用于重传syn包
 	inet_csk_reset_xmit_timer(sk, ICSK_TIME_RETRANS,
 				  inet_csk(sk)->icsk_rto, TCP_RTO_MAX);
 	return 0;

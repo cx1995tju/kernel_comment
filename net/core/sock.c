@@ -498,7 +498,7 @@ struct dst_entry *__sk_dst_check(struct sock *sk, u32 cookie)
 	if (dst && dst->obsolete && dst->ops->check(dst, cookie) == NULL) {
 		sk_tx_queue_clear(sk);
 		sk->sk_dst_pending_confirm = 0;
-		RCU_INIT_POINTER(sk->sk_dst_cache, NULL);
+		RCU_INIT_POINTER(sk->sk_dst_cache, NULL); //置空了
 		dst_release(dst);
 		return NULL;
 	}
@@ -1773,7 +1773,7 @@ void sk_setup_caps(struct sock *sk, struct dst_entry *dst)
 {
 	u32 max_segs = 1;
 
-	sk_dst_set(sk, dst);
+	sk_dst_set(sk, dst); //保存了路由缓存
 	sk->sk_route_caps = dst->dev->features | sk->sk_route_forced_caps;
 	if (sk->sk_route_caps & NETIF_F_GSO)
 		sk->sk_route_caps |= NETIF_F_GSO_SOFTWARE;

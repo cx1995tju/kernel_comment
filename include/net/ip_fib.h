@@ -57,6 +57,7 @@ struct rtable;
 
 //当一个路由项不是由于userspace的动作导致的改变，而是ICMPv4重定向消息或者PMTU发现导致的改变的话，会用到这个结构
 //hash key是dst addr
+//如果查找路由的时候，fib有这个结构的话，就使用这个作为路由查询结果
 struct fib_nh_exception {
 	struct fib_nh_exception __rcu	*fnhe_next;
 	int				fnhe_genid;

@@ -1991,7 +1991,7 @@ struct net_device {
 	struct mrp_port __rcu	*mrp_port;
 #endif
 
-	struct device		dev;
+	struct device		dev; //见SET_NETDEV_DEV宏
 	const struct attribute_group *sysfs_groups[4];
 	const struct attribute_group *sysfs_rx_queue_group;
 
@@ -2169,6 +2169,8 @@ static inline void *netdev_priv(const struct net_device *dev)
 /* Set the sysfs physical device reference for the network logical device
  * if set prior to registration will cause a symlink during initialization.
  */
+//非常有意思，net_device中的dev用来表示一个逻辑device，其父亲是真正的物理设备的device 结构
+
 #define SET_NETDEV_DEV(net, pdev)	((net)->dev.parent = (pdev))
 
 /* Set the sysfs device type for the network logical device to allow

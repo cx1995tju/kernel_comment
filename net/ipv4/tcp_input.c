@@ -893,6 +893,7 @@ static void tcp_dsack_seen(struct tcp_sock *tp)
  * some lower never-retransmitted sequence ("low_seq"). The maximum reordering
  * distance is approximated in full-mss packet distance ("reordering").
  */
+//修正reordering值，即dupthresh值
 static void tcp_check_sack_reordering(struct sock *sk, const u32 low_seq,
 				      const int ts)
 {
@@ -904,7 +905,7 @@ static void tcp_check_sack_reordering(struct sock *sk, const u32 low_seq,
 	if (!before(low_seq, fack))
 		return;
 
-	metric = fack - low_seq;
+	metric = fack - low_seq; //修正reord
 	if ((metric > tp->reordering * mss) && mss) {
 #if FASTRETRANS_DEBUG > 1
 		pr_debug("Disorder%d %d %u f%u s%u rr%d\n",
@@ -919,7 +920,7 @@ static void tcp_check_sack_reordering(struct sock *sk, const u32 low_seq,
 	}
 
 	/* This exciting event is worth to be remembered. 8) */
-	tp->reord_seen++;
+	tp->reord_seen++; //一旦修正过reord，fack就被禁用了
 	NET_INC_STATS(sock_net(sk),
 		      ts ? LINUX_MIB_TCPTSREORDER : LINUX_MIB_TCPSACKREORDER);
 }
@@ -1114,7 +1115,7 @@ static bool tcp_check_dsack(struct sock *sk, const struct sk_buff *ack_skb,
 	u32 end_seq_0 = get_unaligned_be32(&sp[0].end_seq);
 	bool dup_sack = false;
 
-	if (before(start_seq_0, TCP_SKB_CB(ack_skb)->ack_seq)) {
+	if (before(start_seq_0, TCP_SKB_CB(ack_skb)->ack_seq)) { //0号sack块起始序号被ack包包含
 		dup_sack = true;
 		tcp_dsack_seen(tp);
 		NET_INC_STATS(sock_net(sk), LINUX_MIB_TCPDSACKRECV);
@@ -1135,13 +1136,13 @@ static bool tcp_check_dsack(struct sock *sk, const struct sk_buff *ack_skb,
 	if (dup_sack && tp->undo_marker && tp->undo_retrans > 0 &&
 	    !after(end_seq_0, prior_snd_una) &&
 	    after(end_seq_0, tp->undo_marker))
-		tp->undo_retrans--;
+		tp->undo_retrans--; //dup sack导致undo--，用于后续重传撤销操作
 
 	return dup_sack;
 }
 
 struct tcp_sacktag_state {
-	u32	reord;
+	u32	reord; //dupthresh, sack错乱阈值
 	/* Timestamps for earliest and latest never-retransmitted segment
 	 * that was SACKed. RTO needs the earliest RTT to stay conservative,
 	 * but congestion control should still get an accurate delay signal.
@@ -1210,6 +1211,7 @@ static int tcp_match_skb_to_sack(struct sock *sk, struct sk_buff *skb,
 }
 
 /* Mark the given newly-SACKed range as such, adjusting counters and hints. */
+//sack处理核心
 static u8 tcp_sacktag_one(struct sock *sk,
 			  struct tcp_sacktag_state *state, u8 sacked,
 			  u32 start_seq, u32 end_seq,
@@ -1219,7 +1221,7 @@ static u8 tcp_sacktag_one(struct sock *sk,
 	struct tcp_sock *tp = tcp_sk(sk);
 
 	/* Account D-SACK for retransmitted packet. */
-	if (dup_sack && (sacked & TCPCB_RETRANS)) {
+	if (dup_sack && (sacked & TCPCB_RETRANS)) { //DSACK需要undo--
 		if (tp->undo_marker && tp->undo_retrans > 0 &&
 		    after(end_seq, tp->undo_marker))
 			tp->undo_retrans--;
@@ -1243,7 +1245,7 @@ static u8 tcp_sacktag_one(struct sock *sk,
 			if (sacked & TCPCB_LOST) {
 				sacked &= ~(TCPCB_LOST|TCPCB_SACKED_RETRANS);
 				tp->lost_out -= pcount;
-				tp->retrans_out -= pcount;
+				tp->retrans_out -= pcount; //被确认了一些数据
 			}
 		} else {
 			if (!(sacked & TCPCB_RETRANS)) {
@@ -1270,7 +1272,7 @@ static u8 tcp_sacktag_one(struct sock *sk,
 
 		sacked |= TCPCB_SACKED_ACKED;
 		state->flag |= FLAG_DATA_SACKED;
-		tp->sacked_out += pcount;
+		tp->sacked_out += pcount; //sacked_out更新
 		tp->delivered += pcount;  /* Out-of-order packets delivered */
 
 		/* Lost marker hint past SACKed? Tweak RFC3517 cnt */
@@ -1533,13 +1535,13 @@ fallback:
 static struct sk_buff *tcp_sacktag_walk(struct sk_buff *skb, struct sock *sk,
 					struct tcp_sack_block *next_dup,
 					struct tcp_sacktag_state *state,
-					u32 start_seq, u32 end_seq,
+					u32 start_seq, u32 end_seq, //sack块起始
 					bool dup_sack_in)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
 	struct sk_buff *tmp;
 
-	skb_rbtree_walk_from(skb) {
+	skb_rbtree_walk_from(skb) { //遍历skb？？？？
 		int in_sack = 0;
 		bool dup_sack = dup_sack_in;
 
@@ -1581,7 +1583,7 @@ static struct sk_buff *tcp_sacktag_walk(struct sk_buff *skb, struct sock *sk,
 			break;
 
 		if (in_sack) {
-			TCP_SKB_CB(skb)->sacked =
+			TCP_SKB_CB(skb)->sacked = //该skb的标记
 				tcp_sacktag_one(sk,
 						state,
 						TCP_SKB_CB(skb)->sacked,
@@ -1599,7 +1601,7 @@ static struct sk_buff *tcp_sacktag_walk(struct sk_buff *skb, struct sock *sk,
 				tcp_advance_highest_sack(sk, skb);
 		}
 	}
-	return skb;
+	return skb; //返回的skb，作为后续遍历起点
 }
 
 static struct sk_buff *tcp_sacktag_bsearch(struct sock *sk,
@@ -1659,7 +1661,9 @@ static int tcp_sack_cache_ok(const struct tcp_sock *tp, const struct tcp_sack_bl
 	return cache < tp->recv_sack_cache + ARRAY_SIZE(tp->recv_sack_cache);
 }
 
-/* 接收到ack后，根据sack选项标志,标记重传队列中skb的记分牌状态 */
+/* 接收到ack后，根据sack选项标志,标记重传队列中skb的记分牌状态, 譬如标记出lost的skb */
+//也可能需要更新reord值
+//重要函数，根据sack信息，更新各种状态，这里是后续各种算法的动力源, 重要信息记录state
 static int
 tcp_sacktag_write_queue(struct sock *sk, const struct sk_buff *ack_skb,
 			u32 prior_snd_una, struct tcp_sacktag_state *state)
@@ -1667,11 +1671,11 @@ tcp_sacktag_write_queue(struct sock *sk, const struct sk_buff *ack_skb,
 	struct tcp_sock *tp = tcp_sk(sk);
 	const unsigned char *ptr = (skb_transport_header(ack_skb) +
 				    TCP_SKB_CB(ack_skb)->sacked); //获取sack块地址指针, sacked初始的时候保存了sack块的偏移
-	struct tcp_sack_block_wire *sp_wire = (struct tcp_sack_block_wire *)(ptr+2); //sack选项的头两个字节保存种类与长度，跳过
-	struct tcp_sack_block sp[TCP_NUM_SACKS]; //最多4个sack块
-	struct tcp_sack_block *cache;
+	struct tcp_sack_block_wire *sp_wire = (struct tcp_sack_block_wire *)(ptr+2); //sack选项的头两个字节保存种类与长度，跳过, 大端形式的sack块
+	struct tcp_sack_block sp[TCP_NUM_SACKS]; //最多4个sack块, 主机字节顺序的sack块
+	struct tcp_sack_block *cache; //cache？？？？
 	struct sk_buff *skb;
-	int num_sacks = min(TCP_NUM_SACKS, (ptr[1] - TCPOLEN_SACK_BASE) >> 3); //ptr[1] 保存的是sack块长度, 每个sack块 2 * 4B = 8B
+	int num_sacks = min(TCP_NUM_SACKS, (ptr[1] - TCPOLEN_SACK_BASE) >> 3); //ptr[1] 保存的是sack块长度, 每个sack块 2 * 4B = 8B, sack块数目
 	int used_sacks;
 	bool found_dup_sack = false;
 	int i, j;
@@ -1680,7 +1684,7 @@ tcp_sacktag_write_queue(struct sock *sk, const struct sk_buff *ack_skb,
 	state->flag = 0;
 	state->reord = tp->snd_nxt;
 
-	if (!tp->sacked_out) //重新设置最大的sack块的序号
+	if (!tp->sacked_out) //sacked_out为0，表示当前在发送队列中没有任何被sack的段
 		tcp_highest_sack_reset(sk);
 
 	found_dup_sack = tcp_check_dsack(sk, ack_skb, sp_wire,
@@ -1697,31 +1701,31 @@ tcp_sacktag_write_queue(struct sock *sk, const struct sk_buff *ack_skb,
 	if (before(TCP_SKB_CB(ack_skb)->ack_seq, prior_snd_una - tp->max_window))
 		return 0;
 
-	if (!tp->packets_out)
+	if (!tp->packets_out) //没有packets_out
 		goto out;
 
 	used_sacks = 0;
 	first_sack_index = 0;
-	for (i = 0; i < num_sacks; i++) {
-		bool dup_sack = !i && found_dup_sack;
+	for (i = 0; i < num_sacks; i++) { //遍历sack块
+		bool dup_sack = !i && found_dup_sack; //只有第0个块可能是dsack
 
-		sp[used_sacks].start_seq = get_unaligned_be32(&sp_wire[i].start_seq);
+		sp[used_sacks].start_seq = get_unaligned_be32(&sp_wire[i].start_seq); //sack块序号, 大小端转换
 		sp[used_sacks].end_seq = get_unaligned_be32(&sp_wire[i].end_seq);
 
-		if (!tcp_is_sackblock_valid(tp, dup_sack,
+		if (!tcp_is_sackblock_valid(tp, dup_sack, //sackblock是非法的，进行统计
 					    sp[used_sacks].start_seq,
 					    sp[used_sacks].end_seq)) {
 			int mib_idx;
 
 			if (dup_sack) {
-				if (!tp->undo_marker) //undo_marker是响应算法检测时记录的SND.UNA
+				if (!tp->undo_marker)
 					mib_idx = LINUX_MIB_TCPDSACKIGNOREDNOUNDO;
 				else
 					mib_idx = LINUX_MIB_TCPDSACKIGNOREDOLD;
 			} else {
 				/* Don't count olds caused by ACK reordering */
 				if ((TCP_SKB_CB(ack_skb)->ack_seq != tp->snd_una) &&
-				    !after(sp[used_sacks].end_seq, tp->snd_una))
+				    !after(sp[used_sacks].end_seq, tp->snd_una)) //老的在una之前的sack段
 					continue;
 				mib_idx = LINUX_MIB_TCPSACKDISCARD;
 			}
@@ -1732,7 +1736,7 @@ tcp_sacktag_write_queue(struct sock *sk, const struct sk_buff *ack_skb,
 			continue;
 		}
 
-		/* Ignore very old stuff early */
+		/* Ignore very old stuff early */ //sack块太老了，不care
 		if (!after(sp[used_sacks].end_seq, prior_snd_una))
 			continue;
 
@@ -1740,7 +1744,8 @@ tcp_sacktag_write_queue(struct sock *sk, const struct sk_buff *ack_skb,
 	}
 
 	/* order SACK blocks to allow in order walk of the retrans queue */
-	for (i = used_sacks - 1; i > 0; i--) {
+	//排个顺序
+	for (i = used_sacks - 1; i > 0; i--) { //sack块排序, 按照start seq
 		for (j = 0; j < i; j++) {
 			if (after(sp[j].start_seq, sp[j + 1].start_seq)) {
 				swap(sp[j], sp[j + 1]);
@@ -1756,40 +1761,40 @@ tcp_sacktag_write_queue(struct sock *sk, const struct sk_buff *ack_skb,
 	skb = NULL;
 	i = 0;
 
-	if (!tp->sacked_out) {
+	if (!tp->sacked_out) { //队列中当前没有sacked out
 		/* It's already past, so skip checking against it */
-		cache = tp->recv_sack_cache + ARRAY_SIZE(tp->recv_sack_cache);
+		cache = tp->recv_sack_cache + ARRAY_SIZE(tp->recv_sack_cache); //没有sack块，直接跳过cache
 	} else {
-		cache = tp->recv_sack_cache;
+		cache = tp->recv_sack_cache; //定位到之前的cache
 		/* Skip empty blocks in at head of the cache */
 		while (tcp_sack_cache_ok(tp, cache) && !cache->start_seq &&
-		       !cache->end_seq)
+		       !cache->end_seq) //跳过为0的cache
 			cache++;
 	}
 
-	while (i < used_sacks) {
+	while (i < used_sacks) { //遍历sack块， 进行处理，此时已经排序过了
 		u32 start_seq = sp[i].start_seq;
 		u32 end_seq = sp[i].end_seq;
-		bool dup_sack = (found_dup_sack && (i == first_sack_index));
+		bool dup_sack = (found_dup_sack && (i == first_sack_index)); //是dsack，而且是第一个sack块
 		struct tcp_sack_block *next_dup = NULL;
 
 		if (found_dup_sack && ((i + 1) == first_sack_index))
-			next_dup = &sp[i + 1];
+			next_dup = &sp[i + 1]; //下一个是dup sack
 
 		/* Skip too early cached blocks */
 		while (tcp_sack_cache_ok(tp, cache) &&
-		       !before(start_seq, cache->end_seq))
+		       !before(start_seq, cache->end_seq)) //cache太老了
 			cache++;
 
 		/* Can skip some work by looking recv_sack_cache? */
 		if (tcp_sack_cache_ok(tp, cache) && !dup_sack &&
-		    after(end_seq, cache->start_seq)) {
+		    after(end_seq, cache->start_seq)) { //sack块与cache有交集
 
 			/* Head todo? */
-			if (before(start_seq, cache->start_seq)) {
+			if (before(start_seq, cache->start_seq)) { //sack 与 cache相交
 				skb = tcp_sacktag_skip(skb, sk, state,
-						       start_seq);
-				skb = tcp_sacktag_walk(skb, sk, next_dup,
+						       start_seq); //跳过部分
+				skb = tcp_sacktag_walk(skb, sk, next_dup, //处理sack块, 处理相交情况下的第一个sack块
 						       state,
 						       start_seq,
 						       cache->start_seq,
@@ -1828,7 +1833,7 @@ tcp_sacktag_write_queue(struct sock *sk, const struct sk_buff *ack_skb,
 		skb = tcp_sacktag_skip(skb, sk, state, start_seq);
 
 walk:
-		skb = tcp_sacktag_walk(skb, sk, next_dup, state,
+		skb = tcp_sacktag_walk(skb, sk, next_dup, state, //匹配处理
 				       start_seq, end_seq, dup_sack);
 
 advance_sp:
@@ -1840,13 +1845,13 @@ advance_sp:
 		tp->recv_sack_cache[i].start_seq = 0;
 		tp->recv_sack_cache[i].end_seq = 0;
 	}
-	for (j = 0; j < used_sacks; j++)
+	for (j = 0; j < used_sacks; j++) //保存recv_sack_cache
 		tp->recv_sack_cache[i++] = sp[j];
 
 	if (inet_csk(sk)->icsk_ca_state != TCP_CA_Loss || tp->undo_marker)
-		tcp_check_sack_reordering(sk, state->reord, 0);
+		tcp_check_sack_reordering(sk, state->reord, 0); //修正reordering值
 
-	tcp_verify_left_out(tp);
+	tcp_verify_left_out(tp); //验证left_out
 out:
 
 #if FASTRETRANS_DEBUG > 0
@@ -1938,8 +1943,10 @@ void tcp_clear_retrans(struct tcp_sock *tp)
 	tp->sacked_out = 0;
 }
 
+//进入Loss recovery状态的时候，这次超时重传或快速重传可能是伪超时，后续可能要撤销的
 static inline void tcp_init_undo(struct tcp_sock *tp)
 {
+	//记录发生重传的时候的，una
 	tp->undo_marker = tp->snd_una;
 	/* Retransmission still in flight may cause DSACKs later. */
 	tp->undo_retrans = tp->retrans_out ? : -1;
@@ -1972,7 +1979,7 @@ static void tcp_timeout_mark_lost(struct sock *sk)
 	}
 
 	skb = head;
-	skb_rbtree_walk_from(skb) {
+	skb_rbtree_walk_from(skb) { //所有skb都标记为lost
 		if (is_reneg)
 			TCP_SKB_CB(skb)->sacked &= ~TCPCB_SACKED_ACKED;
 		else if (tcp_is_rack(sk) && skb != head &&
@@ -1985,6 +1992,7 @@ static void tcp_timeout_mark_lost(struct sock *sk)
 }
 
 /* Enter Loss state. */
+//发生RTO的时候，进入LOSS状态，此时cwnd置1
 void tcp_enter_loss(struct sock *sk)
 {
 	const struct inet_connection_sock *icsk = inet_csk(sk);
@@ -1992,19 +2000,19 @@ void tcp_enter_loss(struct sock *sk)
 	struct net *net = sock_net(sk);
 	bool new_recovery = icsk->icsk_ca_state < TCP_CA_Recovery;
 
-	tcp_timeout_mark_lost(sk);
+	tcp_timeout_mark_lost(sk); //标记所有报文为lost状态？？？？？
 
 	/* Reduce ssthresh if it has not yet been made inside this window. */
 	if (icsk->icsk_ca_state <= TCP_CA_Disorder ||
 	    !after(tp->high_seq, tp->snd_una) ||
 	    (icsk->icsk_ca_state == TCP_CA_Loss && !icsk->icsk_retransmits)) {
-		tp->prior_ssthresh = tcp_current_ssthresh(sk); //保存一些量, 可能用户拥塞撤销
+		tp->prior_ssthresh = tcp_current_ssthresh(sk); //保存之前的值, 可能用户拥塞撤销
 		tp->prior_cwnd = tp->snd_cwnd;
 		tp->snd_ssthresh = icsk->icsk_ca_ops->ssthresh(sk);
 		tcp_ca_event(sk, CA_EVENT_LOSS); //发送LOSS事件给具体的拥塞控制算法
-		tcp_init_undo(tp);
+		tcp_init_undo(tp); //这次超时可能是伪超时，后续可能撤销
 	}
-	tp->snd_cwnd	   = tcp_packets_in_flight(tp) + 1; //重置一些量, 没有置一的
+	tp->snd_cwnd	   = tcp_packets_in_flight(tp) + 1; //重置一些量, 没有置一的, 就是表示还能发送的数据包是1
 	tp->snd_cwnd_cnt   = 0;
 	tp->snd_cwnd_stamp = tcp_jiffies32;
 
@@ -2013,7 +2021,7 @@ void tcp_enter_loss(struct sock *sk)
 	 */
 	if (icsk->icsk_ca_state <= TCP_CA_Disorder &&
 	    tp->sacked_out >= net->ipv4.sysctl_tcp_reordering)
-		tp->reordering = min_t(unsigned int, tp->reordering,
+		tp->reordering = min_t(unsigned int, tp->reordering, //缩小dupthresh 即reordering
 				       net->ipv4.sysctl_tcp_reordering);
 	tcp_set_ca_state(sk, TCP_CA_Loss); //进入loss状态
 	tp->high_seq = tp->snd_nxt;
@@ -2023,7 +2031,7 @@ void tcp_enter_loss(struct sock *sk)
 	 * loss recovery is underway except recurring timeout(s) on
 	 * the same SND.UNA (sec 3.2). Disable F-RTO on path MTU probing
 	 */
-	tp->frto = net->ipv4.sysctl_tcp_frto &&
+	tp->frto = net->ipv4.sysctl_tcp_frto && //是否激活frto算法
 		   (new_recovery || icsk->icsk_retransmits) &&
 		   !inet_csk(sk)->icsk_mtup.probe_size;
 }
@@ -2351,6 +2359,7 @@ static void tcp_undo_cwnd_reduction(struct sock *sk, bool unmark_loss)
 	struct tcp_sock *tp = tcp_sk(sk);
 
 	if (unmark_loss) {
+	//将所有包的loss标记去除
 		struct sk_buff *skb;
 
 		skb_rbtree_walk(skb, &sk->tcp_rtx_queue) {
@@ -2363,7 +2372,7 @@ static void tcp_undo_cwnd_reduction(struct sock *sk, bool unmark_loss)
 	if (tp->prior_ssthresh) { //是否存在ssthresh的旧值
 		const struct inet_connection_sock *icsk = inet_csk(sk);
 
-		tp->snd_cwnd = icsk->icsk_ca_ops->undo_cwnd(sk);
+		tp->snd_cwnd = icsk->icsk_ca_ops->undo_cwnd(sk); //进入拥塞控制算法
 
 		if (tp->prior_ssthresh > tp->snd_ssthresh) {
 			tp->snd_ssthresh = tp->prior_ssthresh;
@@ -2377,9 +2386,6 @@ static void tcp_undo_cwnd_reduction(struct sock *sk, bool unmark_loss)
 
 static inline bool tcp_may_undo(const struct tcp_sock *tp)
 {
-	//正在使用f-rto算法做重传检测，或者进入了Recovery在重传，或者进入了LOSS在慢启动
-	//没有可撤销的重传段数
-	//或者米有重传或重传了之后还米有接收到对方发送或确认的段
 	return tp->undo_marker && (!tp->undo_retrans || tcp_packet_delayed(tp));
 }
 
@@ -2466,18 +2472,19 @@ static bool tcp_try_undo_loss(struct sock *sk, bool frto_undo)
  *      But when the retransmits are acked without further losses, PRR
  *      slow starts cwnd up to ssthresh to speed up the recovery.
  */
+//即快速恢复阶段，linux默认是prr算法
 static void tcp_init_cwnd_reduction(struct sock *sk)
 {
 	//prr算法的初始化
 	struct tcp_sock *tp = tcp_sk(sk);
 
-	tp->high_seq = tp->snd_nxt;
+	tp->high_seq = tp->snd_nxt; //记录拥塞发生的时候的snd_nxt
 	tp->tlp_high_seq = 0;
 	tp->snd_cwnd_cnt = 0;
 	tp->prior_cwnd = tp->snd_cwnd;
 	tp->prr_delivered = 0;
 	tp->prr_out = 0;
-	tp->snd_ssthresh = inet_csk(sk)->icsk_ca_ops->ssthresh(sk);
+	tp->snd_ssthresh = inet_csk(sk)->icsk_ca_ops->ssthresh(sk); //具体的拥塞控制算法提供ssthresh阈值
 	tcp_ecn_queue_cwr(tp);
 }
 
@@ -2530,8 +2537,8 @@ void tcp_enter_cwr(struct sock *sk)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
 
-	tp->prior_ssthresh = 0;
-	if (inet_csk(sk)->icsk_ca_state < TCP_CA_CWR) {
+	tp->prior_ssthresh = 0; //清理慢启动之前的阈值，因为肯定不会做拥塞撤销的
+	if (inet_csk(sk)->icsk_ca_state < TCP_CA_CWR) { //Open或disorde状态才能迁移到cwr状态
 		tp->undo_marker = 0;
 		tcp_init_cwnd_reduction(sk); //prr算法初始化
 		tcp_set_ca_state(sk, TCP_CA_CWR);
@@ -2797,7 +2804,8 @@ static bool tcp_force_fast_retransmit(struct sock *sk)
  * tcp_xmit_retransmit_queue().
  */
 //拥塞控制的处理, 快速重传当然包含拥塞控制的, 接收到ack后，ack可疑的话，就进入这里进行拥塞处理咯，这里是拥塞处理变化的入口，
-//稳定状态下的cwnd的正常增长入口不在这里, 也就是说这里是拥塞控制事件的入口
+//稳定状态下的cwnd的正常增长入口不在这里, 也就是说这里是拥塞控制事件的入口之一
+//拥塞状态机主入口, 非常重要重要
 static void tcp_fastretrans_alert(struct sock *sk, const u32 prior_snd_una,
 				  bool is_dupack, int *ack_flag, int *rexmit)
 {
@@ -2839,7 +2847,7 @@ static void tcp_fastretrans_alert(struct sock *sk, const u32 prior_snd_una,
 			break;
 
 		case TCP_CA_Recovery: //退出快速回复阶段了
-			if (tcp_is_reno(tp)) //启动了reno算法
+			if (tcp_is_reno(tp)) //是reno模式，不是sack模式
 				tcp_reset_reno_sack(tp);
 			if (tcp_try_undo_recovery(sk))
 				return;
@@ -2999,6 +3007,7 @@ static void tcp_cong_avoid(struct sock *sk, u32 ack, u32 acked)
 
 /* Restart timer after forward progress on connection.
  * RFC2988 recommends to restart timer to now+rto.
+ * 
  */
 void tcp_rearm_rto(struct sock *sk)
 {
@@ -3079,7 +3088,7 @@ static void tcp_ack_tstamp(struct sock *sk, struct sk_buff *skb,
  * is before the ack sequence we can discard it as it's confirmed to have
  * arrived at the other end.
  */
-/* 释放重传队列上已经确认的段
+/* 释放重传队列上已经确认的段,需要扫描队列, 更新各种计数器
  *
  * */
 static int tcp_clean_rtx_queue(struct sock *sk, u32 prior_fack,
@@ -3340,7 +3349,7 @@ static void tcp_cong_control(struct sock *sk, u32 ack, u32 acked_sacked,
 
 	if (icsk->icsk_ca_ops->cong_control) {
 		icsk->icsk_ca_ops->cong_control(sk, rs); //自己实现的拥塞控制算法入口
-	return;
+		return;
 	}
 
 	if (tcp_in_cwnd_reduction(sk)) {
@@ -3402,10 +3411,10 @@ static int tcp_ack_update_window(struct sock *sk, const struct sk_buff *skb, u32
 		nwin <<= tp->rx_opt.snd_wscale; //窗口缩放
 
 	if (tcp_may_update_window(tp, ack, ack_seq, nwin)) { //判断是否需要更新窗口
-		flag |= FLAG_WIN_UPDATE;
-		tcp_update_wl(tp, ack_seq);
+		flag |= FLAG_WIN_UPDATE; //设置窗口更新的flag
+		tcp_update_wl(tp, ack_seq); //记录导致窗口更新的ack序号
 
-		if (tp->snd_wnd != nwin) {
+		if (tp->snd_wnd != nwin) { //窗口大小不同，需要更新
 			tp->snd_wnd = nwin;
 
 			/* Note, it is the only place, where
@@ -3414,10 +3423,10 @@ static int tcp_ack_update_window(struct sock *sk, const struct sk_buff *skb, u32
 			tp->pred_flags = 0;
 			tcp_fast_path_check(sk); //重新计算首部预测值
 
-			if (!tcp_write_queue_empty(sk))
-				tcp_slow_start_after_idle_check(sk);
+			if (!tcp_write_queue_empty(sk)) //tx queue有数据
+				tcp_slow_start_after_idle_check(sk); //??????????
 
-			if (nwin > tp->max_window) {
+			if (nwin > tp->max_window) { //大于曾经最大的发送窗口
 				tp->max_window = nwin; //更新发送窗口最大值
 				tcp_sync_mss(sk, inet_csk(sk)->icsk_pmtu_cookie); //重新计算MSS
 			}
@@ -3505,6 +3514,7 @@ static void tcp_store_ts_recent(struct tcp_sock *tp)
 
 static void tcp_replace_ts_recent(struct tcp_sock *tp, u32 seq)
 {
+	//last ack有时间戳的, 而且序号是在rcv nxt之前或一样
 	if (tp->rx_opt.saw_tstamp && !after(seq, tp->rcv_wup)) {
 		/* PAWS bug workaround wrt. ACK frames, the PAWS discard
 		 * extra check below makes sure this can only happen
@@ -3562,6 +3572,7 @@ static inline void tcp_in_ack_event(struct sock *sk, u32 flags)
  * loss recovery then now we do any new sends (for FRTO) or
  * retransmits (for CA_Loss or CA_recovery) that make sense.
  */
+//重传恢复
 static void tcp_xmit_recovery(struct sock *sk, int rexmit)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
@@ -3597,22 +3608,33 @@ static u32 tcp_newly_delivered(struct sock *sk, u32 prior_delivered, int flag)
 
 /* This routine deals with incoming acks, but not outgoing ones. */
 //flag %FLAG_DATA, 接收ack使用
+//会扫描4遍发送队列
+/* tcp_ack -> tcp_sacktag_write_queue
+ *
+ * tcp_ack -> tcp_clean_rtx_queue
+ *
+ * tcp_ack -> tcp_fastretrans_alert -> tcp_update_scoreboard
+ *
+ * tcp_ack -> tcp_fastretrans_alert -> tcp_xmit_retransmit_queue
+ *
+ * 这个函数非常重要，其本质就是TCP的自时钟源, 是TCP各种算法的入口
+ * */
 static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 {
 	struct inet_connection_sock *icsk = inet_csk(sk);
 	struct tcp_sock *tp = tcp_sk(sk);
-	struct tcp_sacktag_state sack_state;
-	struct rate_sample rs = { .prior_delivered = 0 };
+	struct tcp_sacktag_state sack_state; //根据sack信息，保存一些采样内容
+	struct rate_sample rs = { .prior_delivered = 0 }; //采样rs, 有些拥塞算法会使用, 譬如：BBR
 	u32 prior_snd_una = tp->snd_una;
-	bool is_sack_reneg = tp->is_sack_reneg;
-	u32 ack_seq = TCP_SKB_CB(skb)->seq;
-	u32 ack = TCP_SKB_CB(skb)->ack_seq;
+	bool is_sack_reneg = tp->is_sack_reneg; //有没有发生sack 食言
+	u32 ack_seq = TCP_SKB_CB(skb)->seq; //ack包自身的序号
+	u32 ack = TCP_SKB_CB(skb)->ack_seq; //ack的序号
 	bool is_dupack = false;
-	int prior_packets = tp->packets_out;
-	u32 delivered = tp->delivered;
+	int prior_packets = tp->packets_out; //之前在外面的包数目 
+	u32 delivered = tp->delivered; //用于计算tcp pacing的采样结果
 	u32 lost = tp->lost;
 	int rexmit = REXMIT_NONE; /* Flag to (re)transmit to recover losses */
-	u32 prior_fack;
+	u32 prior_fack; //fack就是最大的sack值
 
 	sack_state.first_sackt = 0;
 	sack_state.rate = &rs;
@@ -3623,9 +3645,21 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 	/* If the ack is older than previous acks
 	 * then we can probably ignore it.
 	 */
-	if (before(ack, prior_snd_una)) {
+	if (before(ack, prior_snd_una)) { //ack在una之前，但是其可能携带sack信息，我们还是要处理的，见下文描述的安全问题
 		/* RFC 5961 5.2 [Blind Data Injection Attack].[Mitigation] */
-		if (before(ack, prior_snd_una - tp->max_window)) {
+		/*
+		 *
+		 * 收到了UNA之前的ACK怎么办
+这种情况下，直接丢掉是最直接的办法，但是仔细想想，这种确认包还是可以从中得到一些信息的，比如：
+a).可以从其SACK block中获取一些关于DSACK的信息，这种信息可能会让我们发现网络的乱序，递减undo计数器，从而指导我们在拥塞状态下的UNDO操作；
+b).可以依照根据RFC3517的section 5中(C)例程刷重传队列，其NextSeg例程可能会返回一系列数据，然后发送之：
+The ACK value is considered acceptable only if it is in the range of ((SND.UNA - MAX.SND.WND) <= SEG.ACK <= SND.NXT). 
+值得注意的是，在Linux的协议栈实现中，tcp_xmit_retransmit_queue并不会实际发送新数据，它仅仅在没有标记为LOST的数据要发送但是有新数据等待发送的时候简单地返回！然后发送新数据的任务就由发送路径在轮到它跑的时候发送了。
+
+        但是这样意味着什么你注意到了吗？这样很可能带来安全问题！如果我们看算法A，发现里面有两层循环，其时间复杂度自己算算便知，即便是优化版本也好不到哪去。如果是有恶意的人构造了一些携带SACK的包重放到网络，在传输队列非常大的时候将会使算法A(或者任意的优化版本[无非就是增加一些排序，skip...])消耗巨量的CPU时间，因此收到UNA之前的ACK以期待能为我所用这种想法是利弊兼得的。因此RFC5961里面提到了一种折衷，那就是，在UNA之前一个窗口内的ACK是可以利用的，一个窗口外的数据距离太远了，就会被认为是重放攻击，直接丢弃即可。
+		 *
+		 * */
+		if (before(ack, prior_snd_una - tp->max_window)) { //以前没有这个检查就会进入到old_ack去处理，可能被攻击。
 			if (!(flag & FLAG_NO_CHALLENGE_ACK))
 				tcp_send_challenge_ack(sk, skb);
 			return -1;
@@ -3636,11 +3670,11 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 	/* If the ack includes data we haven't sent yet, discard
 	 * this segment (RFC793 Section 3.9).
 	 */
-	if (after(ack, tp->snd_nxt)) //ack错乱啦，ack的是没有发送的数据
+	if (after(ack, tp->snd_nxt)) //ack错乱啦，ack的是没有发送的数据, 简单丢弃
 		goto invalid_ack;
 
-	if (after(ack, prior_snd_una)) {
-		flag |= FLAG_SND_UNA_ADVANCED; //设置flag
+	if (after(ack, prior_snd_una)) { //这是一个好ack, ack了新数据
+		flag |= FLAG_SND_UNA_ADVANCED; //设置flag, una前进了
 		icsk->icsk_retransmits = 0; //接收到了新ack后， 可以将重传定时器的超时重传次数重置了
 
 #if IS_ENABLED(CONFIG_TLS_DEVICE)
@@ -3650,14 +3684,14 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 #endif
 	}
 
-	prior_fack = tcp_is_sack(tp) ? tcp_highest_sack_seq(tp) : tp->snd_una; //记录fack值
-	rs.prior_in_flight = tcp_packets_in_flight(tp);
+	prior_fack = tcp_is_sack(tp) ? tcp_highest_sack_seq(tp) : tp->snd_una; //记录fack值, 即最大的sack号
+	rs.prior_in_flight = tcp_packets_in_flight(tp); //rate sample
 
 	/* ts_recent update must be made after we are sure that the packet
 	 * is in window.
 	 */
 	if (flag & FLAG_UPDATE_TS_RECENT)
-		tcp_replace_ts_recent(tp, TCP_SKB_CB(skb)->seq); //更新ts_recent, 消除延迟ack影响
+		tcp_replace_ts_recent(tp, TCP_SKB_CB(skb)->seq); //更新ts_recent, 消除延迟ack影响, 接收到新的数据包的时候，需要记录其到达timestamp，后续发送ack的时候要使用
 
 	if (!(flag & FLAG_SLOWPATH) && after(ack, prior_snd_una)) { //不是慢速路径，其ack应答了新数据
 		/* Window is constant, pure forward advance.
@@ -3668,30 +3702,30 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 		tcp_snd_una_update(tp, ack);
 		flag |= FLAG_WIN_UPDATE; //设置窗口更新flag
 
-		tcp_in_ack_event(sk, CA_ACK_WIN_UPDATE); //ack事件通知到拥塞控制算法
+		tcp_in_ack_event(sk, CA_ACK_WIN_UPDATE); //ack事件通知到拥塞控制算法, linux的多拥塞控制算法支持机制
 
 		NET_INC_STATS(sock_net(sk), LINUX_MIB_TCPHPACKS);
 	} else { //慢速路径
-		u32 ack_ev_flags = CA_ACK_SLOWPATH;
+		u32 ack_ev_flags = CA_ACK_SLOWPATH; //标记慢速路径, 后续拥塞模块可能使用
 
 		if (ack_seq != TCP_SKB_CB(skb)->end_seq)
-			flag |= FLAG_DATA;
-		else
+			flag |= FLAG_DATA; //有数据的ack包
+		else //统计纯ack包
 			NET_INC_STATS(sock_net(sk), LINUX_MIB_TCPPUREACKS);
 
-		flag |= tcp_ack_update_window(sk, skb, ack, ack_seq);
+		flag |= tcp_ack_update_window(sk, skb, ack, ack_seq); //更新发送窗口
 
-		if (TCP_SKB_CB(skb)->sacked)
-			flag |= tcp_sacktag_write_queue(sk, skb, prior_snd_una,
+		if (TCP_SKB_CB(skb)->sacked) //sack标记处理，需要扫描报文队列
+			flag |= tcp_sacktag_write_queue(sk, skb, prior_snd_una, //重点部分, 根据sack等信息，进行各种信息的组织判断，是后续算法的动力源
 							&sack_state);
 
-		if (tcp_ecn_rcv_ecn_echo(tp, tcp_hdr(skb))) {
+		if (tcp_ecn_rcv_ecn_echo(tp, tcp_hdr(skb))) { //ECN拥塞处理
 			flag |= FLAG_ECE;
 			ack_ev_flags |= CA_ACK_ECE;
 		}
 
 		if (flag & FLAG_WIN_UPDATE)
-			ack_ev_flags |= CA_ACK_WIN_UPDATE;
+			ack_ev_flags |= CA_ACK_WIN_UPDATE; //拥塞控制算法事件
 
 		tcp_in_ack_event(sk, ack_ev_flags); //拥塞控制算法入口
 	}
@@ -3708,13 +3742,13 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 	/* See if we can take anything off of the retransmit queue. */
 	flag |= tcp_clean_rtx_queue(sk, prior_fack, prior_snd_una, &sack_state); //删除重传队列中已经确认的段
 
-	tcp_rack_update_reo_wnd(sk, &rs); //rack算法
+	tcp_rack_update_reo_wnd(sk, &rs); //rack算法, rack算法是基于时间的丢包探测，所以需要一个阈值来区分丢包与失序，reo_wnd
 
-	if (tp->tlp_high_seq) //tail loss probe
+	if (tp->tlp_high_seq) //tail loss probe, 有需要tlp发送的数据
 		tcp_process_tlp_ack(sk, ack, flag);
 	/* If needed, reset TLP/RTO timer; RACK may later override this. */
 	if (flag & FLAG_SET_XMIT_TIMER)
-		tcp_set_xmit_timer(sk); //重置RTO或TLP定时器
+		tcp_set_xmit_timer(sk); //重置RTO或TLP定时器, TLP RTO公用定时器
 
 	if (tcp_ack_is_dubious(sk, flag)) { //这个ack可疑, 进入拥塞控制，拥塞控制的非open状态的入口
 		is_dupack = !(flag & (FLAG_SND_UNA_ADVANCED | FLAG_NOT_DUP));
@@ -3723,14 +3757,14 @@ static int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag)
 	}
 
 	if ((flag & FLAG_FORWARD_PROGRESS) || !(flag & FLAG_NOT_DUP))
-		sk_dst_confirm(sk); //确认路由缓存的有效性
+		sk_dst_confirm(sk); //确认路由缓存的有效性, 标记后续需要确认缓存有效性
 
 	delivered = tcp_newly_delivered(sk, delivered, flag);
 	lost = tp->lost - lost;			/* freshly marked lost */
 	rs.is_ack_delayed = !!(flag & FLAG_ACK_MAYBE_DELAYED);
-	tcp_rate_gen(sk, delivered, lost, is_sack_reneg, sack_state.rate);
+	tcp_rate_gen(sk, delivered, lost, is_sack_reneg, sack_state.rate); //rate sample采样
 	tcp_cong_control(sk, ack, delivered, flag, sack_state.rate); //非常有意思的函数，终极的拥塞控制, 这里会进入拥塞避免的处理（也就是拥塞窗口的计算咯）
-	tcp_xmit_recovery(sk, rexmit);
+	tcp_xmit_recovery(sk, rexmit); //伪重传的恢复入口
 	return 1;
 
 no_queue:
@@ -3744,7 +3778,7 @@ no_queue:
 	 * being used to time the probes, and is probably far higher than
 	 * it needs to be for normal retransmission.
 	 */
-	tcp_ack_probe(sk); //持续探测定时器的处理
+	tcp_ack_probe(sk); //持续探测定时器的处理, 如果通告了零窗口，要启动相关定时器
 
 	if (tp->tlp_high_seq)
 		tcp_process_tlp_ack(sk, ack, flag);

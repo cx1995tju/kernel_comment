@@ -175,7 +175,7 @@ struct tcp_sock {
 				 */
  	u32	rcv_nxt;	/* What we want to receive next, 等待接收的下一个TCP序号，每接收一个TCP报文就更新 	*/
 	u32	copied_seq;	/* Head of yet unread data	, 还没有复制到用户空间的数据的序号，但是已经被接收了 */ 
-	u32	rcv_wup;	/* rcv_nxt on last window update sent	*/
+	u32	rcv_wup;	/* rcv_nxt on last window update sent	lastack? */
  	u32	snd_nxt;	/* Next sequence we send, 等待发送的下一个TCP报文段序号		*/
 	u32	segs_out;	/* RFC4898 tcpEStatsPerfSegsOut
 				 * The total number of segments sent.
@@ -187,7 +187,7 @@ struct tcp_sock {
 				 * total number of data bytes sent.
 				 */
 	u64	bytes_acked;	/* RFC4898 tcpEStatsAppHCThruOctetsAcked, 启动了ABC后，在拥塞避免阶段保存已经确认的字节数目
-				 * sum(delta(snd_una)), or how many bytes
+				 * sum(delta(snd_una)), or how many bytes 参考tcp_snd_una_update
 				 * were acked.
 				 */
 	u32	dsack_dups;	/* RFC4898 tcpEStatsStackDSACKDups
@@ -205,9 +205,9 @@ struct tcp_sock {
 	struct list_head tsq_node; /* anchor in tsq_tasklet.head list */
 	struct list_head tsorted_sent_queue; /* time-sorted sent but un-SACKed skbs */
 
-	u32	snd_wl1;	/* Sequence for window update, 记录更新发送窗口的那个ack端的序号，如果后续接收到的ack端大于snd_wl1，就需要更新窗口		*/
+	u32	snd_wl1;	/* Sequence for window update, 记录更新发送窗口的那个ack端的序号，如果后续接收到的ack端大于snd_wl1，就需要更新窗口见tcp_may_update_window		*/
 	u32	snd_wnd;	/* The window we expect to receive, 接收方提供的接收窗口大小，即发送方发送窗口大小	*/
-	u32	max_window;	/* Maximal window ever seen from peer, 对端通告过的最大窗口值	*/
+	u32	max_window;	/* Maximal window ever seen from peer, 对端通告过的最大窗口值	tcp_may_update_window*/
 	u32	mss_cache;	/* Cached effective mss, not including SACKS, 发送方当前有效的mss  */
 
 	u32	window_clamp;	/* Maximal window to advertise. 滑动窗口大小不会超过这个值		,即开始的时候通告值 */
@@ -239,7 +239,7 @@ struct tcp_sock {
 		thin_lto    : 1,/* Use linear timeouts for thin streams */
 		recvmsg_inq : 1,/* Indicate # of bytes in queue upon recvmsg */
 		repair      : 1, //TCP套接口热迁移相关
-		frto        : 1;/* F-RTO (RFC5682) activated in CA_Loss */
+		frto        : 1;/* F-RTO (RFC5682) activated in CA_Loss 在Loss状态激活frto算法 */
 	u8	repair_queue;
 	u8	syn_data:1,	/* SYN includes data */
 		syn_fastopen:1,	/* SYN includes Fast Open option */
@@ -249,7 +249,7 @@ struct tcp_sock {
 		save_syn:1,	/* Save headers of SYN packet */
 		is_cwnd_limited:1,/* forward progress limited by snd_cwnd? */
 		syn_smc:1;	/* SYN includes SMC */
-	u32	tlp_high_seq;	/* snd_nxt at the time of TLP retransmit. */
+	u32	tlp_high_seq;	/* snd_nxt at the time of TLP retransmit. tlp发送的时候，发送的数据 */
 
 /* RTT measurement */
 	u64	tcp_mstamp;	/* most recent packet received/sent */
@@ -283,7 +283,7 @@ struct tcp_sock {
  */
  	u32	snd_ssthresh;	/* Slow start size threshold		*/
  	u32	snd_cwnd;	/* Sending congestion window		*/
-	u32	snd_cwnd_cnt;	/* Linear increase counter, 从上次拥塞窗口调整到目前为止接收的总ack数目，如果该值为0，表示已经调整了拥塞窗口，还没有接收到ack		*/
+	u32	snd_cwnd_cnt;	/* Linear increase counter, 从上次拥塞窗口调整到目前为止接收的总ack数目，如果该值为0，表示已经调整了拥塞窗口，还没有接收到ack		参考 tcp_enter_loss*/
 	u32	snd_cwnd_clamp; /* Do not allow snd_cwnd to grow above this, 允许的最大拥塞窗口值 */
 	u32	snd_cwnd_used;
 	u32	snd_cwnd_stamp; //最近一次检验拥塞窗口的时间
@@ -305,9 +305,9 @@ struct tcp_sock {
 	u32	notsent_lowat;	/* TCP_NOTSENT_LOWAT */
 	u32	pushed_seq;	/* Last pushed seq, required to talk to windows, 通常表示已经真正发送出去的最后一个字节序号， 有时表示期望发送出去的最后一个字节序号*/
 	u32	lost_out;	/* Lost packets, 估计在网络中丢失的段			*/
-	u32	sacked_out;	/* SACK'd packets, sack场景下表示sack块数目，非sack场景表示接收到的重复确认数目			*/
+	u32	sacked_out;	/* SACK'd packets, sack场景下表示sack块数目，非sack场景表示接收到的重复确认数目, sack计数器			*/
 
-	struct hrtimer	pacing_timer;
+	struct hrtimer	pacing_timer; //参考tcp pacing功能
 	struct hrtimer	compressed_ack_timer;
 
 	/* from STCP, retrans queue hinting */
@@ -322,7 +322,7 @@ struct tcp_sock {
 	struct tcp_sack_block duplicate_sack[1]; /* D-SACK block */
 	struct tcp_sack_block selective_acks[4]; /* The SACKS themselves, 存储sack信息*/
 
-	struct tcp_sack_block recv_sack_cache[4]; //存储接收到的sack选项信息
+	struct tcp_sack_block recv_sack_cache[4]; //保存之前的sack段????, 参考tcp_sacktag_write_queue
 
 	struct sk_buff *highest_sack;   /* skb just after the highest
 					 * skb with SACKed bit set
@@ -333,13 +333,14 @@ struct tcp_sock {
 	int     lost_cnt_hint; //拥塞状态没有撤销或没有进入loss状态的时候，在重传队列，缓存上一次标记记分牌未丢失的最后一个段
 
 	u32	prior_ssthresh; /* ssthresh saved at recovery start, 记录ssthresh值，用于拥塞撤销	*/
-	u32	high_seq;	/* snd_nxt at onset of congestion, 拥塞开始的时候NXT值, 即表示重传队列的末尾	*/
+	u32	high_seq;	/* snd_nxt at onset of congestion, 拥塞开始的时候NXT值, 即表示重传队列的末尾, 见	tcp_init_cwnd_reduction*/
 
 	u32	retrans_stamp;	/* Timestamp of the last retransmit, 主动连接的时候，记录第一个syn段发送时间，检测ack序号是否回绕, 数据传输阶段，记录上次重传阶段第一个重传段的时间，用来判断是否可以进行拥塞撤销
 				 * also used in SYN-SENT to remember stamp of
 				 * the first SYN. */
-	u32	undo_marker;	/* snd_una upon a new recovery episode., F-RTO算法进行超时处理的时候，或者进入Recovery进行重传，或者进入Loss开始慢启动的时候，记录SND.UNA,标记重传起点，后续可以使用其检测是否拥塞撤销 */
-	int	undo_retrans;	/* number of undoable retransmissions. */
+	u32	undo_marker;	/* snd_una upon a new recovery episode. 一个新的恢复阶段的snd_una 参考tcp_init_undo */
+	int	undo_retrans;	/* number of undoable retransmissions. 这个才是undo的计数器，每次重传一个包增加1，每次收到DSACK(或者F-RTO)递减1，如果为0就可以undo了，说明重发的都白发了 */
+/* 用于标记是否要执行撤销算法的。F-RTO算法进行超时处理的时候，或者进入Recovery进行重传，或者进入Loss开始慢启动的时候，记录SND.UNA,标记重传起点，后续可以使用其检测是否拥塞撤销 */
 	u64	bytes_retrans;	/* RFC4898 tcpEStatsPerfOctetsRetrans
 				 * Total data bytes retransmitted
 				 */

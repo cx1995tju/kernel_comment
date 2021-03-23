@@ -409,7 +409,7 @@ int pagecache_write_end(struct file *, struct address_space *mapping,
 //其表示的后备存储器也是非常宽泛的，可能是一个块设备，或者一个文件，譬如：二进制可执行文件
 //狭义的说，其联系了内存页与后备存储器（通过inode结点，这种连接为指明了对应的内存页的数据来源, 我们可以在缺页异常的处理函数中，通过该结构索引到页的数据源）
 //而后备存储器相关的操作就是a_ops成员, 另外两个核心成员就是host i_pages
-struct address_space {
+struct address_space { //vma要与这个结构关联起来的
 	struct inode		*host;		/* owner: inode, block_device 后备存储器 */
 	struct radix_tree_root	i_pages;	/* cached pages */ //该地址空间的所有页, 基于基数树进行管理
 	atomic_t		i_mmap_writable;/* count VM_SHARED mappings 因为这种页可能同时备多个用户共享 */

@@ -85,7 +85,7 @@ struct page {
 			 */
 			struct list_head lru; //实现LRU回收的挂链结构
 			/* See page-flags.h for PAGE_MAPPING_FLAGS */
-			struct address_space *mapping; //该页所在地址空间, 如果mapping值为1的话，则其指向anon_vma结构, 如果是二进制可执行文件的话，这个address_space可能表示的是一个文件
+			struct address_space *mapping; //该页所在地址空间, 如果mapping最低位为1的话，则其指向anon_vma结构, 如果是二进制可执行文件的话，这个address_space可能表示的是一个文件, 参考__page_set_anon_rmap
 			pgoff_t index;		/* Our offset within mapping. */
 			/**
 			 * @private: Mapping-private opaque data.
