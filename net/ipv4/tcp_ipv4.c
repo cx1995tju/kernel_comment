@@ -1522,6 +1522,7 @@ static struct sock *tcp_v4_cookie_check(struct sock *sk, struct sk_buff *skb)
  * held.
  */
 /* 从网络层过来的包都通过这个接收函数处理，然后根据不同的socket状态分发到不同的函数 */
+//bakclog队列也是这个函数处理
 int tcp_v4_do_rcv(struct sock *sk, struct sk_buff *skb)
 {
 	struct sock *rsk;

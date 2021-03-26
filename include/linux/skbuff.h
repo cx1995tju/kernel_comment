@@ -734,7 +734,7 @@ struct sk_buff {
 
 	union {
 		struct {
-			unsigned long	_skb_refdst;//暂时出口路由缓存,避免重复查找路由
+			unsigned long	_skb_refdst;//暂存出口路由缓存,避免重复查找路由
 			void		(*destructor)(struct sk_buff *skb); /* sk buff结构的析构函数 */
 		};
 		struct list_head	tcp_tsorted_anchor;
