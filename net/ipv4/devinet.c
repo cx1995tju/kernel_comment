@@ -262,7 +262,7 @@ static struct in_device *inetdev_init(struct net_device *dev)
 	/* Account for reference dev->ip_ptr (below) */
 	refcount_set(&in_dev->refcnt, 1);
 
-	err = devinet_sysctl_register(in_dev); //注册相关系统参数
+	err = devinet_sysctl_register(in_dev); //注册相关系统参数 /proc/sys文件系统
 	if (err) {
 		in_dev->dead = 1;
 		in_dev_put(in_dev);
@@ -1282,11 +1282,11 @@ __be32 inet_select_addr(const struct net_device *dev, __be32 dst, int scope)
 	for_primary_ifa(in_dev) {
 		if (ifa->ifa_scope > scope)
 			continue;
-		if (!dst || inet_ifa_match(dst, ifa)) { //本地的
+		if (!dst || inet_ifa_match(dst, ifa)) { //本地的, 判断是否在一个子网
 			addr = ifa->ifa_local;
 			break;
 		}
-		if (!addr)
+		if (!addr) //通配
 			addr = ifa->ifa_local;
 	} endfor_ifa(in_dev);
 
@@ -1312,7 +1312,7 @@ no_in_dev:
 	   in this case. It is important that lo is the first interface
 	   in dev_base list.
 	 */
-	for_each_netdev_rcu(net, dev) {
+	for_each_netdev_rcu(net, dev) { //尝试从其他设备找有没有符合条件的地址
 		if (l3mdev_master_ifindex_rcu(dev) != master_idx)
 			continue;
 

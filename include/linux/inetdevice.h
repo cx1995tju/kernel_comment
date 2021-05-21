@@ -46,7 +46,7 @@ struct in_device {
 	struct timer_list	mr_gq_timer;	/* general query timer */
 	struct timer_list	mr_ifc_timer;	/* interface change timer */
 
-	struct neigh_parms	*arp_parms; //arp相关的参数
+	struct neigh_parms	*arp_parms; //指向arp相关的参数
 	struct ipv4_devconf	cnf; //一些config信息
 	struct rcu_head		rcu_head; //rcu机制来释放这个结构
 };
@@ -148,7 +148,7 @@ struct in_ifaddr {
 	__be32			ifa_broadcast; //广播地址
 	unsigned char		ifa_scope; //寻址范围, %RT_SCOPE_UNIVERSE
 	unsigned char		ifa_prefixlen; //子网掩码长度
-	__u32			ifa_flags; //IP地址属性 IFA_F_SECONDARY
+	__u32			ifa_flags; //IP地址属性 %IFA_F_SECONDARY
 	char			ifa_label[IFNAMSIZ];  //地址标签，一般是网络设备名 或 网络设备别名
 
 	/* In seconds, relative to tstamp. Expiry is at tstamp + HZ * lft. */
@@ -190,7 +190,7 @@ struct in_ifaddr *inet_ifa_byprefix(struct in_device *in_dev, __be32 prefix,
 struct in_ifaddr *inet_lookup_ifaddr_rcu(struct net *net, __be32 addr);
 static __inline__ bool inet_ifa_match(__be32 addr, struct in_ifaddr *ifa)
 {
-	return !((addr^ifa->ifa_address)&ifa->ifa_mask); //按位异或。完全相同就是0
+	return !((addr^ifa->ifa_address)&ifa->ifa_mask); //按位异或。完全相同就是0, 即判断是不是在一个子网
 }
 
 /*

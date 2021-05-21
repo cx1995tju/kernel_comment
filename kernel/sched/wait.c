@@ -19,7 +19,7 @@ void add_wait_queue(struct wait_queue_head *wq_head, struct wait_queue_entry *wq
 	unsigned long flags;
 
 	wq_entry->flags &= ~WQ_FLAG_EXCLUSIVE;
-	spin_lock_irqsave(&wq_head->lock, flags);
+	spin_lock_irqsave(&wq_head->lock, flags); //必须要原子的加锁哟
 	__add_wait_queue(wq_head, wq_entry);
 	spin_unlock_irqrestore(&wq_head->lock, flags);
 }
@@ -398,7 +398,12 @@ static inline bool is_kthread_should_stop(void)
 }
 
 /*
- * DEFINE_WAIT_FUNC(wait, woken_wake_func);
+ * 1. two flags
+ * 2. two context
+ * 3. store-load 参考kernel lockless系列文档
+ *
+ *
+ * DEFINE_WAIT_FUNC(wait, woken_wake_func); 
  *
  * add_wait_queue(&wq_head, &wait);
  * for (;;) {
@@ -425,7 +430,7 @@ long wait_woken(struct wait_queue_entry *wq_entry, unsigned mode, long timeout)
 	 * either we see the store to wq_entry->flags in woken_wake_function()
 	 * or woken_wake_function() sees our store to current->state.
 	 */
-	set_current_state(mode); /* A */
+	set_current_state(mode); /* A */ //里面有barrier
 	if (!(wq_entry->flags & WQ_FLAG_WOKEN) && !is_kthread_should_stop())
 		timeout = schedule_timeout(timeout);
 	__set_current_state(TASK_RUNNING);

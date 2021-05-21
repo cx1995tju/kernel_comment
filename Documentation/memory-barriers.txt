@@ -156,7 +156,7 @@ For example, consider the following sequence of events:
 	B = 4;		y = A;
 
 The set of accesses as seen by the memory system in the middle can be arranged
-in 24 different combinations:
+in 24(4*3*2*1) different combinations:
 
 	STORE A=3,	STORE B=4,	y=LOAD A->3,	x=LOAD B->4
 	STORE A=3,	STORE B=4,	x=LOAD B->4,	y=LOAD A->3
@@ -279,7 +279,7 @@ And there are a number of things that _must_ or _must_not_ be assumed:
 
 	X = *A; Y = *B; *D = Z;
 
-     we may get any of the following sequences:
+     we may get any of the following sequences: (3*2 = 6种)
 
 	X = LOAD *A,  Y = LOAD *B,  STORE *D = Z
 	X = LOAD *A,  STORE *D = Z, Y = LOAD *B
@@ -585,6 +585,8 @@ sequence, Q must be either &A or &B, and that:
 
 But!  CPU 2's perception of P may be updated _before_ its perception of B, thus
 leading to the following situation:
+即从CPU2的角度看来，先看到了WRITE_ONCE发生，然后看到了B=4的发生
+从CPU2看来即store-store的顺序都无法保证?????(x86系统上不可能出现这种问题的)
 
 	(Q == &B) and (D == 2) ????
 
@@ -604,6 +606,7 @@ between the address load and the data load:
 			      Q = READ_ONCE(P);
 			      <data dependency barrier>
 			      D = *Q;
+//当要读取Q的时候，确保了所有Q的数据依赖操作都同步了
 
 This enforces the occurrence of one of the two implications, and prevents the
 third possibility from arising.
@@ -928,7 +931,7 @@ When dealing with CPU-CPU interactions, certain types of memory barrier should
 always be paired.  A lack of appropriate pairing is almost certainly an error.
 
 General barriers pair with each other, though they also pair with most
-other types of barriers, albeit without multicopy atomicity.  An acquire
+other types of barriers, albeit尽管 without multicopy atomicity.  An acquire
 barrier pairs with a release barrier, but both may also pair with other
 barriers, including of course general barriers.  A write barrier pairs
 with a data dependency barrier, a control dependency, an acquire barrier,

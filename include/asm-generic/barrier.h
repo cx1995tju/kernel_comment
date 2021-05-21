@@ -99,7 +99,7 @@
 #endif
 
 #ifndef smp_wmb
-#define smp_wmb()	barrier()
+#define smp_wmb()	barrier() //单核系统，就是简单的编译器屏障
 #endif
 
 #ifndef smp_read_barrier_depends

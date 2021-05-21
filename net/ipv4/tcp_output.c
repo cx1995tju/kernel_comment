@@ -3512,7 +3512,7 @@ int tcp_connect(struct sock *sk)
 
 	tcp_connect_init(sk);
 
-	if (unlikely(tp->repair)) {
+	if (unlikely(tp->repair)) { //如果是热迁移的socket需要修复，直接connect成功
 		tcp_finish_connect(sk, NULL);
 		return 0;
 	}
@@ -3688,6 +3688,7 @@ static int tcp_xmit_probe_skb(struct sock *sk, int urgent, int mib)
 }
 
 /* Called from setsockopt( ... TCP_REPAIR ) */
+//对于处于extablished状态的套接字会，发送一个ack报文，序号是上一次对端ack确认的最后一个字节的序号
 void tcp_send_window_probe(struct sock *sk)
 {
 	if (sk->sk_state == TCP_ESTABLISHED) {

@@ -1749,7 +1749,7 @@ struct net_device {
 	 *	I/O specific fields
 	 *	FIXME: Merge these and struct ifmap into one
 	 */
-	unsigned long		mem_end; //网络设备共享内存结束位置
+	unsigned long		mem_end; //网络设备共享内存结束位置, 要根据约定，mem_end的设置要确保mem_end-mem_start等于可用设备的内存容量
 	unsigned long		mem_start; //共享内存开始位置
 	unsigned long		base_addr; //设备IO地址, 探测设备的时候初始化，ifconfig可以显示和修改当前值
 	int			irq; //设备IRQ编号, 设备初始化的时候初始化
@@ -1878,7 +1878,7 @@ struct net_device {
 #if IS_ENABLED(CONFIG_IRDA) || IS_ENABLED(CONFIG_ATALK)
 	void 			*atalk_ptr;
 #endif
-	struct in_device __rcu	*ip_ptr; //指向网络层相关信息，譬如ip地址等, inet的设备信息
+	struct in_device __rcu	*ip_ptr; //in_device(inet device)指向网络层相关信息，譬如ip地址等, inet的设备信息
 #if IS_ENABLED(CONFIG_DECNET)
 	struct dn_dev __rcu     *dn_ptr;
 #endif
@@ -1973,7 +1973,7 @@ struct net_device {
 	struct netpoll_info __rcu	*npinfo;
 #endif
 
-	possible_net_t			nd_net;
+	possible_net_t			nd_net; //namespace net_ns
 
 	/* mid-layer private */
 	union {
@@ -2951,6 +2951,7 @@ extern int netdev_flow_limit_table_len;
  *
  *	什么poll_list等结构就在这里
  */
+//设备层到netif_receive_skb的关键
 struct softnet_data {
 	struct list_head	poll_list; //网络设备轮询队列，处于rx接收状态的网络设备链接到这个队列上, rx软中断中遍历这个队列, 然后调用具体设备的poll函数来收包
 	struct sk_buff_head	process_queue;

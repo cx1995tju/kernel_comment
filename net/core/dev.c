@@ -6331,7 +6331,7 @@ static __latent_entropy void net_rx_action(struct softirq_action *h)
 			if (!sd_has_rps_ipi_waiting(sd) && list_empty(&repoll))
 				goto out;
 			break;
-j	}
+		}
 
 		n = list_first_entry(&list, struct napi_struct, poll_list); //从 poll_list中获取第一个节点, 没有取下来的
 		budget -= napi_poll(n, &repoll); //取节点，调用到具体的poll函数
@@ -9606,7 +9606,7 @@ static int __init net_dev_init(void)
 	if (netdev_kobject_init()) //sys文件系统接口
 		goto out;
 
-	INIT_LIST_HEAD(&ptype_all); //ptype_all散列表
+	INIT_LIST_HEAD(&ptype_all); //ptype_all散列表 //重要呀，是从二层到三层(广义的，包括arp都是通过这个索引到的)的关键
 	for (i = 0; i < PTYPE_HASH_SIZE; i++)
 		INIT_LIST_HEAD(&ptype_base[i]); //ptype_base散列表
 
@@ -9661,7 +9661,7 @@ static int __init net_dev_init(void)
 	if (register_pernet_device(&default_device_ops))
 		goto out;
 
-	open_softirq(NET_TX_SOFTIRQ, net_tx_action); //注册软中断
+	open_softirq(NET_TX_SOFTIRQ, net_tx_action); //注册软中断, 软中断是静态注册的
 	open_softirq(NET_RX_SOFTIRQ, net_rx_action);
 
 	rc = cpuhp_setup_state_nocalls(CPUHP_NET_DEV_DEAD, "net/dev:dead",

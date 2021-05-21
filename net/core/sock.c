@@ -2854,12 +2854,12 @@ void lock_sock_nested(struct sock *sk, int subclass)
 	if (sk->sk_lock.owned) //sk_Lock被获取了
 		__lock_sock(sk);
 	sk->sk_lock.owned = 1;
-	spin_unlock(&sk->sk_lock.slock);
+	spin_unlock(&sk->sk_lock.slock); //这里unlock了
 	/*
 	 * The sk_lock has mutex_lock() semantics here:
 	 */
 	mutex_acquire(&sk->sk_lock.dep_map, subclass, 0, _RET_IP_);
-	local_bh_enable();
+	local_bh_enable(); //这里又enable了下半部
 }
 EXPORT_SYMBOL(lock_sock_nested);
 

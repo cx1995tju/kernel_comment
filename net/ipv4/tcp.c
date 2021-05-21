@@ -545,7 +545,7 @@ __poll_t tcp_poll(struct file *file, struct socket *sock, poll_table *wait)
 	 *
 	 * Check-me.
 	 *
-	 * Check number 1. EPOLLHUP is _UNMASKABLE_ event (see UNIX98 and
+	 * Check number 1. EPOLLHUP is _UNMASKABLE_ event (see UNIX98 and			EPOLLHP在linux tcp socket上上的含义是两端都挂了，此时如果有EPOLLOUT事件都可以忽略了。
 	 * our fs/select.c). It means that after we received EOF,
 	 * poll always returns immediately, making impossible poll() on write()
 	 * in state CLOSE_WAIT. One solution is evident --- to set EPOLLHUP
@@ -596,7 +596,7 @@ __poll_t tcp_poll(struct file *file, struct socket *sock, poll_table *wait)
 				if (sk_stream_is_writeable(sk))
 					mask |= EPOLLOUT | EPOLLWRNORM;
 			}
-		} else //shutdown 状态会触发这个事件的
+		} else //send shutdown 状态会触发这个事件的, please refer to:  commit d84ba638e4ba3
 			mask |= EPOLLOUT | EPOLLWRNORM;
 
 		if (tp->urg_data & TCP_URG_VALID)
@@ -1958,9 +1958,10 @@ int tcp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int nonblock,
 	bool has_cmsg;
 
 	if (unlikely(flags & MSG_ERRQUEUE))
-		return inet_recv_error(sk, msg, len, addr_len); //这个就对应了sock的错误队列，在TCP场景下的处理, 也会将报文copy到msg中, 但是msg->flags中带有ERRQUEUE的标志
+		//这个就对应了sock的错误队列，在TCP场景下的处理, 也会将报文copy到msg中, 但是msg->flags中带有ERRQUEUE的标志
+		return inet_recv_error(sk, msg, len, addr_len);
 
-	if (sk_can_busy_loop(sk) && skb_queue_empty(&sk->sk_receive_queue) && //没有数据的时候可以busy looping的时间
+	if (sk_can_busy_loop(sk) && skb_queue_empty(&sk->sk_receive_queue) &&//没有数据的时候可以busy looping的时间
 	    (sk->sk_state == TCP_ESTABLISHED))
 		sk_busy_loop(sk, nonblock); /* 会调用到具体设备的NAPI POLL函数, 譬如：e100_poll */
 
@@ -1969,6 +1970,7 @@ int tcp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int nonblock,
 	err = -ENOTCONN;
 	if (sk->sk_state == TCP_LISTEN)
 		goto out;
+
 	has_cmsg = tp->recvmsg_inq;
 	timeo = sock_rcvtimeo(sk, nonblock);
 
@@ -1981,6 +1983,7 @@ int tcp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int nonblock,
 		if (!(flags & MSG_PEEK))
 			goto out;
 
+		//该情形下，内核将重传队列和发送队列的数据返回给应用层，以备其后续恢复。
 		if (tp->repair_queue == TCP_SEND_QUEUE)
 			goto recv_sndq;
 
@@ -2003,7 +2006,7 @@ int tcp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int nonblock,
 		u32 offset;
 
 		/* Are we at urgent data? Stop if we have read anything or have SIGURG pending. */
-		if (tp->urg_data && tp->urg_seq == *seq) { //判断是否读取到了带歪数据
+		if (tp->urg_data && tp->urg_seq == *seq) {//判断是否读取到了带外数据
 			if (copied)
 				break;
 			if (signal_pending(current)) {
@@ -2109,7 +2112,7 @@ int tcp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int nonblock,
 			used = len;
 
 		/* Do we have urgent data here? */
-		if (tp->urg_data) 
+		if (tp->urg_data) {
 			u32 urg_offset = tp->urg_seq - *seq;
 			if (urg_offset < used) {
 				if (!urg_offset) {
@@ -2379,6 +2382,7 @@ void tcp_close(struct sock *sk, long timeout)
 	 * advertise a zero window, then kill -9 the FTP client, wheee...
 	 * Note: timeout is always zero in such a case.
 	 */
+	//repair模式下，需要静默关闭，不能发送FIN报文
 	if (unlikely(tcp_sk(sk)->repair)) {
 		sk->sk_prot->disconnect(sk, 0);
 	} else if (data_was_unread) {
@@ -2428,7 +2432,7 @@ void tcp_close(struct sock *sk, long timeout)
 
 adjudge_to_death:
 	state = sk->sk_state;
-	sock_hold(sk);
+	sock_hold(sk); //没有处理干净，所以要hold, 报文没有彻底接收到ack
 	sock_orphan(sk);
 
 	local_bh_disable();
@@ -2504,7 +2508,7 @@ out:
 	bh_unlock_sock(sk);
 	local_bh_enable();
 	release_sock(sk);
-	sock_put(sk);
+	sock_put(sk); //前面hold了，这里put就不会释放资源了, sock_orphan将其从process context上detach了, 如果调用了inet_csk_destroy_sock的话，就会被释放，否则就等到ack包收到时候再释放
 }
 EXPORT_SYMBOL(tcp_close);
 
@@ -2563,7 +2567,7 @@ int tcp_disconnect(struct sock *sk, int flags)
 	/* ABORT function of RFC793 */
 	if (old_state == TCP_LISTEN) {
 		inet_csk_listen_stop(sk);
-	} else if (unlikely(tp->repair)) {
+	} else if (unlikely(tp->repair)) { //静默关闭, socket热迁移场景
 		sk->sk_err = ECONNABORTED;
 	} else if (tcp_need_reset(old_state) ||
 		   (tp->snd_nxt != tp->write_seq &&
@@ -2640,8 +2644,8 @@ EXPORT_SYMBOL(tcp_disconnect);
 
 static inline bool tcp_can_repair_sock(const struct sock *sk)
 {
-	return ns_capable(sock_net(sk)->user_ns, CAP_NET_ADMIN) &&
-		(sk->sk_state != TCP_LISTEN);
+	return ns_capable(sock_net(sk)->user_ns, CAP_NET_ADMIN) && 
+		(sk->sk_state != TCP_LISTEN); //处于listen状态的socket不能迁移
 }
 
 static int tcp_repair_set_window(struct tcp_sock *tp, char __user *optbuf, int len)
@@ -2840,7 +2844,7 @@ static int do_tcp_setsockopt(struct sock *sk, int level,
 			err = -EINVAL;
 		break;
 
-	case TCP_REPAIR:
+	case TCP_REPAIR: //开启关闭tcp热迁移状态
 		if (!tcp_can_repair_sock(sk))
 			err = -EPERM;
 		else if (val == TCP_REPAIR_ON) {
@@ -2859,6 +2863,8 @@ static int do_tcp_setsockopt(struct sock *sk, int level,
 
 		break;
 
+		/* 内核桃姐子数据包括缓存区未发送的和未被确认的数据，以及未被应用程序读取的接收缓存的数据。热迁移开始后，应用层需要将内核套接口的接收缓存数据全部读取出来，
+		 * 然后设置TCP_REPAIR_QUEUE的值为TCP_SEND_QUEUE。还要通过recvmsg将发送缓存中的数据读取出来保存到热迁移控制应用程序中，迁移完成后，将数据还原到对应的socket缓存。*/
 	case TCP_REPAIR_QUEUE:
 		if (!tp->repair)
 			err = -EPERM;

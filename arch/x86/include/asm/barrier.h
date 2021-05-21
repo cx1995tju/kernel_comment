@@ -12,6 +12,7 @@
  */
 
 #ifdef CONFIG_X86_32
+//lock不是一种内存屏障，但是它能完成类似内存屏障的功能。Lock会对CPU总线和高速缓存加锁，可以理解为CPU指令级的一种锁。它后面可以跟ADD, ADC, AND, BTC, BTR, BTS, CMPXCHG, CMPXCH8B, DEC, INC, NEG, NOT, OR, SBB, SUB, XOR, XADD, and XCHG等指令。
 #define mb() asm volatile(ALTERNATIVE("lock; addl $0,-4(%%esp)", "mfence", \
 				      X86_FEATURE_XMM2) ::: "memory", "cc")
 #define rmb() asm volatile(ALTERNATIVE("lock; addl $0,-4(%%esp)", "lfence", \
@@ -19,9 +20,10 @@
 #define wmb() asm volatile(ALTERNATIVE("lock; addl $0,-4(%%esp)", "sfence", \
 				       X86_FEATURE_XMM2) ::: "memory", "cc")
 #else
-#define mb() 	asm volatile("mfence":::"memory")
-#define rmb()	asm volatile("lfence":::"memory")
-#define wmb()	asm volatile("sfence" ::: "memory")
+#define mb() 	asm volatile("mfence":::"memory") //lfence + sfence
+#define rmb()	asm volatile("lfence":::"memory") //lfence读屏障，在读指令前插入lfence，能确保高速缓存中的数据失效，重新从内存加载数据
+#define wmb()	asm volatile("sfence" ::: "memory") //sfence 写屏障，在写指令后插入写屏障，能让写入的数据真的写入到内存。
+						//memory是嵌入式汇编的损坏部，memory告诉gcc这段指令不要重排序，不要将变量缓存到寄存器
 #endif
 
 /**
@@ -56,12 +58,13 @@ static inline unsigned long array_index_mask_nospec(unsigned long index,
 #define dma_wmb()	barrier()
 
 #ifdef CONFIG_X86_32
-#define __smp_mb()	asm volatile("lock; addl $0,-4(%%esp)" ::: "memory", "cc")
+#define __smp_mb()	asm volatile("lock; addl $0,-4(%%esp)" ::: "memory", "cc") //即刷新store buffer
 #else
-#define __smp_mb()	asm volatile("lock; addl $0,-4(%%rsp)" ::: "memory", "cc")
+//一条空指令，主要是使用lock来实现屏障功能，参考https://blog.csdn.net/caoshangpa/article/details/78853919
+#define __smp_mb()	asm volatile("lock; addl $0,-4(%%rsp)" ::: "memory", "cc") 
 #endif
 #define __smp_rmb()	dma_rmb()
-#define __smp_wmb()	barrier()
+#define __smp_wmb()	barrier() //为什么x86上就是简单的编译器屏障？？？？？
 #define __smp_store_mb(var, value) do { (void)xchg(&var, value); } while (0)
 
 #define __smp_store_release(p, v)					\

@@ -280,7 +280,7 @@ struct sock_common {
   *	@sk_lingertime: %SO_LINGER l_linger setting
   *	@sk_backlog: always used with the per-socket spinlock held 这是一个队列
   *	@sk_callback_lock: used with the callbacks in the end of this struct
-  *	@sk_error_queue: rarely used 存放详细的出错信息，通过setsockopt(IO_RECVERR), 就可以设置，后续使用recvmsg(MSG_ERRQUEUE)就可以读取到
+  *	@sk_error_queue: rarely used 存放详细的出错信息，通过setsockopt(IP_RECVERR), 就可以设置，后续使用recvmsg(MSG_ERRQUEUE)就可以读取到
   *	@sk_prot_creator: sk_prot of original sock creator (see ipv6_setsockopt,
   *			  IPV6_ADDRFORM for instance) 原始网络协议块指针
   *	@sk_err: last error
@@ -371,7 +371,7 @@ struct sock {
 	socket_lock_t		sk_lock; //同步锁
 	atomic_t		sk_drops;
 	int			sk_rcvlowat; //接收缓存下限值
-	struct sk_buff_head	sk_error_queue;
+	struct sk_buff_head	sk_error_queue; //对于数据报类型的socket，真的会在种类挂一个数据报的，详见man 7 ip；对于TCP这种的话，这个有效，但是错误的获取需要使用SO_ERROR参数从sk_err中获取
 	struct sk_buff_head	sk_receive_queue; //接收队列
 	/*
 	 * The backlog queue is special, it is always used with
@@ -470,8 +470,8 @@ struct sock {
 	unsigned long	        sk_lingertime;
 	struct proto		*sk_prot_creator;
 	rwlock_t		sk_callback_lock; //确保sock结构中一些成员同步访问的锁, 因为有些成员会在软中断中被访问
-	int			sk_err, //记录最后一次致命错误, 用户读取后重置
-				sk_err_soft; //最后一次非致命错误
+	int			sk_err, //记录最后一次致命错误, 读取后重置，参见sock_error()
+				sk_err_soft; //最后一次非致命错误 用户读取后重置, 参考getsockopt(SOL_SOCKET, SO_ERROR)
 	u32			sk_ack_backlog; 
 	u32			sk_max_ack_backlog; 
 	kuid_t			sk_uid;
