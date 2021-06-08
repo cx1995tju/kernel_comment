@@ -30,7 +30,7 @@ struct tcphdr {
 	__be32	ack_seq; //确认号, 期待对方发送的下一个序列号
 #if defined(__LITTLE_ENDIAN_BITFIELD)
 	__u16	res1:4, 
-		doff:4, //header offset
+		doff:4, //header offset 头部长度*4B
 		fin:1,
 		syn:1,
 		rst:1,

@@ -33,8 +33,9 @@
 #include <net/ip_fib.h>
 #include <net/fib_rules.h>
 
+//用于表示一张ipv4的策略路由表
 struct fib4_rule {
-	struct fib_rule		common;
+	struct fib_rule		common; //table在这里面保存
 	u8			dst_len;
 	u8			src_len; //目的IP地址与源IP地址长度
 	u8			tos; //匹配ip首部的TOS字段

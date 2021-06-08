@@ -98,6 +98,7 @@ enum {
 	/* maximum string length for set_worker_desc() */
 	WORKER_DESC_LEN		= 24,
 };
+
  //data不再是func的参数了，现在需要获取func的参数，都是将work嵌入到某个结构中，通过container_of获取该结构，从而获取参数
 struct work_struct {
 	atomic_long_t data; //data不再是func的参数了，现在需要获取func的参数，都是将work嵌入到某个结构中，通过container_of获取该结构，从而获取参数

@@ -109,14 +109,20 @@ static void ip4_frag_create_run(struct inet_frag_queue *q, struct sk_buff *skb)
 }
 
 /* Describe an entry in the "incomplete datagrams" queue. */
+//用于重组分片的结构，
+//1. 需要通过该数据结构快速的定位到某一数据报的一组分片
+//2. 在属于某个数据报的一组分片中快速的插入一些分片
+//3. 能有效的判断一个数据报的分片是否全部接收完毕
+//4. 具有组装超时机制, 一旦超时，删除数据报
+//内核使用ipq结构保存一个IP数据报文的信息，用ipq散列表来快速寻找ip报文
 struct ipq {
 	struct inet_frag_queue q;
 
 	u8		ecn; /* RFC3168 support */
 	u16		max_df_size; /* largest frag with DF set seen */
-	int             iif;
-	unsigned int    rid;
-	struct inet_peer *peer;
+	int             iif; //接收最后一个分片的网络设备索引号，组装失败时候，用该分片发送ICMP报文。 参考ip_expire函数
+	unsigned int    rid; //已经接收到的分片的计数器
+	struct inet_peer *peer; //记录发送方的一些信息
 };
 
 static u8 ip4_frag_ecn(u8 tos)
@@ -166,6 +172,7 @@ static void ipq_put(struct ipq *ipq)
 /* Kill ipq entry. It is not destroyed immediately,
  * because caller (and someone more) holds reference count.
  */
+//将已经组装超时的ipq从相关的红黑树删除，设置其为complete状态
 static void ipq_kill(struct ipq *ipq)
 {
 	inet_frag_kill(&ipq->q);
@@ -680,6 +687,7 @@ out_fail:
 }
 
 /* Process an incoming IP datagram fragment. */
+//尝试重组进来的IP分片
 int ip_defrag(struct net *net, struct sk_buff *skb, u32 user)
 {
 	struct net_device *dev = skb->dev ? : skb_dst(skb)->dev;
@@ -778,7 +786,7 @@ static int dist_min;
 
 static struct ctl_table ip4_frags_ns_ctl_table[] = {
 	{
-		.procname	= "ipfrag_high_thresh",
+		.procname	= "ipfrag_high_thresh", //用于组装IP数据报的内存上限值，如果进行组装IP分片的时候，占据的缓存超过了此参数，就会调用ip_evictor()进行垃圾收集
 		.data		= &init_net.ipv4.frags.high_thresh,
 		.maxlen		= sizeof(unsigned long),
 		.mode		= 0644,
@@ -786,7 +794,7 @@ static struct ctl_table ip4_frags_ns_ctl_table[] = {
 		.extra1		= &init_net.ipv4.frags.low_thresh
 	},
 	{
-		.procname	= "ipfrag_low_thresh",
+		.procname	= "ipfrag_low_thresh", //下限，ip_evictor收集到这个值就停止
 		.data		= &init_net.ipv4.frags.low_thresh,
 		.maxlen		= sizeof(unsigned long),
 		.mode		= 0644,
@@ -794,14 +802,14 @@ static struct ctl_table ip4_frags_ns_ctl_table[] = {
 		.extra2		= &init_net.ipv4.frags.high_thresh
 	},
 	{
-		.procname	= "ipfrag_time",
+		.procname	= "ipfrag_time", //待重组的分片允许保留的时间，默认30s
 		.data		= &init_net.ipv4.frags.timeout,
 		.maxlen		= sizeof(int),
 		.mode		= 0644,
 		.proc_handler	= proc_dointvec_jiffies,
 	},
 	{
-		.procname	= "ipfrag_max_dist",
+		.procname	= "ipfrag_max_dist",  //同一源ip地址，允许接收的ip分片上限，一般是64，防止Dos攻击, 为0表示没有任何限制
 		.data		= &init_net.ipv4.frags.max_dist,
 		.maxlen		= sizeof(int),
 		.mode		= 0644,
@@ -815,7 +823,7 @@ static struct ctl_table ip4_frags_ns_ctl_table[] = {
 static int ip4_frags_secret_interval_unused;
 static struct ctl_table ip4_frags_ctl_table[] = {
 	{
-		.procname	= "ipfrag_secret_interval",
+		.procname	= "ipfrag_secret_interval", //已经被废弃了，以前是定时重组ipq散列表的时间间隔,默认是300s
 		.data		= &ip4_frags_secret_interval_unused,
 		.maxlen		= sizeof(int),
 		.mode		= 0644,

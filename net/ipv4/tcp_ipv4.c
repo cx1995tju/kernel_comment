@@ -425,6 +425,8 @@ EXPORT_SYMBOL(tcp_req_err);
  */
 
 //tcp_protocol->tcp_v4_err, TCP的差错处理函数，在ICMP模块接收到了差错报文后，如果传输层是TCP的话，就会通过net_protocol结构索引到该函数
+//对于TCP是不会产生错误报文挂载到错误队列的，最多设置sk_err flag
+//从icmp_err等调用过来
 void tcp_v4_err(struct sk_buff *icmp_skb, u32 info) //info是ICMP的辅助信息，参考ICMP理论
 {
 	const struct iphdr *iph = (const struct iphdr *)icmp_skb->data;
@@ -1380,6 +1382,7 @@ static const struct tcp_request_sock_ops tcp_request_sock_ipv4_ops = {
 	.send_synack	=	tcp_v4_send_synack,
 };
 
+//sk是parent sock
 int tcp_v4_conn_request(struct sock *sk, struct sk_buff *skb)
 {
 	/* Never answer to SYNs send to broadcast or multicast */
@@ -1507,7 +1510,7 @@ static struct sock *tcp_v4_cookie_check(struct sock *sk, struct sk_buff *skb)
 #ifdef CONFIG_SYN_COOKIES
 	const struct tcphdr *th = tcp_hdr(skb);
 
-	if (!th->syn)
+	if (!th->syn) //listen状态下收到了非syn包，检查是不是cookie的
 		sk = cookie_v4_check(sk, skb);
 #endif
 	return sk;
@@ -1706,20 +1709,20 @@ int tcp_v4_rcv(struct sk_buff *skb)
 	struct sock *sk;
 	int ret;
 
-	if (skb->pkt_type != PACKET_HOST) /* 报文不是发送到该主机的 */
+	if (skb->pkt_type != PACKET_HOST) /* 报文不是发送到该主机的, 底层路由系统会标注的 */
 		goto discard_it;
 
 	/* Count it even if it's bad */
 	__TCP_INC_STATS(net, TCP_MIB_INSEGS);
 
-	if (!pskb_may_pull(skb, sizeof(struct tcphdr))) //检查skb的线性区长度与tcp头部长度
+	if (!pskb_may_pull(skb, sizeof(struct tcphdr))) //检查skb的线性区长度与tcp头部长度最小值(20B)的比较
 		goto discard_it;
 
 	th = (const struct tcphdr *)skb->data; //data指向头部, 因为此时是从ip层拿到的
 
 	if (unlikely(th->doff < sizeof(struct tcphdr) / 4)) //头部长度, 不可能小于20Bytes
 		goto bad_packet;
-	if (!pskb_may_pull(skb, th->doff * 4))
+	if (!pskb_may_pull(skb, th->doff * 4)) //检查线性区长度和数据报的头部长度
 		goto discard_it;
 
 	/* An explanation is required here, I think.
@@ -1828,7 +1831,7 @@ process:
 
 	sk_incoming_cpu_update(sk);
 
-	bh_lock_sock_nested(sk);
+	bh_lock_sock_nested(sk); //直接持有自旋锁的
 	tcp_segs_in(tcp_sk(sk), skb);
 	ret = 0;
 	if (!sock_owned_by_user(sk)) {

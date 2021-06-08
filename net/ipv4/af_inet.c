@@ -526,7 +526,7 @@ int __inet_bind(struct sock *sk, struct sockaddr *uaddr, int addr_len,
 	/* Make sure we are allowed to bind here. */
 	if (snum || !(inet->bind_address_no_port ||
 		      force_bind_address_no_port)) {
-		if (sk->sk_prot->get_port(sk, snum)) { /* 更具体的传输层端口绑定，譬如:tcp udp, tcp_v4_get_port() udp_v4_get_port()*/
+		if (sk->sk_prot->get_port(sk, snum)) { /* 更具体的传输层端口绑定，譬如:tcp %inet_csk_get_port() */
 			inet->inet_saddr = inet->inet_rcv_saddr = 0;
 			err = -EADDRINUSE;
 			goto out_release_sock;
@@ -1937,7 +1937,7 @@ static int __init inet_init(void)
 	 *	Add all the base protocols.
 	 */
 
-	if (inet_add_protocol(&icmp_protocol, IPPROTO_ICMP) < 0) //加入到inet_protocol数组中，从网络层来的报文通过这个数组索引到传输层
+	if (inet_add_protocol(&icmp_protocol, IPPROTO_ICMP) < 0) //加入到inet_protos数组中，从网络层来的报文通过这个数组索引到传输层
 		pr_crit("%s: Cannot add ICMP protocol\n", __func__);
 	if (inet_add_protocol(&udp_protocol, IPPROTO_UDP) < 0)
 		pr_crit("%s: Cannot add UDP protocol\n", __func__);

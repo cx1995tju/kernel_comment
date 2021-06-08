@@ -125,7 +125,7 @@ struct inet_hashinfo {
 	 *          TCP_ESTABLISHED <= sk->sk_state < TCP_CLOSE
 	 *
 	 */
-	struct inet_ehash_bucket	*ehash;
+	struct inet_ehash_bucket	*ehash; //现在完成两次握手的socket req_sock也会保存到这个散列表中, 参考reqsk_queue_hash_req()
 	spinlock_t			*ehash_locks;
 	unsigned int			ehash_mask;
 	unsigned int			ehash_locks_mask;

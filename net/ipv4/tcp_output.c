@@ -745,6 +745,7 @@ static unsigned int tcp_established_options(struct sock *sk, struct sk_buff *skb
 	}
 #endif
 
+	//refer to: tcp_replace_ts_recent()
 	if (likely(tp->rx_opt.tstamp_ok)) {
 		opts->options |= OPTION_TS;
 		opts->tsval = skb ? tcp_skb_timestamp(skb) + tp->tsoffset : 0;

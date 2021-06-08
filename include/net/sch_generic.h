@@ -61,8 +61,8 @@ struct Qdisc {
 					   struct sk_buff **to_free);
 	struct sk_buff *	(*dequeue)(struct Qdisc *sch);
 	unsigned int		flags;
-#define TCQ_F_BUILTIN		1
-#define TCQ_F_INGRESS		2
+#define TCQ_F_BUILTIN		1 //排队规则是空的，删除释放的时候，不需要过多的资源释放
+#define TCQ_F_INGRESS		2 //输入方向的排队规则，能做的事情比较少，一般是filter的功能
 #define TCQ_F_CAN_BYPASS	4
 #define TCQ_F_MQROOT		8
 #define TCQ_F_ONETXQUEUE	0x10 /* dequeue_skb() can assume all skbs are for
@@ -84,8 +84,8 @@ struct Qdisc {
 	const struct Qdisc_ops	*ops;
 	struct qdisc_size_table	__rcu *stab;
 	struct hlist_node       hash;
-	u32			handle; /* 排队规则的id */
-	u32			parent;
+	u32			handle; /* 排队规则的id, 主 + 副编号构成，主编号用户分配， */
+	u32			parent; //父结点的handle
 
 	struct netdev_queue	*dev_queue;
 

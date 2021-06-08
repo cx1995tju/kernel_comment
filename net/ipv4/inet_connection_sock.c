@@ -145,19 +145,20 @@ static int inet_csk_bind_conflict(const struct sock *sk,
 	 * one this bucket belongs to.
 	 */
 
+	//这里是已经hash到一个slot了
 	sk_for_each_bound(sk2, &tb->owners) {
 		if (sk != sk2 &&
 		    (!sk->sk_bound_dev_if ||
 		     !sk2->sk_bound_dev_if ||
 		     sk->sk_bound_dev_if == sk2->sk_bound_dev_if)) {
-			if ((!reuse || !sk2->sk_reuse ||
+			if ((!reuse || !sk2->sk_reuse || //两个socket有一个不允许reuse addr  或者 sk2是listen状态
 			    sk2->sk_state == TCP_LISTEN) &&
-			    (!reuseport || !sk2->sk_reuseport ||
+			    (!reuseport || !sk2->sk_reuseport || //有一个不允许reuse port 或 sk有reuse_cb 或 sk状态不是TIME_WAIT
 			     rcu_access_pointer(sk->sk_reuseport_cb) ||
 			     (sk2->sk_state != TCP_TIME_WAIT &&
 			     !uid_eq(uid, sock_i_uid(sk2))))) {
-				if (inet_rcv_saddr_equal(sk, sk2, true))
-					break;
+				if (inet_rcv_saddr_equal(sk, sk2, true)) //这里就是简单的判断ip是否一致（0.0.0.0表示通配）
+					break; //这里break的话，就证明匹配上了，不允许分配
 			}
 			if (!relax && reuse && sk2->sk_reuse &&
 			    sk2->sk_state != TCP_LISTEN) {

@@ -42,6 +42,9 @@ struct net;
 
 void __icmp_send(struct sk_buff *skb_in, int type, int code, __be32 info,
 		 const struct ip_options *opt);
+//skb_in 引发差错的报文，通过其获取到输入路由缓存
+//type 待输出icmp报文类型
+//info icmp报文具体信息, 不同类型编码的icmp报文不同, please refer to icmp_reply()
 static inline void icmp_send(struct sk_buff *skb_in, int type, int code, __be32 info)
 {
 	__icmp_send(skb_in, type, code, info, &IPCB(skb_in)->opt);

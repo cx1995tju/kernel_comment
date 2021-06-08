@@ -505,7 +505,7 @@ struct skb_shared_info {
 	/* Warning: this field is not always filled in (UFO)! */
 	unsigned short	gso_segs;
 	struct sk_buff	*frag_list; /* 分散聚合sk_buff, 如果网口支持分散聚合功能，我们可以直接将多个sk_buff丢过去 */
-					/* 还可以基于此来实现zero-copy功能 */
+					/* 还可以基于此来实现zero-copy功能, 还可以用于ip层的快速分片，参考ip_fragment */
 	/* frag_list的使用方法：
 	 *	1. 接收分片组后链接成一个完整的ip数据报
 	 *	2. UDP数据报的输出中，将待分片的SKB链接到第一个SKB中，在输出过程中可以快速分片
@@ -2172,13 +2172,14 @@ static inline void *pskb_pull(struct sk_buff *skb, unsigned int len)
 	return unlikely(len > skb->len) ? NULL : __pskb_pull(skb, len);
 }
 
+//检测skb中的数据是否有指定长度
 static inline int pskb_may_pull(struct sk_buff *skb, unsigned int len)
 {
-	if (likely(len <= skb_headlen(skb)))
+	if (likely(len <= skb_headlen(skb))) //线性区长度不可能< tcp头长度的
 		return 1;
 	if (unlikely(len > skb->len))
 		return 0;
-	return __pskb_pull_tail(skb, len - skb_headlen(skb)) != NULL;
+	return __pskb_pull_tail(skb, len - skb_headlen(skb)) != NULL; //扩充tailroom
 }
 
 void skb_condense(struct sk_buff *skb);
@@ -2560,6 +2561,7 @@ static inline int __pskb_trim(struct sk_buff *skb, unsigned int len)
 	return 0;
 }
 
+//删除尾部数据
 static inline int pskb_trim(struct sk_buff *skb, unsigned int len)
 {
 	return (len < skb->len) ? __pskb_trim(skb, len) : 0;

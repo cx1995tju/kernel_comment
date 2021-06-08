@@ -66,7 +66,7 @@ struct netns_ipv4 {
 	bool			fib_offload_disabled;
 	struct sock		*fibnl;
 
-	struct sock  * __percpu	*icmp_sk;
+	struct sock  * __percpu	*icmp_sk; //这个是供内核内部使用的ICMP类型的socket，用于收发icmp报文的
 	struct sock		*mc_autojoin_sk;
 
 	struct inet_peer_base	*peers;

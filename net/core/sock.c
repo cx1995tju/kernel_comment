@@ -494,8 +494,7 @@ struct dst_entry *__sk_dst_check(struct sock *sk, u32 cookie)
 {
 	struct dst_entry *dst = __sk_dst_get(sk);
 
-	//%ipv4_dst_check
-	if (dst && dst->obsolete && dst->ops->check(dst, cookie) == NULL) {
+	if (dst && dst->obsolete && dst->ops->check(dst, cookie) == NULL) { //这个check, 在ipv4场景就是与当前net namespace的一个全局的时间戳进行比较 %ipv4_dst_check
 		sk_tx_queue_clear(sk);
 		sk->sk_dst_pending_confirm = 0;
 		RCU_INIT_POINTER(sk->sk_dst_cache, NULL); //置空了
@@ -2709,7 +2708,7 @@ static void sock_def_readable(struct sock *sk)
 	if (skwq_has_sleeper(wq))
 		wake_up_interruptible_sync_poll(&wq->wait, EPOLLIN | EPOLLPRI |
 						EPOLLRDNORM | EPOLLRDBAND);
-	sk_wake_async(sk, SOCK_WAKE_WAITD, POLL_IN);
+	sk_wake_async(sk, SOCK_WAKE_WAITD, POLL_IN); 
 	rcu_read_unlock();
 }
 

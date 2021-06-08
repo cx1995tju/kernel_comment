@@ -200,11 +200,13 @@ inet_peer_maxttl - INTEGER
 TCP variables:
 
 somaxconn - INTEGER
+	限制backlog的最大数目
 	Limit of socket listen() backlog, known in userspace as SOMAXCONN.
 	Defaults to 128.  See also tcp_max_syn_backlog for additional tuning
 	for TCP sockets.
 
 tcp_abort_on_overflow - BOOLEAN
+	表示当进程太忙的时候，要不要主动发rst过去
 	If listening service is too slow to accept new connections,
 	reset them. Default state is FALSE. It means that if overflow
 	occurred due to a burst, connection will recover. Enable this
@@ -364,6 +366,7 @@ tcp_low_latency - BOOLEAN
 	This is a legacy option, it has no effect anymore.
 
 tcp_max_orphans - INTEGER
+	孤儿套接字的最大值
 	Maximal number of TCP sockets not attached to any user file handle,
 	held by system.	If this number is exceeded orphaned connections are
 	reset immediately and warning is printed. This limit exists
@@ -376,6 +379,7 @@ tcp_max_orphans - INTEGER
 	up to ~64K of unswappable memory.
 
 tcp_max_syn_backlog - INTEGER
+	最大的未完成三次握手的syn请求数目，是整个系统
 	Maximal number of remembered connection requests, which have not
 	received an acknowledgment from connecting client.
 	The minimal value is 128 for low memory machines, and it will

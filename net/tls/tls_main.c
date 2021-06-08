@@ -702,7 +702,7 @@ static int tls_init(struct sock *sk)
 
 	ctx->tx_conf = TLS_BASE;
 	ctx->rx_conf = TLS_BASE;
-	update_sk_prot(sk, ctx);
+	update_sk_prot(sk, ctx); //替换prot ops从而做到替换掉send recv等函数，完成用户无感的加密等操作
 out:
 	return rc;
 }

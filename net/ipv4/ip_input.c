@@ -195,11 +195,11 @@ static int ip_local_deliver_finish(struct net *net, struct sock *sk, struct sk_b
 	rcu_read_lock();
 	{
 		int protocol = ip_hdr(skb)->protocol; //获取IP头部的协议号，用于计算hash值
-		const struct net_protocol *ipprot;
+		const struct net_protocol *ipprot; //找3层协议的net_protocol数组inet_protos，然后通过二层协议号从这个数组中找到二层的rcv函数入口
 		int raw;
 
 	resubmit:
-		raw = raw_local_deliver(skb, protocol);
+		raw = raw_local_deliver(skb, protocol); //可能是对应的raw socket
 
 		ipprot = rcu_dereference(inet_protos[protocol]); //是否有对应的传输层接口，如果有就调用并处理之, tcp_v4_rcv
 		if (ipprot) {
@@ -212,7 +212,7 @@ static int ip_local_deliver_finish(struct net *net, struct sock *sk, struct sk_b
 				}
 				nf_reset(skb);
 			}
-			ret = ipprot->handler(skb);
+			ret = ipprot->handler(skb); //tcp_v4_rcv等, icmp_rcv
 			if (ret < 0) {
 				protocol = -ret;
 				goto resubmit;
@@ -222,7 +222,7 @@ static int ip_local_deliver_finish(struct net *net, struct sock *sk, struct sk_b
 			if (!raw) {
 				if (xfrm4_policy_check(NULL, XFRM_POLICY_IN, skb)) {
 					__IP_INC_STATS(net, IPSTATS_MIB_INUNKNOWNPROTOS);
-					icmp_send(skb, ICMP_DEST_UNREACH,
+					icmp_send(skb, ICMP_DEST_UNREACH, //目的不可达报文给对方
 						  ICMP_PROT_UNREACH, 0);
 				}
 				kfree_skb(skb);
@@ -241,6 +241,7 @@ static int ip_local_deliver_finish(struct net *net, struct sock *sk, struct sk_b
 /*
  * 	Deliver IP Packets to the higher protocol layers.
  */
+//输入到本地的ip数据包是这个函数处理, 调用路径是dst->input调用的
 int ip_local_deliver(struct sk_buff *skb)
 {
 	/*
@@ -258,6 +259,9 @@ int ip_local_deliver(struct sk_buff *skb)
 		       ip_local_deliver_finish);
 }
 
+//解析并处理接收到的ip报文中的ip首部选项。
+//在网络层接收到报文的时候，先检测该数据报的有效性
+//在转发和上传到上层协议之前，需要解析该数据报中的IP选项并解析源路由选项
 static inline bool ip_rcv_options(struct sk_buff *skb, struct net_device *dev)
 {
 	struct ip_options *opt;
@@ -314,7 +318,8 @@ static int ip_rcv_finish_core(struct net *net, struct sock *sk,
 	struct rtable *rt;
 	int err;
 
-	if (net->ipv4.sysctl_ip_early_demux &&
+	if (net->ipv4.sysctl_ip_early_demux && //查找路由前先查找socket，避免找路由, 对于每个包都找路由是没有必要的。但是对于需要转发的包，去找socket是没有必要的，所以设置了参数来开启关闭。
+			//参考http://blog.chinaunix.net/uid-20662820-id-4935075.html
 	    !skb_dst(skb) &&
 	    !skb->sk &&
 	    !ip_is_fragment(iph)) {
@@ -335,7 +340,7 @@ static int ip_rcv_finish_core(struct net *net, struct sock *sk,
 	 *	Initialise the virtual path cache for the packet. It describes
 	 *	how the packet travels inside Linux networking.
 	 */
-	if (!skb_valid_dst(skb)) { //本质就是查找输入路由, 什么场景下，在进入这个函数前，skb就已经有dst成员了呢？？？？？？
+	if (!skb_valid_dst(skb)) { //本质就是查找输入路由, 什么场景下，在进入这个函数前，skb就已经有dst成员了呢？？？？？？ 见前面的那个if语句
 		err = ip_route_input_noref(skb, iph->daddr, iph->saddr,
 					   iph->tos, dev);
 		if (unlikely(err))
@@ -409,7 +414,7 @@ static int ip_rcv_finish(struct net *net, struct sock *sk, struct sk_buff *skb)
 	if (!skb)
 		return NET_RX_SUCCESS;
 
-	ret = ip_rcv_finish_core(net, sk, skb, dev); //路由缓存相关
+	ret = ip_rcv_finish_core(net, sk, skb, dev); //路由缓存相关, 这里的最大的作用就是设置好skb->dst
 	if (ret != NET_RX_DROP)
 		ret = dst_input(skb); //ip_local_deliver 或者 ip_forward, 这就是输入路由最大的作用
 	return ret;
@@ -418,6 +423,7 @@ static int ip_rcv_finish(struct net *net, struct sock *sk, struct sk_buff *skb)
 /*
  * 	Main IP Receive routine.
  */
+//各种check，以及针对数据包的一些预处理
 static struct sk_buff *ip_rcv_core(struct sk_buff *skb, struct net *net)
 {
 	const struct iphdr *iph;
@@ -438,7 +444,7 @@ static struct sk_buff *ip_rcv_core(struct sk_buff *skb, struct net *net)
 		goto out;
 	}
 
-	if (!pskb_may_pull(skb, sizeof(struct iphdr))) //通过长度检测有效性
+	if (!pskb_may_pull(skb, sizeof(struct iphdr))) //通过长度检测有效性, 检测skb的长度是否至少有iphdr这么长
 		goto inhdr_error;
 
 	iph = ip_hdr(skb);
@@ -464,7 +470,7 @@ static struct sk_buff *ip_rcv_core(struct sk_buff *skb, struct net *net)
 		       IPSTATS_MIB_NOECTPKTS + (iph->tos & INET_ECN_MASK),
 		       max_t(unsigned short, 1, skb_shinfo(skb)->gso_segs));
 
-	if (!pskb_may_pull(skb, iph->ihl*4)) //根据首部长度，检测有效性
+	if (!pskb_may_pull(skb, iph->ihl*4)) //根据首部长度，检测有效性, 即判断报文是否有其首部描述的那么长
 		goto inhdr_error;
 
 	iph = ip_hdr(skb);
@@ -519,6 +525,7 @@ int ip_rcv(struct sk_buff *skb, struct net_device *dev, struct packet_type *pt,
 {
 	struct net *net = dev_net(dev);
 
+	//针对ip数据报进行check和各种预处理，更核心的操作还是看ip_local_deliver ip_forward
 	skb = ip_rcv_core(skb, net);
 	if (skb == NULL)
 		return NET_RX_DROP;

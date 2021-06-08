@@ -40,7 +40,7 @@
 
 struct sock;
 
-//IP层的私有信息控制块, skb的cb成员
+//IP层的私有信息控制块, 进入ip层的时候保存在skb的cb成员
 struct inet_skb_parm {
 	int			iif;
 	struct ip_options	opt;		/* Compiled IP options, ip选项, 输入时ip_rcv_options解析，输出时ip_forward_build会用其构建ip头部		*/
@@ -68,11 +68,14 @@ static inline unsigned int ip_hdrlen(const struct sk_buff *skb)
 	return ip_hdr(skb)->ihl * 4;
 }
 
+/* 如果设置了IP_PKTINFO的报文控制信息选项后，UDP套接口，RAW套接口可以使用recvmsg系统调用获取到该报文的控制信息。 */
+/* 同理在sendmsg的时候，可以将报文控制信息复制到输出数据的消息头部，输出数据的时候，会利用干活告知信息来构建ip数据报。 */
+//这个就是IP控制信息块
 struct ipcm_cookie {
 	struct sockcm_cookie	sockc;
-	__be32			addr;
-	int			oif;
-	struct ip_options_rcu	*opt;
+	__be32			addr; //UDP或raw套接口的目的地址
+	int			oif; //指定的输出网络设备
+	struct ip_options_rcu	*opt; //指定的ip选项
 	__u8			ttl;
 	__s16			tos;
 	char			priority;
@@ -583,8 +586,8 @@ bool ip_call_ra_chain(struct sk_buff *skb);
  */
 
 enum ip_defrag_users {
-	IP_DEFRAG_LOCAL_DELIVER,
-	IP_DEFRAG_CALL_RA_CHAIN,
+	IP_DEFRAG_LOCAL_DELIVER, //分片来自网络其他主机或者本地lo口
+	IP_DEFRAG_CALL_RA_CHAIN, //含有路由警告的ip分片
 	IP_DEFRAG_CONNTRACK_IN,
 	__IP_DEFRAG_CONNTRACK_IN_END	= IP_DEFRAG_CONNTRACK_IN + USHRT_MAX,
 	IP_DEFRAG_CONNTRACK_OUT,
@@ -633,6 +636,7 @@ void ip_options_build(struct sk_buff *skb, struct ip_options *opt,
 
 int __ip_options_echo(struct net *net, struct ip_options *dopt,
 		      struct sk_buff *skb, const struct ip_options *sopt);
+//从数据报中复制内容到ip_options结构中, 是ip_options_build的反向操作
 static inline int ip_options_echo(struct net *net, struct ip_options *dopt,
 				  struct sk_buff *skb)
 {

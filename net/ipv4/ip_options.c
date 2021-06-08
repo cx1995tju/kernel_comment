@@ -41,12 +41,17 @@
  * saddr is address of outgoing interface.
  */
 
+//根据ip选项信息块inet_skb_parm，构建IP数据报中的IP选项
+//skb 待构建IP选项的IP数据报
+//opt 用来在IP数据报中构建IP选项的信息
+//daddr 目的ip地址，不是下一跳
+//rt 该skb的输出路由缓存
 void ip_options_build(struct sk_buff *skb, struct ip_options *opt,
 		      __be32 daddr, struct rtable *rt, int is_frag)
 {
-	unsigned char *iph = skb_network_header(skb);
+	unsigned char *iph = skb_network_header(skb); //ip数据报首部
 
-	memcpy(&(IPCB(skb)->opt), opt, sizeof(struct ip_options));
+	memcpy(&(IPCB(skb)->opt), opt, sizeof(struct ip_options)); //copy选项
 	memcpy(iph+sizeof(struct iphdr), opt->__data, opt->optlen);
 	opt = &(IPCB(skb)->opt);
 
@@ -205,6 +210,8 @@ int __ip_options_echo(struct net *net, struct ip_options *dopt,
  *	Simple and stupid 8), but the most efficient way.
  */
 
+//处理待发送的IP分片中的选项
+//清理复制标志为0的选项，将其置位NOOP空操作, 这样子可以确保协议首部的长度不变，只需要重新计算checksum
 void ip_options_fragment(struct sk_buff *skb)
 {
 	unsigned char *optptr = skb_network_header(skb) + sizeof(struct iphdr);
@@ -212,7 +219,7 @@ void ip_options_fragment(struct sk_buff *skb)
 	int  l = opt->optlen;
 	int  optlen;
 
-	while (l > 0) {
+	while (l > 0) { //遍历所有选项，直到遇到END 选项结束标志
 		switch (*optptr) {
 		case IPOPT_END:
 			return;
@@ -229,6 +236,7 @@ void ip_options_fragment(struct sk_buff *skb)
 		l -= optlen;
 		optptr += optlen;
 	}
+	//修改对应选项的标识位
 	opt->ts = 0;
 	opt->rr = 0;
 	opt->rr_needaddr = 0;
@@ -474,6 +482,11 @@ error:
 	return -EINVAL;
 }
 
+//解析IP选项，发送和接受的时候都会调用的
+//发送时ip_options_get_finish -> ip_options_compile(opt, NULL)
+//	选项保存在opt.data开始的内存区域，将其解析保存到opt中
+//接收时ip_rcv_options -> ip_options_compile(NULL, skb)
+//	选项保存在skb头部，将其解析保存到skb->cb中
 int ip_options_compile(struct net *net,
 		       struct ip_options *opt, struct sk_buff *skb)
 {
@@ -489,6 +502,7 @@ EXPORT_SYMBOL(ip_options_compile);
 
 /*
  *	Undo all the changes done by ip_options_compile().
+ *	此操作一般是应用层为获取IP选项而复制IP选项到应用程序前被调用
  */
 
 void ip_options_undo(struct ip_options *opt)
@@ -553,6 +567,7 @@ int ip_options_get_from_user(struct net *net, struct ip_options_rcu **optp,
 	return ip_options_get_finish(net, optp, opt, optlen);
 }
 
+//对于UDP RAW套接口，如果数据报中带有控制信息，会通过这个函数来生成IP选项的
 int ip_options_get(struct net *net, struct ip_options_rcu **optp,
 		   unsigned char *data, int optlen)
 {
@@ -565,6 +580,7 @@ int ip_options_get(struct net *net, struct ip_options_rcu **optp,
 	return ip_options_get_finish(net, optp, opt, optlen);
 }
 
+//转发数据报的时候，添加一些诸如 记录路由选项 时间戳信息 等本地IP信息
 void ip_forward_options(struct sk_buff *skb)
 {
 	struct   ip_options *opt	= &(IPCB(skb)->opt);
@@ -612,6 +628,7 @@ void ip_forward_options(struct sk_buff *skb)
 	}
 }
 
+//检查输入数据报中的宽松路由和严格路由选项，并根据源路由选项更新IP数据报的下一跳地址
 int ip_options_rcv_srr(struct sk_buff *skb, struct net_device *dev)
 {
 	struct ip_options *opt = &(IPCB(skb)->opt);

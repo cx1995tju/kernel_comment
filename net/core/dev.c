@@ -1981,6 +1981,9 @@ static inline bool skb_loop_sk(struct packet_type *ptype, struct sk_buff *skb)
  *	taps currently in use.
  */
 
+//AF_PACKET的原始套接字，不但可以从外部接收数据包，对于本地输出的数据包也可以接收，这个就是本地输出的数据包的接收函数。
+//在数据包的tx过程中会调用该函数
+//dev_hard_start_xmit -> xmit_one -> dev_queue_xmit_nit
 void dev_queue_xmit_nit(struct sk_buff *skb, struct net_device *dev)
 {
 	struct packet_type *ptype;
@@ -1990,7 +1993,7 @@ void dev_queue_xmit_nit(struct sk_buff *skb, struct net_device *dev)
 
 	rcu_read_lock();
 again:
-	list_for_each_entry_rcu(ptype, ptype_list, list) {
+	list_for_each_entry_rcu(ptype, ptype_list, list) { //遍历ptype_all链表，查找所有符合条件的原始套接口，循环将数据包输入到满足条件的套接口
 		/* Never send packets back to the socket
 		 * they originated from - MvS (miquels@drinkel.ow.org)
 		 */
@@ -2004,11 +2007,11 @@ again:
 		}
 
 		/* need to clone skb, done only once */
-		skb2 = skb_clone(skb, GFP_ATOMIC);
+		skb2 = skb_clone(skb, GFP_ATOMIC); //需要克隆数据包的
 		if (!skb2)
 			goto out_unlock;
 
-		net_timestamp_set(skb2);
+		net_timestamp_set(skb2); //记录时间戳
 
 		/* skb->nh should be correctly
 		 * set by sender, so that the second statement is
@@ -2710,7 +2713,7 @@ static void __netif_reschedule(struct Qdisc *q)
 	q->next_sched = NULL;
 	*sd->output_queue_tailp = q;
 	sd->output_queue_tailp = &q->next_sched;
-	raise_softirq_irqoff(NET_TX_SOFTIRQ);
+	raise_softirq_irqoff(NET_TX_SOFTIRQ); //激活tx软中断
 	local_irq_restore(flags);
 }
 
@@ -3236,7 +3239,7 @@ static int xmit_one(struct sk_buff *skb, struct net_device *dev,
 	int rc;
 
 	if (!list_empty(&ptype_all) || !list_empty(&dev->ptype_all))
-		dev_queue_xmit_nit(skb, dev);
+		dev_queue_xmit_nit(skb, dev);//丢一份输出报文给socket(AF_PACKET接口), 参考dev_queue_xmit_nit()
 
 	len = skb->len;
 	trace_net_dev_start_xmit(skb, dev);
@@ -3256,7 +3259,7 @@ struct sk_buff *dev_hard_start_xmit(struct sk_buff *first, struct net_device *de
 		struct sk_buff *next = skb->next;
 
 		skb->next = NULL;
-		rc = xmit_one(skb, dev, txq, next != NULL);
+		rc = xmit_one(skb, dev, txq, next != NULL); 
 		if (unlikely(!dev_xmit_complete(rc))) {
 			skb->next = next;
 			goto out;
@@ -3386,7 +3389,7 @@ static void qdisc_pkt_len_init(struct sk_buff *skb)
 	/* To get more precise estimation of bytes sent on wire,
 	 * we add to pkt_len the headers size of all segments
 	 */
-	if (shinfo->gso_size)  {
+	if (shinfo->gso_size)  { //gso相关操作
 		unsigned int hdr_len;
 		u16 gso_segs = shinfo->gso_segs;
 
@@ -3794,7 +3797,7 @@ static int __dev_queue_xmit(struct sk_buff *skb, struct net_device *sb_dev)
 	q = rcu_dereference_bh(txq->qdisc);
 
 	trace_net_dev_queue(skb);
-	if (q->enqueue) {
+	if (q->enqueue) { //QoS的enqueue操作, QoS的入口
 		rc = __dev_xmit_skb(skb, q, dev, txq);
 		goto out;
 	}
@@ -3827,7 +3830,7 @@ static int __dev_queue_xmit(struct sk_buff *skb, struct net_device *sb_dev)
 
 			if (!netif_xmit_stopped(txq)) {
 				__this_cpu_inc(xmit_recursion);
-				skb = dev_hard_start_xmit(skb, dev, txq, &rc);
+				skb = dev_hard_start_xmit(skb, dev, txq, &rc); //对于没有QoS的接口，大部分软件实现的接口，譬如：loopback，会直接调用dev_hard_start_xmit输出
 				__this_cpu_dec(xmit_recursion);
 				if (dev_xmit_complete(rc)) {
 					HARD_TX_UNLOCK(dev, txq);
@@ -3858,6 +3861,7 @@ out:
 	return rc;
 }
 
+//准确的说，是邻居子系统的各种output函数会调用到这个输出函数arp_hh_ops neigh_resolve_output
 int dev_queue_xmit(struct sk_buff *skb)
 {
 	return __dev_queue_xmit(skb, NULL);
@@ -4239,7 +4243,7 @@ enqueue:
 		 */
 		if (!__test_and_set_bit(NAPI_STATE_SCHED, &sd->backlog.state)) {
 			if (!rps_ipi_queued(sd))
-				____napi_schedule(sd, &sd->backlog); //如果是虚拟设备的话，就是process_backlog
+				____napi_schedule(sd, &sd->backlog); //如果是虚拟设备的话，就是process_backlog, 对于不支持NAPI的设备，这个就是process_backlog, 参考netdev_int初始化函数
 		}
 		goto enqueue;
 	}
@@ -4498,7 +4502,8 @@ static int netif_rx_internal(struct sk_buff *skb)
  *
  */
 
-/* 非NAPI接收报文 */
+/* 非NAPI接收报文, NAPI方式的网卡一般不会用这个接口的 */
+//将报文从接口层，加入到softnet_data的缓存队列中
 int netif_rx(struct sk_buff *skb)
 {
 	trace_netif_rx_entry(skb);
@@ -4527,7 +4532,7 @@ static __latent_entropy void net_tx_action(struct softirq_action *h)
 {
 	struct softnet_data *sd = this_cpu_ptr(&softnet_data);
 
-	if (sd->completion_queue) {
+	if (sd->completion_queue) { //释放相应的completion_queue
 		struct sk_buff *clist;
 
 		local_irq_disable();
@@ -4555,7 +4560,7 @@ static __latent_entropy void net_tx_action(struct softirq_action *h)
 		__kfree_skb_flush();
 	}
 
-	if (sd->output_queue) {
+	if (sd->output_queue) { //QoS的出队接口
 		struct Qdisc *head;
 
 		local_irq_disable();
@@ -4806,7 +4811,7 @@ another_round:
 	/* 遍历ptype_all链表 */
 	list_for_each_entry_rcu(ptype, &ptype_all, list) {
 		if (pt_prev)
-			ret = deliver_skb(skb, pt_prev, orig_dev);
+			ret = deliver_skb(skb, pt_prev, orig_dev); //判断是否需要转发报文
 		pt_prev = ptype;
 	}
 
@@ -5823,6 +5828,10 @@ static bool sd_has_rps_ipi_waiting(struct softnet_data *sd)
 #endif
 }
 
+//非NAPI方式下，虚拟网络设备的poll函数，当虚拟网络设备的backlog_dev结构加入到softdata_net的polllist中的时候，
+//net_rx_action会使用process_backlog进行数据包输入的处理
+//netif_rx函数将报文挂载到input_pkt_queue队列上，然后将backlog_dev设备挂载到poll list上，net_rx_action再调用process_backlog来接收报文
+//传递到三层
 static int process_backlog(struct napi_struct *napi, int quota)
 {
 	struct softnet_data *sd = container_of(napi, struct softnet_data, backlog);
@@ -9606,7 +9615,7 @@ static int __init net_dev_init(void)
 	if (netdev_kobject_init()) //sys文件系统接口
 		goto out;
 
-	INIT_LIST_HEAD(&ptype_all); //ptype_all散列表 //重要呀，是从二层到三层(广义的，包括arp都是通过这个索引到的)的关键
+	INIT_LIST_HEAD(&ptype_all); //ptype_all链表 //重要呀，是从二层到三层(广义的，包括arp都是通过这个索引到的)的关键
 	for (i = 0; i < PTYPE_HASH_SIZE; i++)
 		INIT_LIST_HEAD(&ptype_base[i]); //ptype_base散列表
 
@@ -9640,6 +9649,7 @@ static int __init net_dev_init(void)
 #endif
 
 		init_gro_hash(&sd->backlog);
+		//非napi使用的poll函数, 统一非napi和napi的相关函数接口
 		sd->backlog.poll = process_backlog;
 		sd->backlog.weight = weight_p;
 	}
@@ -9664,7 +9674,7 @@ static int __init net_dev_init(void)
 	open_softirq(NET_TX_SOFTIRQ, net_tx_action); //注册软中断, 软中断是静态注册的
 	open_softirq(NET_RX_SOFTIRQ, net_rx_action);
 
-	rc = cpuhp_setup_state_nocalls(CPUHP_NET_DEV_DEAD, "net/dev:dead",
+	rc = cpuhp_setup_state_nocalls(CPUHP_NET_DEV_DEAD, "net/dev:dead", //注册cpu状态响应函数, 因为NAPI
 				       NULL, dev_cpu_dead);
 	WARN_ON(rc < 0);
 	rc = 0;

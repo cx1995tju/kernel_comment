@@ -56,7 +56,7 @@ struct request_sock {
 #define rsk_window_clamp		__req_common.skc_window_clamp
 #define rsk_rcv_wnd			__req_common.skc_rcv_wnd
 
-	struct request_sock		*dl_next;
+	struct request_sock		*dl_next; //在request sock链上，指向下一个请求
 	u16				mss;
 	u8				num_retrans; /* number of retransmits */
 	u8				cookie_ts:1; /* syncookie: encode tcpopts in timestamp */
@@ -144,7 +144,7 @@ static inline void reqsk_put(struct request_sock *req)
  *	temporarily through shutdown()->tcp_disconnect(), and re-enabled later.
  */
 struct fastopen_queue {
-	struct request_sock	*rskq_rst_head; /* Keep track of past TFO, 记录TFO的RST情况 */
+	struct request_sock	*rskq_rst_head; /* Keep track of past TFO, 记录TFO的RST情况， 不保存正常的fastopen的 */
 	struct request_sock	*rskq_rst_tail; /* requests that caused RST. //第二次
 						 * This is part of the defense
 						 * against spoofing attack.
@@ -158,13 +158,15 @@ struct fastopen_queue {
 
 /** struct request_sock_queue - queue of request_socks
  *
- * @rskq_accept_head - FIFO head of established children //TFO的socket也是直接挂载在这上面的
+ * @rskq_accept_head - FIFO head of established children //TFO的socket也是直接挂载在这上面的参考tcp_conn_request
  * @rskq_accept_tail - FIFO tail of established children
  * @rskq_defer_accept - User waits for some data after accept()
  *
  */
+//现在在非fast open场景下，只完成两次握手的req_sock也是直接保存到全局hash表中的，等到三次握手完成后，再移动到这里的链表中
+//参考inet_csk_accept()  inet_csk_reqsk_queue_hash_add
 struct request_sock_queue {
-	spinlock_t		rskq_lock;
+	spinlock_t		rskq_lock; //保护accept队列
 	u8			rskq_defer_accept; //TCP层选项，TCP_DEFER_ACCEPT的值
 
 	u32			synflood_warned;

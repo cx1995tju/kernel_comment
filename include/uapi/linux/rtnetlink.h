@@ -224,7 +224,7 @@ enum {
 	RTN_MULTICAST,		/* Multicast route		*/ //目的地址是一个多播地址
 	RTN_BLACKHOLE,		/* Drop				*/
 	RTN_UNREACHABLE,	/* Destination is unreachable   */ //会触发的ICMP错误报告
-	RTN_PROHIBIT,		/* Administratively prohibited	*/
+	RTN_PROHIBIT,		/* Administratively prohibited	*/ //如果路由是这个类型，会触发ICMP ICMP_PKT_FILTERED 报文的发送的, 输出路由的话就发给上层协议，输入路由的话，就发给源地址
 	RTN_THROW,		/* Not in this table		*/ //上述4个与特定的管理配置相关联
 	RTN_NAT,		/* Translate this address	*/
 	RTN_XRESOLVE,		/* Use external resolver	*/

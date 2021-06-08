@@ -223,7 +223,7 @@ static int ip_finish_output2(struct net *net, struct sock *sk, struct sk_buff *s
 	nexthop = (__force u32) rt_nexthop(rt, ip_hdr(skb)->daddr);
 	neigh = __ipv4_neigh_lookup_noref(dev, nexthop); //这里查找到了就不需要分配了
 	if (unlikely(!neigh))
-		neigh = __neigh_create(&arp_tbl, &nexthop, dev, false); //没有邻居项就创建。
+		neigh = __neigh_create(&arp_tbl, &nexthop, dev, false); //没有邻居项就创建。反正一定要通过neighbour->output将报文发送出去
 	if (!IS_ERR(neigh)) {
 		int res;
 
@@ -429,6 +429,7 @@ static void ip_copy_addrs(struct iphdr *iph, const struct flowi4 *fl4)
 
 /* Note: skb->sk can be different from sk, in case of tunnels */
 //如果没有路由缓存的话，需要查找路由表的, 现在已经没有真正的路由缓存了，只会缓存下一跳了
+//关键就是要找到dst->output
 int __ip_queue_xmit(struct sock *sk, struct sk_buff *skb, struct flowi *fl,
 		    __u8 tos)
 {
@@ -547,20 +548,22 @@ static void ip_copy_metadata(struct sk_buff *to, struct sk_buff *from)
 }
 
 //分片的功能几乎不会使用的，UDP场景下，应该由用户控制报文不要太大。TCP场景下，协议栈几乎限制住了TCP报文的大小
+//skb待分片数据报
+//output分片完成后，用于输出分片的回调函数，在ipv4场景是ip_finish_output2()
 static int ip_fragment(struct net *net, struct sock *sk, struct sk_buff *skb,
 		       unsigned int mtu,
 		       int (*output)(struct net *, struct sock *, struct sk_buff *))
 {
 	struct iphdr *iph = ip_hdr(skb);
 
-	if ((iph->frag_off & htons(IP_DF)) == 0)
+	if ((iph->frag_off & htons(IP_DF)) == 0) //允许分片
 		return ip_do_fragment(net, sk, skb, output);
 
 	if (unlikely(!skb->ignore_df ||
 		     (IPCB(skb)->frag_max_size &&
 		      IPCB(skb)->frag_max_size > mtu))) {
 		IP_INC_STATS(net, IPSTATS_MIB_FRAGFAILS);
-		icmp_send(skb, ICMP_DEST_UNREACH, ICMP_FRAG_NEEDED,
+		icmp_send(skb, ICMP_DEST_UNREACH, ICMP_FRAG_NEEDED, //目标不可达报文,不允许分片，那么只能报告ICMP了
 			  htonl(mtu));
 		kfree_skb(skb);
 		return -EMSGSIZE;
@@ -619,20 +622,20 @@ int ip_do_fragment(struct net *net, struct sock *sk, struct sk_buff *skb,
 	 * LATER: this step can be merged to real generation of fragments,
 	 * we can switch to copy when see the first bad fragment.
 	 */
-	if (skb_has_frag_list(skb)) {
+	if (skb_has_frag_list(skb)) { //传输层已经分片了，这些分片在skb_shinfo(skb)->frag_list, 即快速分片路径
 		struct sk_buff *frag, *frag2;
 		unsigned int first_len = skb_pagelen(skb);
 
-		if (first_len - hlen > mtu ||
-		    ((first_len - hlen) & 7) ||
+		if (first_len - hlen > mtu || //虽然传输层表示其已经分片了，但是还是要检查的，下述四种情况不允许走快速路径：
+		    ((first_len - hlen) & 7) || //1. 有分片长度大于MTU 2. 除最后一个分片，存在分片未8B对齐 3. IP首部的MF或片偏移不为0 4. 此skb被克隆
 		    ip_is_fragment(iph) ||
 		    skb_cloned(skb) ||
 		    skb_headroom(skb) < ll_rs)
 			goto slow_path;
 
-		skb_walk_frags(skb, frag) {
+		skb_walk_frags(skb, frag) { //遍历后续分片， 作相关设置
 			/* Correct geometry. */
-			if (frag->len > mtu ||
+			if (frag->len > mtu || //继续校验，下述情况不允许分片
 			    ((frag->len & 7) && frag->next) ||
 			    skb_headroom(frag) < hlen + ll_rs)
 				goto slow_path_clean;
@@ -649,7 +652,7 @@ int ip_do_fragment(struct net *net, struct sock *sk, struct sk_buff *skb,
 			skb->truesize -= frag->truesize;
 		}
 
-		/* Everything is OK. Generate! */
+		/* Everything is OK. Generate! */ //开始分片了
 
 		err = 0;
 		offset = 0;
@@ -683,14 +686,14 @@ int ip_do_fragment(struct net *net, struct sock *sk, struct sk_buff *skb,
 				ip_send_check(iph);
 			}
 
-			err = output(net, sk, skb);
+			err = output(net, sk, skb); //调用输出函数，将当前分片发送出去
 
 			if (!err)
-				IP_INC_STATS(net, IPSTATS_MIB_FRAGCREATES);
-			if (err || !frag)
+				IP_INC_STATS(net, IPSTATS_MIB_FRAGCREATES); 
+			if (err || !frag)//如果当前分片发送失败, 直接退出，后续分片不会处理了
 				break;
 
-			skb = frag;
+			skb = frag; //处理下一个分片了
 			frag = skb->next;
 			skb->next = NULL;
 		}
@@ -718,7 +721,7 @@ slow_path_clean:
 		}
 	}
 
-slow_path:
+slow_path: //慢速分片路径
 	iph = ip_hdr(skb);
 
 	left = skb->len - hlen;		/* Space per frame */

@@ -92,16 +92,16 @@ struct inet_connection_sock_af_ops {
 struct inet_connection_sock {
 	/* inet_sock has to be the first member! */
 	struct inet_sock	  icsk_inet;
-	struct request_sock_queue icsk_accept_queue; //TCP层接收到连接请求后，会创建一个sock结构存档到这里, 等待accept来获取
+	struct request_sock_queue icsk_accept_queue; //TCP层完成了三次握手后，会创建一个sock结构存档到这里, 等待accept来获取
 	struct inet_bind_bucket	  *icsk_bind_hash; //绑定的端口信息
-	unsigned long		  icsk_timeout; //即超时重传时间, 一般等于jiffies + icsk_rto
+	unsigned long		  icsk_timeout; //即超时重传时刻, 一般等于jiffies + icsk_rto
  	struct timer_list	  icsk_retransmit_timer; //重传定时器或持续定时器，使用icsk_pending来区分%ICSK_TIME_RETRANS
  	struct timer_list	  icsk_delack_timer; //延迟ack定时器
 	__u32			  icsk_rto; //RTO
 	__u32			  icsk_pmtu_cookie; //最近一次更新的PMTU
 	const struct tcp_congestion_ops *icsk_ca_ops; //指向实现某个拥塞控制算法的指针，LINUX支持多种，用户也可以自己编写后加载到内核中
 	const struct inet_connection_sock_af_ops *icsk_af_ops;  //向网络层发送的接口，tcp的该成员是ipv4_specific
-	const struct tcp_ulp_ops  *icsk_ulp_ops;
+	const struct tcp_ulp_ops  *icsk_ulp_ops; //ulp相关内容
 	void			  *icsk_ulp_data;
 	void (*icsk_clean_acked)(struct sock *sk, u32 acked_seq);
 	struct hlist_node         icsk_listen_portaddr_node;
@@ -284,6 +284,7 @@ static inline int inet_csk_reqsk_queue_len(const struct sock *sk)
 	return reqsk_queue_len(&inet_csk(sk)->icsk_accept_queue);
 }
 
+//已经建立的连接超过backlog了
 static inline int inet_csk_reqsk_queue_is_full(const struct sock *sk)
 {
 	return inet_csk_reqsk_queue_len(sk) >= sk->sk_max_ack_backlog;

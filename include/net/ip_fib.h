@@ -26,6 +26,13 @@
 #include <linux/notifier.h>
 #include <linux/refcount.h>
 
+/* 相关结构关系 */
+/* 1. 路由表是fib_table 路由项是fib_info + fib_alias */
+/* 2. 路由查找的key是flowi4 flowi6 */
+/* 3. 路由查找结果是fib_result， fib_result会指向路由项fib_info, fib_info中会保存下一跳fib_nh， fib_nh中会缓存rtable(本质就是路由查找结果, 避免又需要使用fib_result 去 构造dst/rtable结构) */
+/* 4. 使用路由查找结果fib_result构造dst/rtable结构，该结构最重要的就是output input函数，是数据报转发的关键 */
+/* 5. 数据包中会缓存dst/rtable结构，该结构是per-net-namespace的，会全局的过期 */
+
 //fib_table_insert的参数, 用来查找匹配路由表项
 struct fib_config {
 	u8			fc_dst_len;  //目的地址掩码长度
@@ -58,6 +65,11 @@ struct rtable;
 //当一个路由项不是由于userspace的动作导致的改变，而是ICMPv4重定向消息或者PMTU发现导致的改变的话，会用到这个结构
 //hash key是dst addr
 //如果查找路由的时候，fib有这个结构的话，就使用这个作为路由查询结果
+//总的来说，如果一个fib_nh结构中包含这个结构的话，下一跳就以这个为准。但是这种改变都是临时的
+
+//注： 所谓的重定向路由，它会更新本节点路由表的一个路由项条目，要注意的是，这个更新并不是永久的，而是临时的，
+//所以Linux的做法并不是直接修改路由表，而是修改下一跳缓存！
+//参考 __ip_do_redirect __ip_rt_update_pmtu
 struct fib_nh_exception {
 	struct fib_nh_exception __rcu	*fnhe_next;
 	int				fnhe_genid;
@@ -82,7 +94,7 @@ struct fnhe_hash_bucket {
 
 /* 下一跳路由的信息， next hop */
 struct fib_nh {
-	struct net_device	*nh_dev; //该路由表项的输出设备
+	struct net_device	*nh_dev; //该路由表项的输出设备, 当相关设备被down的时候，netdev_down事件会被触发，fib_netdev_event函数被调用
 	struct hlist_node	nh_hash;
 	struct fib_info		*nh_parent; //指向所属路由表项的fib_info结构
 	unsigned int		nh_flags;
@@ -98,8 +110,8 @@ struct fib_nh {
 	__be32			nh_gw; //路由项的网关地址
 	__be32			nh_saddr;
 	int			nh_saddr_genid;
-	struct rtable __rcu * __percpu *nh_pcpu_rth_output;
-	struct rtable __rcu	*nh_rth_input;
+	struct rtable __rcu * __percpu *nh_pcpu_rth_output; //这个就是tx cache, 这是一个per-cpu变量, 准确的说，这个结构就是路由的查找结果(由fib_result结构构造而来的)，其中的关键就是dst成员指向的output input函数
+	struct rtable __rcu	*nh_rth_input; //这个是rx cache
 	struct fnhe_hash_bucket	__rcu *nh_exceptions;
 	struct lwtunnel_state	*nh_lwtstate;
 };
@@ -109,15 +121,15 @@ struct fib_nh {
  */
 //记录如何处理与该路由匹配的数据报的信息
 //多个fib_alias可能共享fib_info
-//fib_table表示一张路由表, 路由表的entry是fib_alias(必须关联到一个fib_info结构, fib_info被组织成fib_info_hash 后 fib_info_laddrhash中)结构，被组织成一个trie
+//为了减少fib_info的量，差异不大的路由项共用fib_info结构，搭配不同的fib_alias结构，该结构表示了路由在优先级，tos等方面的不同。
 struct fib_info {
 	struct hlist_node	fib_hash; //插入到fib_info_hash散列表中的, 所有的fib_info实例都插入到这个散列表中
 	struct hlist_node	fib_lhash; //插入到fib_info_laddrhash散列表中，当路由表项有一个首选源地址的时候，插入到该散列表
 	struct net		*fib_net; //命名空间
-	int			fib_treeref; //fib_alias引用这个结构的时候的引用计数
+	int			fib_treeref; //fib_alias引用这个结构的时候的引用计数 fib_create_info() fib_release_info()
 	refcount_t		fib_clntref; //引用计数， 参见fib_create_info fib_info_put
 	unsigned int		fib_flags;
-	unsigned char		fib_dead; //路由表项正在被删除
+	unsigned char		fib_dead; //路由表项正在被删除 free_fib_info
 	unsigned char		fib_protocol; //这个路由是谁设置的， %RTPROT_STATIC, 参考ip route add proto static 命令,
 	unsigned char		fib_scope; //路由表项的作用范围 %RT_SCOPE_HOST
 	unsigned char		fib_type; //路由的类型，%RTN_PROHIBIT, 以前这个结构仅仅是在fib_alias中的 参考ip route add prohibit 命令
@@ -141,14 +153,14 @@ struct fib_rule;
 #endif
 
 struct fib_table;
-struct fib_result { //路由查找的结果, 路由查找结束后也会创建一个dst成员
+struct fib_result { //路由查找的结果, 路由查找结束后也会根据其创建一个dst成员
 	__be32		prefix; //掩码长度
 	unsigned char	prefixlen;
-	unsigned char	nh_sel; //下一跳的序号，如果只有一个下一跳，那么就是0。对于多路径路由可以有多个下一跳, 下一跳的信息在fib_info中
-	unsigned char	type; //表示如何处理包，%RTN_UNICAST
+	unsigned char	nh_sel; //下一跳的序号，如果只有一个下一跳，那么就是0。对于多路径路由可以有多个下一跳, 下一跳的信息在fib_info数组中
+	unsigned char	type; //表示如何处理包，%RTN_UNICAST, locally_delivered drop_sliently drop_with_icmp_reply
 	unsigned char	scope;
 	u32		tclassid;
-	struct fib_info *fi; //指向对应的fib_info, fib_info中包含了下一跳的信息fib_nh
+	struct fib_info *fi; //指向对应的fib_info数组, fib_info中包含了下一跳的信息fib_nh, 这里仅仅是包含的是fib_nh的索引
 	struct fib_table *table; //指向fib_table
 	struct hlist_head *fa_head; //指向一个fib_alias的list, 所有的fib_alias按照fa_tos递减和fib_priority的递增的顺序存储. fa_tos为0的时候表通配
 };
@@ -321,6 +333,7 @@ struct fib_table *fib_get_table(struct net *net, u32 id);
 int __fib_lookup(struct net *net, struct flowi4 *flp,
 		 struct fib_result *res, unsigned int flags);
 
+//配置了策略路由的话，就先用这个函数查找路由表，然后再查找路由
 static inline int fib_lookup(struct net *net, struct flowi4 *flp,
 			     struct fib_result *res, unsigned int flags)
 {

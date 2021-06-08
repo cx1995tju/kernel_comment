@@ -399,6 +399,7 @@ static void icmp_push_reply(struct icmp_bxm *icmp_param,
  *	Driving logic for building and sending ICMP messages.
  */
 
+/* 大部分icmp报文的输出是icmp_send函数，但是回显应答和时间戳应答使用的是icmp_reply函数 */
 static void icmp_reply(struct icmp_bxm *icmp_param, struct sk_buff *skb)
 {
 	struct ipcm_cookie ipc;
@@ -998,7 +999,7 @@ int icmp_rcv(struct sk_buff *skb)
 	struct net *net = dev_net(rt->dst.dev);
 	bool success;
 
-	if (!xfrm4_policy_check(NULL, XFRM_POLICY_IN, skb)) {
+	if (!xfrm4_policy_check(NULL, XFRM_POLICY_IN, skb)) { //各种check
 		struct sec_path *sp = skb_sec_path(skb);
 		int nh;
 
@@ -1023,7 +1024,7 @@ int icmp_rcv(struct sk_buff *skb)
 	if (skb_checksum_simple_validate(skb))
 		goto csum_error;
 
-	if (!pskb_pull(skb, sizeof(*icmph)))
+	if (!pskb_pull(skb, sizeof(*icmph))) //丢弃首部
 		goto error;
 
 	icmph = icmp_hdr(skb);
@@ -1063,6 +1064,7 @@ int icmp_rcv(struct sk_buff *skb)
 		}
 	}
 
+	//根据icmp的类型，进行报文分流了
 	success = icmp_pointers[icmph->type].handler(skb);
 
 	if (success)  {
@@ -1107,6 +1109,9 @@ void icmp_err(struct sk_buff *skb, u32 info)
 /*
  *	This table is the definition of how we handle ICMP.
  */
+/* ip层从inet_prtos数组中找到该函数icmp_rcv(), */
+/* icmp会根据不同的icmp报文类型，调用不同的处理函数，内核中保存了一个icmp_control的数组icmp_pointers，处理不同类型的ICMP报文 */
+/* 在这些rcv函数中会找到内核中为icmp报文准备的icmp 的sock结构的 */
 static const struct icmp_control icmp_pointers[NR_ICMP_TYPES + 1] = {
 	[ICMP_ECHOREPLY] = {
 		.handler = ping_rcv,
@@ -1188,7 +1193,7 @@ static void __net_exit icmp_sk_exit(struct net *net)
 	net->ipv4.icmp_sk = NULL;
 }
 
-static int __net_init icmp_sk_init(struct net *net)
+static int __net_init icmp_sk_init(struct net *net) //每个net namespace都会调用的
 {
 	int i, err;
 
@@ -1199,7 +1204,7 @@ static int __net_init icmp_sk_init(struct net *net)
 	for_each_possible_cpu(i) {
 		struct sock *sk;
 
-		err = inet_ctl_sock_create(&sk, PF_INET,
+		err = inet_ctl_sock_create(&sk, PF_INET, //仅内核内部使用的一个icmp的socket, 用于收发icmp报文, 有意思, 参考af_inet.c文件
 					   SOCK_RAW, IPPROTO_ICMP, net);
 		if (err < 0)
 			goto fail;
@@ -1257,5 +1262,6 @@ static struct pernet_operations __net_initdata icmp_sk_ops = {
 
 int __init icmp_init(void)
 {
+	//inet_init调用，在icmp_sk_init中会为每个CPU创建一个基于原始流的，IPPROTO_ICMP协议类型的套接口(socket)供内核使用, 参考icmp_sk_init函数
 	return register_pernet_subsys(&icmp_sk_ops);
 }

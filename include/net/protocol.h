@@ -39,6 +39,8 @@
 
 /* This is used to register protocols. */
 /* 重要结构，网络数据报从网络层流向传输层的时候，会调用这些函数handler,这里的传输层是广义的，包括ICMP IGMP协议 */
+/* 这里是针对存在网络层的协议，对于我自己实现的AF_OSOCK就根本不需要这些结构的 */
+//%tcp_protocol %icmp_protocol %igmp_protocol
 struct net_protocol {
 	int			(*early_demux)(struct sk_buff *skb);
 	int			(*early_demux_handler)(struct sk_buff *skb);

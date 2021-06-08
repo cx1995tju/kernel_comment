@@ -33,9 +33,14 @@ struct inetpeer_addr {
 	__u16				family;
 };
 
+/* inet_peer结构, 用来保存对端的一些信息： */
+/* 	对端地址 */
+/* 	对端使用的时间戳 */
+/* 可以防止组装IP数据报时的分片攻击， */
+/* 在建立TCP连接的时候，检测syn报文是否有效，检测序号是否回绕 */
 struct inet_peer {
-	struct rb_node		rb_node;
-	struct inetpeer_addr	daddr;
+	struct rb_node		rb_node; //对端信息块在内核中被组织成红黑树保存
+	struct inetpeer_addr	daddr; //这是key
 
 	u32			metrics[RTAX_MAX];
 	u32			rate_tokens;	/* rate limiting for ICMP */

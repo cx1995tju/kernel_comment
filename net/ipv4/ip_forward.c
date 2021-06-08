@@ -77,6 +77,7 @@ static int ip_forward_finish(struct net *net, struct sock *sk, struct sk_buff *s
 }
 
 //经过输入路由检测后，发现不是本地的报文，则可能转发
+//dst->input函数检测的
 int ip_forward(struct sk_buff *skb)
 {
 	u32 mtu;

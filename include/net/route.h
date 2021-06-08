@@ -51,10 +51,10 @@ struct uncached_list;
 struct rtable { //ipv4的路由缓存项条目, 主要是缓存下一跳的信息
 	struct dst_entry	dst; //这是general的
 
-	int			rt_genid;
+	int			rt_genid; //用于和net namespae中的id比较，进而判断是否过期, 参考%ipv4_dst_check %__sk_dst_check
 	unsigned int		rt_flags; //%RTCF_NOTIFY
 	__u16			rt_type; //%RTN_UNSPEC
-	__u8			rt_is_input; //是输入路由
+	__u8			rt_is_input; //是输入路由, 1表示是输入路由
 	__u8			rt_uses_gateway; //下一跳是不是gateway
 
 	int			rt_iif; /* 输入网络设备索引 */
@@ -64,10 +64,12 @@ struct rtable { //ipv4的路由缓存项条目, 主要是缓存下一跳的信�
 
 	/* Miscellaneous cached information */
 	u32			rt_mtu_locked:1,
-				rt_pmtu:31;
+				rt_pmtu:31; //route路径最小的mtu
 
-	struct list_head	rt_uncached; //链入到哪里,？？？？？？过期了，挂上去等待回收
-	struct uncached_list	*rt_uncached_list;
+	 //commit caacf05e5ad1a , 当一个设备被注销的时候，指向该设备的所有引用都需要被清除，创建一个全局的list，当device down的时候，进行扫描。please refer to dst_ifdown()
+	struct list_head	rt_uncached;  //用于清除uncached 路由中的设备索引
+	struct uncached_list	*rt_uncached_list; //commit 5055c371bfd53
+
 };
 
 static inline bool rt_is_input_route(const struct rtable *rt)

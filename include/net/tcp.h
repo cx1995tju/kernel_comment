@@ -818,7 +818,7 @@ struct tcp_skb_cb {
 	};
 	__u8		tcp_flags;	/* TCP header flags. (tcp[13])	*/
 
-	__u8		sacked;		/* State flags for SACK.	*/ //记分牌算法的状态, 这个成员也会用来保存sack块在头部的偏移，见tcp_sacktag_write_queue
+	__u8		sacked;		/* State flags for SACK.	*/ //记分牌算法的状态, 这个成员也会用来 *保存sack块在头部的偏移* ，见tcp_sacktag_write_queue
 #define TCPCB_SACKED_ACKED	0x01	/* SKB ACK'd by a SACK block	S, 表示原先发送的段已经到达接收方, 就是被sacked了*/
 #define TCPCB_SACKED_RETRANS	0x02	/* SKB retransmitted		R, 原先发送和重传的段还在网络中传输*/
 #define TCPCB_LOST		0x04	/* SKB is lost			L, 原先发送的段已经丢失了*/ //L|R 表示原先发送的段已经丢失，但是重传的段还在网络中传输
@@ -1134,6 +1134,7 @@ static inline bool tcp_is_reno(const struct tcp_sock *tp)
 
 static inline unsigned int tcp_left_out(const struct tcp_sock *tp)
 {
+	//表示从TCP管道离开的包数目
 	return tp->sacked_out + tp->lost_out;
 }
 
@@ -1151,6 +1152,7 @@ static inline unsigned int tcp_left_out(const struct tcp_sock *tp)
  *	"Packets left network, but not honestly ACKed yet" PLUS
  *	"Packets fast retransmitted"
  */
+/* 总的发出去的包 + 重传的包 - 从tcp管道离开的包 */
 static inline unsigned int tcp_packets_in_flight(const struct tcp_sock *tp)
 {
 	return tp->packets_out - tcp_left_out(tp) + tp->retrans_out;
@@ -1277,6 +1279,7 @@ static inline void tcp_init_wl(struct tcp_sock *tp, u32 seq)
 	tp->snd_wl1 = seq;
 }
 
+//记录下更新窗口的ack包的序号
 static inline void tcp_update_wl(struct tcp_sock *tp, u32 seq)
 {
 	tp->snd_wl1 = seq;
@@ -2058,6 +2061,7 @@ enum {
 	TCP_ULP_BPF,
 };
 
+//upper layer protocol
 struct tcp_ulp_ops {
 	struct list_head	list;
 

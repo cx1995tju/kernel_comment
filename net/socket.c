@@ -149,7 +149,7 @@ static const struct file_operations socket_file_ops = {
 #endif
 	.mmap =		sock_mmap,
 	.release =	sock_close,
-	.fasync =	sock_fasync,
+	.fasync =	sock_fasync, //支持异步IO操作
 	.sendpage =	sock_sendpage,
 	.splice_write = generic_splice_sendpage,
 	.splice_read =	sock_splice_read,
@@ -1352,7 +1352,7 @@ int __sys_socket(int family, int type, int protocol)
 	flags = type & ~SOCK_TYPE_MASK; //各种flag的检查与设置操作， 低4位置零，赋给flags
 	if (flags & ~(SOCK_CLOEXEC | SOCK_NONBLOCK)) //flags除这两者外有1，则出错
 		return -EINVAL;
-	type &= SOCK_TYPE_MASK; //高位置零
+	type &= SOCK_TYPE_MASK; //高位置零, 包含O_NONBLOCK 也被置位
 
 	if (SOCK_NONBLOCK != O_NONBLOCK && (flags & SOCK_NONBLOCK))
 		flags = (flags & ~SOCK_NONBLOCK) | O_NONBLOCK;

@@ -43,8 +43,8 @@ struct dst_entry {
 #else
 	void			*__pad1;
 #endif
-	int			(*input)(struct sk_buff *);
-	int			(*output)(struct net *net, struct sock *sk, struct sk_buff *skb); /* 报文输入输出函数 */
+	int			(*input)(struct sk_buff *); //ip_local_deliver ip_forward ip_mr_input  ip_error
+	int			(*output)(struct net *net, struct sock *sk, struct sk_buff *skb); /* 报文输入输出函数, %ip_output */
 
 	unsigned short		flags; //%DST_HOST
 #define DST_HOST		0x0001 //表示是本机路由，即不是到网络或者广播多播地址的路由
@@ -443,7 +443,7 @@ static inline void dst_set_expires(struct dst_entry *dst, int timeout)
 /* Output packet to network from transport.  */
 static inline int dst_output(struct net *net, struct sock *sk, struct sk_buff *skb)
 {
-	return skb_dst(skb)->output(net, sk, skb);
+	return skb_dst(skb)->output(net, sk, skb); //单播报文的output函数就是ip_output
 }
 
 /* Input packet from network to transport.  */

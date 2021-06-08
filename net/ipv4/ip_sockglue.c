@@ -168,6 +168,7 @@ static void ip_cmsg_recv_dstaddr(struct msghdr *msg, struct sk_buff *skb)
 	put_cmsg(msg, SOL_IP, IP_ORIGDSTADDR, sizeof(sin), &sin);
 }
 
+/* 在UDP RAW套接口的recvmsg函数中，设置了IP_PKTINFO选项的时候，无论是接收错误信息还是正常数据都会调用其来接收控制信息 */
 void ip_cmsg_recv_offset(struct msghdr *msg, struct sock *sk,
 			 struct sk_buff *skb, int tlen, int offset)
 {
@@ -239,6 +240,9 @@ void ip_cmsg_recv_offset(struct msghdr *msg, struct sock *sk,
 }
 EXPORT_SYMBOL(ip_cmsg_recv_offset);
 
+/* UDP RAW套接口的sendmsg函数输出数据的时候，如果消息头有控制信息，就会调用ip_cmsg_send()将货值信息保存到一个ip控制信息块中。 */
+//msg包含控制信息的消息
+//ipc临时保存ip控制信息块
 int ip_cmsg_send(struct sock *sk, struct msghdr *msg, struct ipcm_cookie *ipc,
 		 bool allow_ipv6)
 {
@@ -421,6 +425,8 @@ void ip_icmp_error(struct sock *sk, struct sk_buff *skb, int err,
 	kfree_skb(skb);
 }
 
+//ICMP的出错信息通过ip_icmp_error函数通知到socket层
+//本地的出错信息：UDP报文输出的时候太长等事件，则是通过该函数发送到socket层
 void ip_local_error(struct sock *sk, int err, __be32 daddr, __be16 port, u32 info)
 {
 	struct inet_sock *inet = inet_sk(sk);
@@ -654,7 +660,7 @@ static int do_ip_setsockopt(struct sock *sk, int level,
 
 		if (optlen > 40)
 			goto e_inval;
-		err = ip_options_get_from_user(sock_net(sk), &opt,
+		err = ip_options_get_from_user(sock_net(sk), &opt, //分配ip_options结构，并将数据从用户态copy过来
 					       optval, optlen);
 		if (err)
 			break;
@@ -669,7 +675,7 @@ static int do_ip_setsockopt(struct sock *sk, int level,
 			     inet->inet_daddr != LOOPBACK4_IPV6)) {
 #endif
 				if (old)
-					icsk->icsk_ext_hdr_len -= old->opt.optlen;
+					icsk->icsk_ext_hdr_len -= old->opt.optlen; //设置选项相关参数
 				if (opt)
 					icsk->icsk_ext_hdr_len += opt->opt.optlen;
 				icsk->icsk_sync_mss(sk, icsk->icsk_pmtu_cookie);
@@ -677,12 +683,12 @@ static int do_ip_setsockopt(struct sock *sk, int level,
 			}
 #endif
 		}
-		rcu_assign_pointer(inet->inet_opt, opt);
+		rcu_assign_pointer(inet->inet_opt, opt); //将opt保存到sock结构中
 		if (old)
 			kfree_rcu(old, rcu);
 		break;
 	}
-	case IP_PKTINFO:
+	case IP_PKTINFO: //用于控制是否允许通过该IP_PKTOPTIONS或recvmsg系统调用来获取与本端地址相关的IP_PKTOPTIONS选项
 		if (val)
 			inet->cmsg_flags |= IP_CMSG_PKTINFO;
 		else

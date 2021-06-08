@@ -102,9 +102,9 @@ void SOCK_DEBUG(const struct sock *sk, const char *msg, ...)
  * 如果没有就直接访问，因为软中断游戏那集高，不会被进程打断的，见tcp_v4_rcv
  * */
 typedef struct {
-	spinlock_t		slock; //下半部之间的同步锁，同时保护对于owned的
+	spinlock_t		slock; //下半部之间的同步锁，同时保护对于owned的, 一个自旋锁
 	int			owned; //该锁是否被拥有了
-	wait_queue_head_t	wq;
+	wait_queue_head_t	wq;// 一个睡眠队列, 拿不到owned的时候，就睡眠
 	/*
 	 * We express the mutex-alike socket_lock semantics
 	 * to the lock validator by explicitly managing
@@ -165,12 +165,12 @@ struct sock_common {
 		};
 	};
 	union  {
-		unsigned int	skc_hash; /* ehash key值，避免反复计算 */
+		unsigned int	skc_hash; /* ehash(established hash) key值，避免反复计算 */
 		__u16		skc_u16hashes[2];
 	};
 	/* skc_dport && skc_num must be grouped as well */
 	union {
-		__portpair	skc_portpair;
+		__portpair	skc_portpairestablished hash;
 		struct {
 			__be16	skc_dport;
 			__u16	skc_num;
@@ -371,7 +371,7 @@ struct sock {
 	socket_lock_t		sk_lock; //同步锁
 	atomic_t		sk_drops;
 	int			sk_rcvlowat; //接收缓存下限值
-	struct sk_buff_head	sk_error_queue; //对于数据报类型的socket，真的会在种类挂一个数据报的，详见man 7 ip；对于TCP这种的话，这个有效，但是错误的获取需要使用SO_ERROR参数从sk_err中获取
+	struct sk_buff_head	sk_error_queue; //对于数据报类型的socket，真的会在列表挂一个数据报的，详见man 7 ip；对于TCP这种的话，这个有效，但是错误的获取需要使用SO_ERROR参数从sk_err中获取
 	struct sk_buff_head	sk_receive_queue; //接收队列
 	/*
 	 * The backlog queue is special, it is always used with
@@ -425,7 +425,7 @@ struct sock {
 	u32			sk_pacing_status; /* see enum sk_pacing */
 	long			sk_sndtimeo;
 	struct timer_list	sk_timer; /* 定时器呀，实现各种TCP中用到的定时器，保活， FIN_WAIT_2 */
-	__u32			sk_priority;
+	__u32			sk_priority; //setsockopt(SO_PRIORITY)
 	__u32			sk_mark;
 	u32			sk_pacing_rate; /* bytes per second */
 	u32			sk_max_pacing_rate;
@@ -2202,6 +2202,7 @@ static inline void sk_clear_bit(int nr, struct sock *sk)
 }
 
 /* 将SIGIO SIGURG信号发送给该套接口上的进程，进程通过fcntl(F_SETOWN)将自己设置位该socket的通知对象,然后使用fcntl(F_SETFL)在socket(其他设备也是这样)中设置FASYNC标志 */
+//触发SIGIO 或 SIGURG信号 给相关进程，该进程应该使用了异步IO的一些操作，fcntl设置异步IO的标志，增加了SIGIO的处理函数
 static inline void sk_wake_async(const struct sock *sk, int how, int band)
 {
 	if (sock_flag(sk, SOCK_FASYNC)) {
@@ -2516,14 +2517,14 @@ void sk_get_meminfo(const struct sock *sk, u32 *meminfo);
 #define SK_WMEM_MAX		(_SK_MEM_OVERHEAD * _SK_MEM_PACKETS)
 #define SK_RMEM_MAX		(_SK_MEM_OVERHEAD * _SK_MEM_PACKETS)
 
-extern __u32 sysctl_wmem_max;
-extern __u32 sysctl_rmem_max;
+extern __u32 sysctl_wmem_max; //输出缓冲区上限
+extern __u32 sysctl_rmem_max; //输入缓冲区上限
 
 extern int sysctl_tstamp_allow_data;
-extern int sysctl_optmem_max;
+extern int sysctl_optmem_max; //每个sock结构辅助缓冲区的上限
 
-extern __u32 sysctl_wmem_default;
-extern __u32 sysctl_rmem_default;
+extern __u32 sysctl_wmem_default; //输出缓冲区上限 默认值
+extern __u32 sysctl_rmem_default; //接收缓冲区大小的上限 默认值
 
 static inline int sk_get_wmem0(const struct sock *sk, const struct proto *proto)
 {

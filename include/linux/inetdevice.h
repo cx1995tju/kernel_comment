@@ -14,6 +14,8 @@
 #include <linux/rtnetlink.h>
 #include <linux/refcount.h>
 
+//设备接口相关的一些ipv4的配置信息
+//参见/proc/sys/net/ipv4/conf/
 struct ipv4_devconf {
 	void	*sysctl;
 	int	data[IPV4_DEVCONF_MAX];

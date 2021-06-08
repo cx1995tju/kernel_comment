@@ -32,7 +32,7 @@
 /** struct ip_options - IP Options
  *
  * @faddr - Saved first hop address
- * @nexthop - Saved nexthop address in LSRR and SSRR
+ * @nexthop - Saved nexthop address in LSRR(宽松源路由) and SSRR (严格源路由)
  * @is_strictroute - Strict source route
  * @srr_is_hit - Packet destination addr was our one
  * @is_changed - IP checksum more not valid
@@ -41,7 +41,7 @@
  * @ts_needaddr - Need to record addr of outgoing dev
  */
 struct ip_options {
-	__be32		faddr;
+	__be32		faddr; 
 	__be32		nexthop;
 	unsigned char	optlen;
 	unsigned char	srr; //

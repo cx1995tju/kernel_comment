@@ -645,8 +645,8 @@ static struct ctl_table ipv4_net_table[] = {
 		.proc_handler   = proc_tcp_early_demux
 	},
 	{
-		.procname	= "ip_default_ttl",
-		.data		= &init_net.ipv4.sysctl_ip_default_ttl,
+		.procname	= "ip_default_ttl", //IP数据报默认生存时间，对于特定socket，可以使用setsockopt调节
+		.data		= &init_net.ipv4.sysctl_ip_default_ttl, //其值是这个net namespace的这个值 //其值是这个net namespace的这个值
 		.maxlen		= sizeof(int),
 		.mode		= 0644,
 		.proc_handler	= proc_dointvec_minmax,
@@ -654,7 +654,7 @@ static struct ctl_table ipv4_net_table[] = {
 		.extra2		= &ip_ttl_max,
 	},
 	{
-		.procname	= "ip_local_port_range",
+		.procname	= "ip_local_port_range", //自动选择绑定端口时使用的范围
 		.maxlen		= sizeof(init_net.ipv4.ip_local_ports.range),
 		.data		= &init_net.ipv4.ip_local_ports.range,
 		.mode		= 0644,
@@ -668,7 +668,7 @@ static struct ctl_table ipv4_net_table[] = {
 		.proc_handler	= proc_do_large_bitmap,
 	},
 	{
-		.procname	= "ip_no_pmtu_disc",
+		.procname	= "ip_no_pmtu_disc", //传输路径上检测出的最大可能的MTU
 		.data		= &init_net.ipv4.sysctl_ip_no_pmtu_disc,
 		.maxlen		= sizeof(int),
 		.mode		= 0644,
@@ -691,7 +691,7 @@ static struct ctl_table ipv4_net_table[] = {
 		.extra2		= &one,
 	},
 	{
-		.procname	= "ip_nonlocal_bind",
+		.procname	= "ip_nonlocal_bind", //允许进程绑定到非本地地址, 默认为0表禁止
 		.data		= &init_net.ipv4.sysctl_ip_nonlocal_bind,
 		.maxlen		= sizeof(int),
 		.mode		= 0644,

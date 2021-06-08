@@ -12,9 +12,17 @@
 #define SKB_EXT_ERR(skb) ((struct sock_exterr_skb *) ((skb)->cb))
 
 //这是错误信息块的结构
+/* 
+ 1. 套接口有一个sk_error_queue的错误队列，
+         + ICMP收到差错报文会挂载到该队列
+         + UDP输出报文出错，会产生描述错误信息的SKB挂到该队列
+         + RAW套接口输出报文出错的时候，也会产生错误信息到该队列
+ 2. 错误信息传递给用户进程的时候，不是直接以数据报正文的形式提供，而是以错误信息块的结构(sock_exterr_skb)保存在skb->cb中的
+ */
+
 struct sock_exterr_skb {
 	union {
-		struct inet_skb_parm	h4; //兼容ip的私有控制块
+		struct inet_skb_parm	h4; //兼容ip的私有控制块, 因为该错误信息也会在ip层被处理，ip层的控制块也需要保存在skb->cb中
 #if IS_ENABLED(CONFIG_IPV6)
 		struct inet6_skb_parm	h6;
 #endif

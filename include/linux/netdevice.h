@@ -2952,7 +2952,7 @@ extern int netdev_flow_limit_table_len;
  *	什么poll_list等结构就在这里
  */
 //设备层到netif_receive_skb的关键
-struct softnet_data {
+struct softnet_data { //激活tx软中断
 	struct list_head	poll_list; //网络设备轮询队列，处于rx接收状态的网络设备链接到这个队列上, rx软中断中遍历这个队列, 然后调用具体设备的poll函数来收包
 	struct sk_buff_head	process_queue;
 
@@ -2966,7 +2966,7 @@ struct softnet_data {
 #ifdef CONFIG_NET_FLOW_LIMIT
 	struct sd_flow_limit __rcu *flow_limit;
 #endif
-	struct Qdisc		*output_queue; /* 数据包tx软中断中会轮询这个网络设备队列。 处于报文rx状态的网络设备就添加到这个队列，*/
+	struct Qdisc		*output_queue; /* 数据包tx软中断中会轮询这个网络设备队列。 处于报文tx状态的网络设备就添加到这个队列，*/
 	struct Qdisc		**output_queue_tailp;
 	struct sk_buff		*completion_queue; /* tx完成后的数据包链接在这个队列上，等待被释放, tx软中断中会检测. 如果处于中断中，或者中断被禁止的时候，就会加入这个队列，否则直接被释放 */
 #ifdef CONFIG_XFRM_OFFLOAD
@@ -2976,7 +2976,7 @@ struct softnet_data {
 	/* input_queue_head should be written by cpu owning this struct,
 	 * and only read by other cpus. Worth using a cache line.
 	 */
-	unsigned int		input_queue_head ____cacheline_aligned_in_smp;
+	unsigned int		input_queue_head ____cacheline_aligned_in_smp; 
 
 	/* Elements below can be accessed between CPUs for RPS/RFS */
 	call_single_data_t	csd ____cacheline_aligned_in_smp;
@@ -2985,7 +2985,8 @@ struct softnet_data {
 	unsigned int		input_queue_tail;
 #endif
 	unsigned int		dropped;
-	struct sk_buff_head	input_pkt_queue; /* 非NAPI的接口层报文缓冲队列，对于非NAPI的话，都是在硬中断或者轮询中读豹纹，调用netif_rx()将
+//input_pkt_queue 非NAPI的驱动，需要在中断或轮询中接收报文，就会将报文缓存在这个队列中，然后触发一个tx软中断，在其中调用netif_rx()将报文送到上层。对于NAPI则是挂载到poll_list上，然后再由软中断去调用设备的poll函数。
+	struct sk_buff_head	input_pkt_queue; /* 非NAPI的接口层报文缓冲队列，对于非NAPI的话，都是在硬中断或者轮询中读豹纹，调用netif_rx()将, 参考 enqueue_to_backlog函数
 	报文传递到上层，即先将报文缓存到这个队列，然后产生一个rx软中断，软中断将报文向上层传递。 队列上限是netdev_max_backlog, 参见 enqueue_to_backlog  */
 	struct napi_struct	backlog //为非napi方式准备的结构;
 
@@ -4317,7 +4318,7 @@ static inline netdev_tx_t __netdev_start_xmit(const struct net_device_ops *ops,
 					      bool more)
 {
 	skb->xmit_more = more ? 1 : 0;
-	return ops->ndo_start_xmit(skb, dev);
+	return ops->ndo_start_xmit(skb, dev); //设备的输出函数, 不同驱动不同，譬如e100_xmit_frame
 }
 
 static inline netdev_tx_t netdev_start_xmit(struct sk_buff *skb, struct net_device *dev,

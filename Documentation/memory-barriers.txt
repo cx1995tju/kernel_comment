@@ -10,6 +10,7 @@ By: David Howells <dhowells@redhat.com>
 ==========
 DISCLAIMER
 ==========
+目标不是彻底搞懂屏障问题在CPU底层是怎么产生的，而是说清楚如何在linux下使用屏障。
 
 This document is not a specification; it is intentionally (for the sake of
 brevity) and unintentionally (due to being human) incomplete. This document is
@@ -43,7 +44,7 @@ unnecessary in that case.
 CONTENTS
 ========
 
- (*) Abstract memory access model.
+ (*) Abstract memory access model. (linux场景)
 
      - Device operations.
      - Guarantees.
@@ -136,7 +137,7 @@ Consider the following abstract model of the system:
 		            :                :
 
 Each CPU executes a program that generates memory access operations.  In the
-abstract CPU, memory operation ordering is very relaxed, and a CPU may actually
+abstract CPU, memory operation ordering is very relaxed(大部分CPU是不会这么relaxed的), and a CPU may actually
 perform the memory operations in any order it likes, provided program causality
 appears to be maintained.  Similarly, the compiler may also arrange the
 instructions it emits in any order it likes, provided it doesn't affect the
@@ -155,8 +156,10 @@ For example, consider the following sequence of events:
 	A = 3;		x = B;
 	B = 4;		y = A;
 
-The set of accesses as seen by the memory system in the middle can be arranged
+The set of accesses as seen by the memory system in the middle can be arranged 
 in 24(4*3*2*1) different combinations:
+1. 取决于不同的架构和编译器，顺序都可能不同的。详见MyWiki barrier相关文档中关于reorder的来源。
+2. 这里的order，更准确的说，不是指令的执行顺序，甚至不是指令结果的提交顺序，应该是执行的结果落实到内存的结果的顺序
 
 	STORE A=3,	STORE B=4,	y=LOAD A->3,	x=LOAD B->4
 	STORE A=3,	STORE B=4,	x=LOAD B->4,	y=LOAD A->3
@@ -1045,7 +1048,7 @@ Without intervention, CPU 2 may perceive the events on CPU 1 in some
 effectively random order, despite the write barrier issued by CPU 1:
 
 	+-------+       :      :                :       :
-	|       |       +------+                +-------+  | Sequence of update
+	|       |       +------+                +-------+  | Sequence of update 
 	|       |------>| B=2  |-----       --->| Y->8  |  | of perception on
 	|       |  :    +------+     \          +-------+  | CPU 2
 	| CPU 1 |  :    | A=1  |      \     --->| C->&Y |  V
@@ -1085,7 +1088,7 @@ and the load of *C (ie: B) on CPU 2:
 	<write barrier>
 	STORE C = &B		LOAD X
 	STORE D = 4		LOAD C (gets &B)
-				<data dependency barrier>
+				<data dependency barrier> //只有alpha系统需要，而且如果使用了READ_ONCE的话，其中都包含了
 				LOAD *C (reads B)
 
 then the following will occur:

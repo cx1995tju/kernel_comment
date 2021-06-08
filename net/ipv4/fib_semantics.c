@@ -90,6 +90,7 @@ static struct hlist_head fib_info_devhash[DEVINDEX_HASHSIZE];
 #define endfor_nexthops(fi) }
 
 
+//不同类型的路由返回的错误码保存在这里
 const struct fib_prop fib_props[RTN_MAX + 1] = {
 	[RTN_UNSPEC] = {
 		.error	= 0,

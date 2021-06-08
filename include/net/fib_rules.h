@@ -23,7 +23,7 @@ struct fib_rule {
 	u32			mark;
 	u32			mark_mask;
 	u32			flags;
-	u32			table; //路由表标识，或者认为是id
+	u32			table; //路由表标识，或者认为是id， table, 参考%fib_get_table
 	u8			action; //根据策略查找对应的路由项的时候，确定策略被访问的动作, 参见fib4_rule_action
 	u8			l3mdev;
 	u8                      proto;
@@ -56,6 +56,8 @@ struct fib_lookup_arg {
 #define FIB_LOOKUP_IGNORE_LINKSTATE	2
 };
 
+//per-family的结构，一起保存在全局的rules_ops中, 这里的全局还是指的是net namespace的
+//%fib4_rules_ops_template
 struct fib_rules_ops {
 	int			family; //协议族
 	struct list_head	list; //链入到rules_ops上
@@ -67,7 +69,7 @@ struct fib_rules_ops {
 
 	int			(*action)(struct fib_rule *,
 					  struct flowi *, int,
-					  struct fib_lookup_arg *); //根据策略查找对应的路由项
+					  struct fib_lookup_arg *); //根据策略查找对应的路由项。 不过这里将其抽象成了action的概念，
 	bool			(*suppress)(struct fib_rule *,
 					    struct fib_lookup_arg *);
 	int			(*match)(struct fib_rule *,
@@ -91,7 +93,7 @@ struct fib_rules_ops {
 
 	int			nlgroup;
 	const struct nla_policy	*policy;
-	struct list_head	rules_list; //挂载该协议族所有策略结构的双向循环链表的表头
+	struct list_head	rules_list; //挂载该协议族所有策略结构的双向循环链表的表头 %fib4_rule等
 	struct module		*owner;
 	struct net		*fro_net;
 	struct rcu_head		rcu;

@@ -836,6 +836,9 @@ EXPORT_SYMBOL(tcp_check_req);
  * be created.
  */
 
+//child socket 从tcp_new_syn_recv ===> tcp_syn_recv
+//tcp_new_syn_recv是作用与req_sk上的state，创建了新的child sock后，其状态就是tcp_syn_rcv
+//参考tcp_check_req-> tcp_v4_syn_recv_sock() -> tcp_create_openreq_child -> inet_csk_clone_lock
 int tcp_child_process(struct sock *parent, struct sock *child,
 		      struct sk_buff *skb)
 {
@@ -850,7 +853,7 @@ int tcp_child_process(struct sock *parent, struct sock *child,
 		ret = tcp_rcv_state_process(child, skb);
 		/* Wakeup parent, send SIGIO */
 		if (state == TCP_SYN_RECV && child->sk_state != state)
-			parent->sk_data_ready(parent);
+			parent->sk_data_ready(parent); //新的子childsock state就是在tcp_rcv_state_process中从syn_recv 变成established的，这里会唤醒父进程, 触发EPOLL事件。
 	} else {
 		/* Alas, it is possible again, because we do lookup
 		 * in main socket hash table and lock on listening

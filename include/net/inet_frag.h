@@ -33,10 +33,10 @@ enum {
 
 struct frag_v4_compare_key {
 	__be32		saddr;
-	__be32		daddr;
-	u32		user;
+	__be32		daddr; //来自ip首部的信息，用于确定
+	u32		user; //标识分片来源 %IP_DEFRAG_LOCAL_DELIVER
 	u32		vif;
-	__be16		id;
+	__be16		id;//来自ip首部的信息，用于确定
 	u16		protocol;
 };
 
@@ -69,21 +69,21 @@ struct frag_v6_compare_key {
  * @rcu: rcu head for freeing deferall
  */
 struct inet_frag_queue {
-	struct rhash_head	node;
+	struct rhash_head	node; //用于在hash表中进行组织
 	union {
 		struct frag_v4_compare_key v4;
 		struct frag_v6_compare_key v6;
 	} key;
-	struct timer_list	timer;
+	struct timer_list	timer; //定时器，用于超时删除
 	spinlock_t		lock;
 	refcount_t		refcnt;
 	struct sk_buff		*fragments;  /* Used in IPv6. */
-	struct rb_root		rb_fragments; /* Used in IPv4. */
+	struct rb_root		rb_fragments; /* Used in IPv4. */ //链接已经接收到的分片，用红黑树组织
 	struct sk_buff		*fragments_tail;
 	struct sk_buff		*last_run_head;
-	ktime_t			stamp;
+	ktime_t			stamp; //最后一个分片到达时间
 	int			len;
-	int			meat;
+	int			meat; //已经接收的所有分片总长度
 	__u8			flags;
 	u16			max_size;
 	struct netns_frags      *net;

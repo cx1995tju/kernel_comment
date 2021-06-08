@@ -1430,6 +1430,7 @@ static bool rt_bind_exception(struct rtable *rt, struct fib_nh_exception *fnhe,
 	return ret;
 }
 
+//将下一跳信息，缓存到rt中
 static bool rt_cache_route(struct fib_nh *nh, struct rtable *rt)
 {
 	struct rtable *orig, *prev, **p;
@@ -1446,7 +1447,7 @@ static bool rt_cache_route(struct fib_nh *nh, struct rtable *rt)
 	 * on this dst
 	 */
 	dst_hold(&rt->dst);
-	prev = cmpxchg(p, orig, rt);
+	prev = cmpxchg(p, orig, rt); //rt缓存到了nh中
 	if (prev == orig) {
 		if (orig) {
 			dst_dev_put(&orig->dst);
@@ -1602,7 +1603,7 @@ struct rtable *rt_dst_alloc(struct net_device *dev,
 
 		rt->dst.output = ip_output;
 		if (flags & RTCF_LOCAL)
-			rt->dst.input = ip_local_deliver;
+			rt->dst.input = ip_local_deliver; //输入路由
 	}
 
 	return rt;
@@ -2130,6 +2131,7 @@ martian_source:
 	goto out;
 }
 
+//查找输入路由
 int ip_route_input_noref(struct sk_buff *skb, __be32 daddr, __be32 saddr,
 			 u8 tos, struct net_device *dev)
 {
@@ -2198,7 +2200,7 @@ int ip_route_input_rcu(struct sk_buff *skb, __be32 daddr, __be32 saddr,
 }
 
 /* called with rcu_read_lock() */
-//创建输出路由缓存项
+//创建输出路由缓存项, 使用路由查找的结构fib_result 构建缓存项，这里本质是缓存的下一跳
 static struct rtable *__mkroute_output(const struct fib_result *res,
 				       const struct flowi4 *fl4, int orig_oif,
 				       struct net_device *dev_out,

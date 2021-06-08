@@ -2214,7 +2214,7 @@ SYSCALL_DEFINE4(epoll_ctl, int, epfd, int, op, int, fd,
 	switch (op) {
 	case EPOLL_CTL_ADD:
 		if (!epi) {
-			/* 必须也要监听ERR与HUP事件 */
+			/* 必须也要监听ERR与HUP事件, ERR HUP 事件都是unmaskable的 */
 			epds.events |= EPOLLERR | EPOLLHUP; //事件从用户空间copy到了内核空间，即epds结构，将是将标志位置err与hup
 			/* ep eventpoll对象， epds是事件， tf是被监听文件file结构，fd 被监听文件的fd， full_check*/
 			error = ep_insert(ep, &epds, tf.file, fd, full_check); //核心

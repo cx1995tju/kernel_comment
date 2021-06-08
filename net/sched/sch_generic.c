@@ -368,7 +368,7 @@ bool sch_direct_xmit(struct sk_buff *skb, struct Qdisc *q,
  *				>0 - queue is not empty.
  *
  */
-/* 从排队规则中获取一个可以输出的报文，然后将其输出到网络设备（调用与具体的网络设备相关的输出函数）*/
+/* 从排队规则中获取一个可以输出的报文，然后将其输出到网络设备*/
 static inline bool qdisc_restart(struct Qdisc *q, int *packets)
 {
 	spinlock_t *root_lock = NULL;
@@ -396,7 +396,7 @@ void __qdisc_run(struct Qdisc *q)
 	int quota = dev_tx_weight;
 	int packets;
 
-	while (qdisc_restart(q, &packets)) {
+	while (qdisc_restart(q, &packets)) { //着里获取报文发送
 		/*
 		 * Ordered by possible occurrence: Postpone processing if
 		 * 1. we've exceeded packet quota
