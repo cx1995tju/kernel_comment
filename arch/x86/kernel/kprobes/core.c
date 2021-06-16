@@ -539,7 +539,7 @@ set_current_kprobe(struct kprobe *p, struct pt_regs *regs,
 {
 	__this_cpu_write(current_kprobe, p);
 	kcb->kprobe_saved_flags = kcb->kprobe_old_flags
-		= (regs->flags & (X86_EFLAGS_TF | X86_EFLAGS_IF));
+		= (regs->flags & (X86_EFLAGS_TF | X86_EFLAGS_IF)); //置TF  位 IF位, 出栈后，flags寄存器被改写了，就进入单步执行模式的。
 	if (p->ainsn.if_modifier)
 		kcb->kprobe_saved_flags &= ~X86_EFLAGS_IF;
 }
@@ -591,7 +591,7 @@ static void setup_singlestep(struct kprobe *p, struct pt_regs *regs,
 		 * nor set current_kprobe, because it doesn't use single
 		 * stepping.
 		 */
-		regs->ip = (unsigned long)p->ainsn.insn;
+		regs->ip = (unsigned long)p->ainsn.insn; 
 		return;
 	}
 #endif
@@ -603,13 +603,13 @@ static void setup_singlestep(struct kprobe *p, struct pt_regs *regs,
 		kcb->kprobe_status = KPROBE_HIT_SS;
 	/* Prepare real single stepping */
 	clear_btf();
-	regs->flags |= X86_EFLAGS_TF;
-	regs->flags &= ~X86_EFLAGS_IF;
+	regs->flags |= X86_EFLAGS_TF; //设置单步执行模式 https://blog.csdn.net/gengzhikui1992/article/details/111856016
+	regs->flags &= ~X86_EFLAGS_IF; //取消中断标志位 
 	/* single step inline if the instruction is an int3 */
-	if (p->opcode == BREAKPOINT_INSTRUCTION)
+	if (p->opcode == BREAKPOINT_INSTRUCTION) //被替换的指令就是int 3的话
 		regs->ip = (unsigned long)p->addr;
 	else
-		regs->ip = (unsigned long)p->ainsn.insn;
+		regs->ip = (unsigned long)p->ainsn.insn; //执行被copy的那条指令, 注意kprobe_int3_handler 返回后 还不会 进入单步执行模式， 必须等到中断do_int3完成后才会将pt_regs弹出去，也就是说会进入单步执行模式执行相关指令。
 }
 NOKPROBE_SYMBOL(setup_singlestep);
 
@@ -661,7 +661,7 @@ int kprobe_int3_handler(struct pt_regs *regs)
 	if (user_mode(regs))
 		return 0;
 
-	addr = (kprobe_opcode_t *)(regs->ip - sizeof(kprobe_opcode_t));
+	addr = (kprobe_opcode_t *)(regs->ip - sizeof(kprobe_opcode_t)); //减去断点指令的长度，在x86上就是int3 (0xcc) 一个字节长度。 得到的就是断点指令的起始地址。
 	/*
 	 * We don't want to be preempted for the entire duration of kprobe
 	 * processing. Since int3 and debug trap disables irqs and we clear
@@ -686,7 +686,7 @@ int kprobe_int3_handler(struct pt_regs *regs)
 			 * user handler setup registers to exit to another
 			 * instruction, we must skip the single stepping.
 			 */
-			if (!p->pre_handler || !p->pre_handler(p, regs))
+			if (!p->pre_handler || !p->pre_handler(p, regs)) //执行pre_handler
 				setup_singlestep(p, regs, kcb, 0);
 			else
 				reset_current_kprobe();
@@ -933,7 +933,7 @@ NOKPROBE_SYMBOL(resume_execution);
  * Interrupts are disabled on entry as trap1 is an interrupt gate and they
  * remain disabled throughout this function.
  */
-int kprobe_debug_handler(struct pt_regs *regs)
+int kprobe_debug_handler(struct pt_regs *regs) //处理post_handler
 {
 	struct kprobe *cur = kprobe_running();
 	struct kprobe_ctlblk *kcb = get_kprobe_ctlblk();

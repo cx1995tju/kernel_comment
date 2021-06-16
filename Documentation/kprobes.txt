@@ -148,7 +148,7 @@ field of the kretprobe struct. Whenever the kprobe placed by kretprobe at the
 function entry is hit, the user-defined entry_handler, if any, is invoked.
 If the entry_handler returns 0 (success) then a corresponding return handler
 is guaranteed to be called upon function return. If the entry_handler
-returns a non-zero error then Kprobes leaves the return address as is, and
+returns a non-zero error then Kprobes leaves the return address as is, and ????????????????????
 the kretprobe has no further effect for that particular function instance.
 
 Multiple entry and return handler invocations are matched using the unique

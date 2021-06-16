@@ -294,7 +294,7 @@ struct vm_area_struct {
 	struct {
 		struct rb_node rb;
 		unsigned long rb_subtree_last;
-	} shared; //如果有后备存储器的话，这个结点会链接到对应的address_space的i_mapping成员的
+	} shared; //如果有后备存储器的话，这个结点会链接到对应的address_space的i_mapping成员的, 在address_space中被组织成rbtree
 
 	/*
 	 * A file's MAP_PRIVATE vma can be in both i_mmap tree and anon_vma
@@ -312,7 +312,7 @@ struct vm_area_struct {
 	/* Information about our backing store: */
 	unsigned long vm_pgoff;		/* Offset (within vm_file) in PAGE_SIZE //文件映射的偏移，单位是页
 					   units */
-	struct file * vm_file;		/* File we map to (can be NULL). */ //描述了一个被映射的文件
+	struct file * vm_file;		/* File we map to (can be NULL). */ //描述了一个被映射的文件, vma -> file -> address_space -> 磁盘
 	void * vm_private_data;		/* was vm_pte (shared mem) */
 
 	atomic_long_t swap_readahead_info;

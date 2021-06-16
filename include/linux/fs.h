@@ -922,7 +922,7 @@ struct file {
 	struct list_head	f_ep_links;
 	struct list_head	f_tfile_llink;
 #endif /* #ifdef CONFIG_EPOLL */
-	struct address_space	*f_mapping; //inode相关的地址空间
+	struct address_space	*f_mapping; //inode相关的地址空间, 及其重要，对应文件的后备存储器入口
 	errseq_t		f_wb_err;
 } __randomize_layout
   __attribute__((aligned(4)));	/* lest something weird decides that 2 is OK */
