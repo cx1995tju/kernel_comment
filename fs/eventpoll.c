@@ -1262,7 +1262,7 @@ static int ep_poll_callback(wait_queue_entry_t *wait, unsigned mode, int sync, v
 				break;
 			}
 		}
-		wake_up_locked(&ep->wq); //唤醒对应进程，进程唤醒后，执行epoll_wait后半部分
+		wake_up_locked(&ep->wq); //唤醒对应进程，进程唤醒后，执行epoll_wait后半部分, epoll wait会去调用底层file的poll函数，获取更详细的EPOLL事件的
 	}
 	if (waitqueue_active(&ep->poll_wait))
 		pwake++;

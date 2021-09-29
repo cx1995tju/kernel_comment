@@ -206,11 +206,11 @@ int tcp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 	struct tcp_sock *tp = tcp_sk(sk);
 	__be16 orig_sport, orig_dport;
 	__be32 daddr, nexthop;
-	struct flowi4 *fl4;
-	struct rtable *rt;
+	struct flowi4 *fl4; //用于查找路由的key
+	struct rtable *rt; //路由查找后，构造出来的目标, 主要目的就是缓存下一跳
 	int err;
 	struct ip_options_rcu *inet_opt;
-	struct inet_timewait_death_row *tcp_death_row = &sock_net(sk)->ipv4.tcp_death_row; //拿到该net namespace的hash表组织结构即tcp_hashinfo
+	struct inet_timewait_death_row *tcp_death_row = &sock_net(sk)->ipv4.tcp_death_row; //拿到该net namespace的hash表组织结构即tcp_hashinfo, 组织的当然是tcp port信息
 
 	if (addr_len < sizeof(struct sockaddr_in))
 		return -EINVAL;
@@ -218,17 +218,17 @@ int tcp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 	if (usin->sin_family != AF_INET)
 		return -EAFNOSUPPORT;
 
-	nexthop = daddr = usin->sin_addr.s_addr; //远端地址就是目标地址
-	inet_opt = rcu_dereference_protected(inet->inet_opt,
+	nexthop = daddr = usin->sin_addr.s_addr; //远端地址就是目标地址, nexthop也先初始化为dst，后面查路由后再更新
+	inet_opt = rcu_dereference_protected(inet->inet_opt,		//用户设置的一些IP选项
 					     lockdep_sock_is_held(sk));
-	if (inet_opt && inet_opt->opt.srr) {
+	if (inet_opt && inet_opt->opt.srr) { //严格源路由
 		if (!daddr)
 			return -EINVAL;
-		nexthop = inet_opt->opt.faddr;
+		nexthop = inet_opt->opt.faddr;	//如果有严格源路由，下一跳就确定了
 	}
 
-	orig_sport = inet->inet_sport; //源端口
-	orig_dport = usin->sin_port; //目的端口
+	orig_sport = inet->inet_sport; //源ip端口
+	orig_dport = usin->sin_port; //目的ip端口
 	fl4 = &inet->cork.fl.u.ip4;
 	rt = ip_route_connect(fl4, nexthop, inet->inet_saddr, //查找目的路由缓存项，为后续的数据包提供加速路由查找作用
 			      RT_CONN_FLAGS(sk), sk->sk_bound_dev_if,
@@ -249,8 +249,8 @@ int tcp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 	if (!inet_opt || !inet_opt->opt.srr) //源地址路由选项
 		daddr = fl4->daddr;
 
-	if (!inet->inet_saddr)
-		inet->inet_saddr = fl4->saddr;
+	if (!inet->inet_saddr) //一般来说就是没有指定的，所以这里的本质是通过路由查找找到的出口地址, 下一跳信息fib_nh中有saddr的，在前面找路由的时候会提供的
+		inet->inet_saddr = fl4->saddr;	//这个地址是路由查找找到的。
 	sk_rcv_saddr_set(sk, inet->inet_saddr); //设置本地地址，getname会使用的
 
 	if (tp->rx_opt.ts_recent_stamp && inet->inet_daddr != daddr) { /* sock中的时间戳和地址已经被使用过了， 说明之前已经建立了连接而且通信过了, 重新初始化相关成员 */
@@ -265,7 +265,7 @@ int tcp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 	sk_daddr_set(sk, daddr); //getname会使用的地址
 
 	inet_csk(sk)->icsk_ext_hdr_len = 0;
-	if (inet_opt)
+	if (inet_opt)	//有ip层的选项了
 		inet_csk(sk)->icsk_ext_hdr_len = inet_opt->opt.optlen;
 
 	tp->rx_opt.mss_clamp = TCP_MSS_DEFAULT;
@@ -277,13 +277,13 @@ int tcp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 	 */
 	/* 自动绑定端口 */
 	tcp_set_state(sk, TCP_SYN_SENT); /* 设置状态 */
-	err = inet_hash_connect(tcp_death_row, sk);
+	err = inet_hash_connect(tcp_death_row, sk); //自动分配一个端口呀
 	if (err)
 		goto failure;
 
 	sk_set_txhash(sk);
 
-	rt = ip_route_newports(fl4, rt, orig_sport, orig_dport, //如果源端口或目的端口发生了改变，要重新查找路由
+	rt = ip_route_newports(fl4, rt, orig_sport, orig_dport, //如果源端口或目的端口发生了改变，要重新查找路由, 譬如，分配了新端口
 			       inet->inet_sport, inet->inet_dport, sk);
 	if (IS_ERR(rt)) {
 		err = PTR_ERR(rt);
@@ -292,10 +292,10 @@ int tcp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 	}
 	/* OK, now commit destination to socket.  */
 	sk->sk_gso_type = SKB_GSO_TCPV4; //设置GSO类型, 更新路由缓存项
-	sk_setup_caps(sk, &rt->dst);
+	sk_setup_caps(sk, &rt->dst); //保存一些路由相关的信息，包括下一跳信息dst
 	rt = NULL;
 
-	if (likely(!tp->repair)) {
+	if (likely(!tp->repair)) { //非tcp热迁移. 生成一个iss
 		if (!tp->write_seq) //还没有设置初始序列号
 			tp->write_seq = secure_tcp_seq(inet->inet_saddr,
 						       inet->inet_daddr,
@@ -308,7 +308,7 @@ int tcp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 
 	inet->inet_id = tp->write_seq ^ jiffies;
 
-	if (tcp_fastopen_defer_connect(sk, &err)) //fastopen的connect要延迟的
+	if (tcp_fastopen_defer_connect(sk, &err)) //fastopen的connect要延迟的, 要带数据一起发送
 		return err;
 	if (err)
 		goto failure;
@@ -644,7 +644,7 @@ EXPORT_SYMBOL(tcp_v4_send_check);
  *
  *	Someone asks: why I NEVER use socket parameters (TOS, TTL etc.)
  *		      for reset.
- *	Answer: if a packet caused RST, it is not for a socket
+ *	Answer: if a packet caused RST, it is not for a socket					//有意思
  *		existing in our system, if it is matched to a socket,
  *		it is just duplicate segment or bug in other side's TCP.
  *		So that we build reply only basing on parameters
@@ -689,11 +689,11 @@ static void tcp_v4_send_reset(const struct sock *sk, struct sk_buff *skb)
 	rep.th.doff   = sizeof(struct tcphdr) / 4;
 	rep.th.rst    = 1;
 
-	if (th->ack) {
+	if (th->ack) { //导致rst发送的报文有ack的话，我们的回复就不设置ack
 		rep.th.seq = th->ack_seq;
 	} else {
-		rep.th.ack = 1;
-		rep.th.ack_seq = htonl(ntohl(th->seq) + th->syn + th->fin +
+		rep.th.ack = 1; //否则我们就设置ack，并且计算一个ack_seq, 这里没有设置rep.th.seq
+		rep.th.ack_seq = htonl(ntohl(th->seq) + th->syn + th->fin + //就是引发rst报文的序号 + 报文长度，表示确认号，这样正好对应到对方的snd_nxt号
 				       skb->len - (th->doff << 2));
 	}
 

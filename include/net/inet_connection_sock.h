@@ -95,7 +95,7 @@ struct inet_connection_sock {
 	struct request_sock_queue icsk_accept_queue; //TCP层完成了三次握手后，会创建一个sock结构存档到这里, 等待accept来获取
 	struct inet_bind_bucket	  *icsk_bind_hash; //绑定的端口信息
 	unsigned long		  icsk_timeout; //即超时重传时刻, 一般等于jiffies + icsk_rto
- 	struct timer_list	  icsk_retransmit_timer; //重传定时器或持续定时器，使用icsk_pending来区分%ICSK_TIME_RETRANS
+ 	struct timer_list	  icsk_retransmit_timer; //重传定时器或持续定时器，使用icsk_pending来区分%ICSK_TIME_RETRANS, 参考%tcp_init_xmit_timers
  	struct timer_list	  icsk_delack_timer; //延迟ack定时器
 	__u32			  icsk_rto; //RTO
 	__u32			  icsk_pmtu_cookie; //最近一次更新的PMTU

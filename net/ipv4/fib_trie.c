@@ -1321,6 +1321,7 @@ static inline t_key prefix_mismatch(t_key key, struct key_vector *n)
 }
 
 /* should be called with rcu_read_lock */
+//在table中找路由
 int fib_table_lookup(struct fib_table *tb, const struct flowi4 *flp,
 		     struct fib_result *res, int fib_flags)
 {
@@ -1500,7 +1501,7 @@ found:
 			res->nh_sel = nhsel;
 			res->type = fa->fa_type;
 			res->scope = fi->fib_scope;
-			res->fi = fi;
+			res->fi = fi; //最重要核心的路由项信息
 			res->table = tb;
 			res->fa_head = &n->leaf;
 #ifdef CONFIG_IP_FIB_TRIE_STATS

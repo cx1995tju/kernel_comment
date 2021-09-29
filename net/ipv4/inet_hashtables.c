@@ -663,9 +663,10 @@ unlock:
 }
 EXPORT_SYMBOL_GPL(inet_unhash);
 
+//tcpv4 场景下 death_row就是tcp_hashinfo
 int __inet_hash_connect(struct inet_timewait_death_row *death_row,
 		struct sock *sk, u32 port_offset,
-		int (*check_established)(struct inet_timewait_death_row *,
+		int (*check_established)(struct inet_timewait_death_row *, //%__inet_check_established
 			struct sock *, __u16, struct inet_timewait_sock **))
 {
 	struct inet_hashinfo *hinfo = death_row->hashinfo;

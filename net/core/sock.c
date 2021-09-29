@@ -2695,7 +2695,7 @@ static void sock_def_error_report(struct sock *sk)
 	wq = rcu_dereference(sk->sk_wq);
 	if (skwq_has_sleeper(wq))
 		wake_up_interruptible_poll(&wq->wait, EPOLLERR);
-	sk_wake_async(sk, SOCK_WAKE_IO, POLL_ERR);
+	sk_wake_async(sk, SOCK_WAKE_IO, POLL_ERR); //参考 sock_fasync 函数, 该函数会想sk->wq上挂载一个gasync相关的结构的
 	rcu_read_unlock();
 }
 

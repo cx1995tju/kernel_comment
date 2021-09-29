@@ -1017,6 +1017,7 @@ static void tcp_update_skb_after_send(struct tcp_sock *tp, struct sk_buff *skb)
  * SKB, or a fresh unique copy made by the retransmit engine.
  */
 /* clone_it 是克隆包还是复制包, 数据包到这里的时候还是比较纯粹的，需要给包设置很多东西，同时很多算法的入口也是从这里进入的，譬如：拥塞窗口的校验等 */
+//pure ack报文就不需要克隆的
 static int __tcp_transmit_skb(struct sock *sk, struct sk_buff *skb,
 			      int clone_it, gfp_t gfp_mask, u32 rcv_nxt)
 {
@@ -1034,8 +1035,8 @@ static int __tcp_transmit_skb(struct sock *sk, struct sk_buff *skb,
 	BUG_ON(!skb || !tcp_skb_pcount(skb));
 	tp = tcp_sk(sk);
 
-	if (clone_it) { //需要克隆这个包的
-		TCP_SKB_CB(skb)->tx.in_flight = TCP_SKB_CB(skb)->end_seq
+	if (clone_it) { //需要克隆这个包的, 一般都要克隆，因为可能会重传
+		TCP_SKB_CB(skb)->tx.in_flight = TCP_SKB_CB(skb)->end_seq //统计这些信息都是后续各种算法使用啦
 			- tp->snd_una;
 		oskb = skb;
 
@@ -1049,7 +1050,7 @@ static int __tcp_transmit_skb(struct sock *sk, struct sk_buff *skb,
 		if (unlikely(!skb))
 			return -ENOBUFS;
 	}
-	skb->skb_mstamp = tp->tcp_mstamp;
+	skb->skb_mstamp = tp->tcp_mstamp; //数据包到达或离开时间
 
 	inet = inet_sk(sk); //获取inet层的控制块
 	tcb = TCP_SKB_CB(skb);
@@ -1060,7 +1061,7 @@ static int __tcp_transmit_skb(struct sock *sk, struct sk_buff *skb,
 	else
 		tcp_options_size = tcp_established_options(sk, skb, &opts,
 							   &md5);
-	tcp_header_size = tcp_options_size + sizeof(struct tcphdr);
+	tcp_header_size = tcp_options_size + sizeof(struct tcphdr); //这里是在修正tcp header的大小了
 
 	/* if no packet is in qdisc/device queue, then allow XPS to select
 	 * another queue. We can be called from tcp_tsq_handler()
@@ -1091,7 +1092,7 @@ static int __tcp_transmit_skb(struct sock *sk, struct sk_buff *skb,
 	skb_set_dst_pending_confirm(skb, sk->sk_dst_pending_confirm);
 
 	/* Build TCP header and checksum it. */
-	th = (struct tcphdr *)skb->data;
+	th = (struct tcphdr *)skb->data; //填充skb的tcp头部
 	th->source		= inet->inet_sport;
 	th->dest		= inet->inet_dport;
 	th->seq			= htonl(tcb->seq);
@@ -1099,7 +1100,7 @@ static int __tcp_transmit_skb(struct sock *sk, struct sk_buff *skb,
 	*(((__be16 *)th) + 6)	= htons(((tcp_header_size >> 2) << 12) |
 					tcb->tcp_flags);
 
-	th->check		= 0;
+	th->check		= 0; //checksum还没有计算的
 	th->urg_ptr		= 0;
 
 	/* The urg_mode check is necessary during a below snd_una win probe */
@@ -1133,7 +1134,7 @@ static int __tcp_transmit_skb(struct sock *sk, struct sk_buff *skb,
 	}
 #endif
 
-	icsk->icsk_af_ops->send_check(sk, skb); //计算校验和
+	icsk->icsk_af_ops->send_check(sk, skb); //这里无条件的计算校验和, 怎么offload呀？？？？
 
 	if (likely(tcb->tcp_flags & TCPHDR_ACK)) //如果发送的段有ack标志，需要通知延时ack模块, 可能需要递减pingpong模式下能发送的ack段数目, 停止延时确认定时器
 		tcp_event_ack_sent(sk, tcp_skb_pcount(skb), rcv_nxt);
@@ -1471,8 +1472,8 @@ static inline int __tcp_mtu_to_mss(struct sock *sk, int pmtu)
 int tcp_mtu_to_mss(struct sock *sk, int pmtu)
 {
 	/* Subtract TCP options size, not including SACKs */
-	return __tcp_mtu_to_mss(sk, pmtu) -
-	       (tcp_sk(sk)->tcp_header_len - sizeof(struct tcphdr));
+	return __tcp_mtu_to_mss(sk, pmtu) - //不包好tcp选项的mss
+	       (tcp_sk(sk)->tcp_header_len - sizeof(struct tcphdr)); //刨除掉除sack外的其他选项的长度
 }
 
 /* Inverse of above */
@@ -1576,7 +1577,7 @@ unsigned int tcp_current_mss(struct sock *sk)
 	if (dst) {
 		u32 mtu = dst_mtu(dst);
 		if (mtu != inet_csk(sk)->icsk_pmtu_cookie)
-			mss_now = tcp_sync_mss(sk, mtu); //pmtu发现的mss
+			mss_now = tcp_sync_mss(sk, mtu); //pmtu发现的mtu
 	}
 
 	header_len = tcp_established_options(sk, NULL, &opts, &md5) +
@@ -3316,7 +3317,7 @@ static void tcp_ca_dst_init(struct sock *sk, const struct dst_entry *dst)
 	rcu_read_unlock();
 }
 
-/* Do all connect socket setups that can be done AF independent. addr family无关的设置 */
+/* Do all connect socket setups that can be done AF independent. */
 static void tcp_connect_init(struct sock *sk)
 {
 	const struct dst_entry *dst = __sk_dst_get(sk);
@@ -3327,8 +3328,8 @@ static void tcp_connect_init(struct sock *sk)
 	/* We'll fix this up when we get a response from the other end.
 	 * See tcp_input.c:tcp_rcv_state_process case TCP_SYN_SENT.
 	 */
-	tp->tcp_header_len = sizeof(struct tcphdr);
-	if (sock_net(sk)->ipv4.sysctl_tcp_timestamps)
+	tp->tcp_header_len = sizeof(struct tcphdr); //这里仅仅是一个基础的头部大小20B
+	if (sock_net(sk)->ipv4.sysctl_tcp_timestamps) //enable timestamp
 		tp->tcp_header_len += TCPOLEN_TSTAMP_ALIGNED;
 
 #ifdef CONFIG_TCP_MD5SIG
@@ -3343,7 +3344,7 @@ static void tcp_connect_init(struct sock *sk)
 	tcp_mtup_init(sk);
 	tcp_sync_mss(sk, dst_mtu(dst));
 
-	tcp_ca_dst_init(sk, dst);
+	tcp_ca_dst_init(sk, dst); //拥塞初始化
 
 	if (!tp->window_clamp)
 		tp->window_clamp = dst_metric(dst, RTAX_WINDOW);
@@ -3395,6 +3396,7 @@ static void tcp_connect_init(struct sock *sk)
 
 static void tcp_connect_queue_skb(struct sock *sk, struct sk_buff *skb)
 {
+	//注：syn包在fastopen场景下，会携带数据的
 	struct tcp_sock *tp = tcp_sk(sk);
 	struct tcp_skb_cb *tcb = TCP_SKB_CB(skb);
 
@@ -3500,6 +3502,7 @@ done:
 }
 
 /* Build a SYN and send it off. */
+/* 发送要使用的相关信息，譬如下一跳等，应该在tcp_v4_connect 中准备好了, 这里的操作才是更具体的发包操作 */
 int tcp_connect(struct sock *sk)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
@@ -3508,9 +3511,10 @@ int tcp_connect(struct sock *sk)
 
 	tcp_call_bpf(sk, BPF_SOCK_OPS_TCP_CONNECT_CB, 0, NULL);
 
-	if (inet_csk(sk)->icsk_af_ops->rebuild_header(sk))
+	if (inet_csk(sk)->icsk_af_ops->rebuild_header(sk)) //找路由,如果在tcp_v4_connect中缓存的下一跳信息已经过期了，就需要重新查找 %inet_sk_rebuild_header
 		return -EHOSTUNREACH; /* Routing failure or similar. */
 
+	/* 初始化了TCP相关的绝大部分信息 */
 	tcp_connect_init(sk);
 
 	if (unlikely(tp->repair)) { //如果是热迁移的socket需要修复，直接connect成功
@@ -3518,20 +3522,20 @@ int tcp_connect(struct sock *sk)
 		return 0;
 	}
 
-	buff = sk_stream_alloc_skb(sk, 0, sk->sk_allocation, true);
+	buff = sk_stream_alloc_skb(sk, 0, sk->sk_allocation, true); //这是从skbuff_fclone_cache中分配的
 	if (unlikely(!buff))
 		return -ENOBUFS;
 
-	tcp_init_nondata_skb(buff, tp->write_seq++, TCPHDR_SYN); //构造syn包
+	tcp_init_nondata_skb(buff, tp->write_seq++, TCPHDR_SYN); //构造syn包, 注意这里的write_seq++了
 	tcp_mstamp_refresh(tp);
 	tp->retrans_stamp = tcp_time_stamp(tp);
 	tcp_connect_queue_skb(sk, buff);
 	tcp_ecn_send_syn(sk, buff);
-	tcp_rbtree_insert(&sk->tcp_rtx_queue, buff);
+	tcp_rbtree_insert(&sk->tcp_rtx_queue, buff); //插入到发送队列啦
 
 	/* Send off SYN; include data in Fast Open. */
 	err = tp->fastopen_req ? tcp_send_syn_data(sk, buff) : //fastopen， syn中带数据
-	      tcp_transmit_skb(sk, buff, 1, sk->sk_allocation);
+	      tcp_transmit_skb(sk, buff, 1, sk->sk_allocation); //发包了
 	if (err == -ECONNREFUSED)
 		return err;
 
@@ -3549,6 +3553,7 @@ int tcp_connect(struct sock *sk)
 
 	/* Timer for repeating the SYN until an answer. */
 	//启动一个timer，用于重传syn包
+	//参考inet_csk_init_xmit_timers
 	inet_csk_reset_xmit_timer(sk, ICSK_TIME_RETRANS,
 				  inet_csk(sk)->icsk_rto, TCP_RTO_MAX);
 	return 0;

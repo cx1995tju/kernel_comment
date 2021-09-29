@@ -4809,7 +4809,7 @@ another_round:
 		goto skip_taps;
 
 	/* 遍历ptype_all链表 */
-	list_for_each_entry_rcu(ptype, &ptype_all, list) {
+	list_for_each_entry_rcu(ptype, &ptype_all, list) { //这里的ptype_all组织了brdige 以及 各种AF_PACKET套接字
 		if (pt_prev)
 			ret = deliver_skb(skb, pt_prev, orig_dev); //判断是否需要转发报文
 		pt_prev = ptype;
@@ -4851,10 +4851,10 @@ skip_classify:
 	rx_handler = rcu_dereference(skb->dev->rx_handler);
 	if (rx_handler) {
 		if (pt_prev) {
-			ret = deliver_skb(skb, pt_prev, orig_dev);
+			ret = deliver_skb(skb, pt_prev, orig_dev);//如果通过桥在二层转发成功的话，是不会传递到上层协议的, 不过如果仅仅是复制了一份给AF_PACKET socket的话，还是需要投递到上层协议的
 			pt_prev = NULL;
 		}
-		switch (rx_handler(&skb)) {
+		switch (rx_handler(&skb)) { 
 		case RX_HANDLER_CONSUMED:
 			ret = NET_RX_SUCCESS;
 			goto out;
@@ -4924,7 +4924,7 @@ static int __netif_receive_skb_one_core(struct sk_buff *skb, bool pfmemalloc)
 	int ret;
 
 	ret = __netif_receive_skb_core(skb, pfmemalloc, &pt_prev);
-	if (pt_prev)
+	if (pt_prev) 
 		ret = pt_prev->func(skb, skb->dev, pt_prev, orig_dev); //这里就调用到具体网络层的rcv函数，譬如:ip_rcv
 	return ret;
 }

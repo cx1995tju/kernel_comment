@@ -293,7 +293,7 @@ static inline void ip_route_connect_init(struct flowi4 *fl4, __be32 dst, __be32 
 
 static inline struct rtable *ip_route_connect(struct flowi4 *fl4,
 					      __be32 dst, __be32 src, u32 tos,
-					      int oif, u8 protocol,
+					      int oif, u8 protocol, //如果绑定了出端口的话, oif就非0
 					      __be16 sport, __be16 dport,
 					      struct sock *sk)
 {
@@ -303,7 +303,7 @@ static inline struct rtable *ip_route_connect(struct flowi4 *fl4,
 	ip_route_connect_init(fl4, dst, src, tos, oif, protocol,
 			      sport, dport, sk);
 
-	if (!dst || !src) {
+	if (!dst || !src) { //src为0，很可能的，因为不会指定本地地址的。
 		rt = __ip_route_output_key(net, fl4);
 		if (IS_ERR(rt))
 			return rt;
@@ -314,6 +314,7 @@ static inline struct rtable *ip_route_connect(struct flowi4 *fl4,
 	return ip_route_output_flow(net, fl4, sk);
 }
 
+//注意，这里的实质是确认缓存的下一跳信息
 static inline struct rtable *ip_route_newports(struct flowi4 *fl4, struct rtable *rt,
 					       __be16 orig_sport, __be16 orig_dport,
 					       __be16 sport, __be16 dport,

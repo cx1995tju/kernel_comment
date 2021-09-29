@@ -800,6 +800,8 @@ static inline u32 tcp_skb_timestamp(const struct sk_buff *skb)
  *
  *
  * */
+//tcp报文的一些控制，私有信息，是紧挨着skb保存的, 有些信息譬如seq，从报文中拿出来，保存在这里，比较好访问啦。
+//报文中是大端，用起来是不方便的。
 struct tcp_skb_cb {
 	__u32		seq;		/* Starting sequence number	*/
 	__u32		end_seq;	/* SEQ + FIN + SYN + datalen	*/
@@ -834,7 +836,7 @@ struct tcp_skb_cb {
 			eor:1,		/* Is skb MSG_EOR marked? */
 			has_rxtstamp:1,	/* SKB has a RX timestamp	*/
 			unused:5;
-	__u32		ack_seq;	/* Sequence number ACK'd	*/
+	__u32		ack_seq;	/* Sequence number ACK'd ack号	*/
 	union {
 		struct {
 			/* There is space for up to 24 bytes */

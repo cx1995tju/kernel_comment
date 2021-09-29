@@ -2354,17 +2354,18 @@ struct rtable *ip_route_output_key_hash(struct net *net, struct flowi4 *fl4,
 }
 EXPORT_SYMBOL_GPL(ip_route_output_key_hash);
 
+//构造路由查找结果fib_result
 struct rtable *ip_route_output_key_hash_rcu(struct net *net, struct flowi4 *fl4,
 					    struct fib_result *res,
 					    const struct sk_buff *skb)
 {
 	struct net_device *dev_out = NULL;
-	int orig_oif = fl4->flowi4_oif;
+	int orig_oif = fl4->flowi4_oif; //大部分场景下，没有指定源出interface
 	unsigned int flags = 0;
 	struct rtable *rth;
 	int err = -ENETUNREACH;
 
-	if (fl4->saddr) {
+	if (fl4->saddr) { //大部分场景下，也不会指定出地址的
 		rth = ERR_PTR(-EINVAL);
 		if (ipv4_is_multicast(fl4->saddr) ||
 		    ipv4_is_lbcast(fl4->saddr) ||
@@ -2414,7 +2415,7 @@ struct rtable *ip_route_output_key_hash_rcu(struct net *net, struct flowi4 *fl4,
 	}
 
 
-	if (fl4->flowi4_oif) {
+	if (fl4->flowi4_oif) { //大部分场景下，不会指定出interface的
 		dev_out = dev_get_by_index_rcu(net, fl4->flowi4_oif);
 		rth = ERR_PTR(-ENODEV);
 		if (!dev_out)
@@ -2443,7 +2444,7 @@ struct rtable *ip_route_output_key_hash_rcu(struct net *net, struct flowi4 *fl4,
 		}
 	}
 
-	if (!fl4->daddr) {
+	if (!fl4->daddr) { //大部分场景下，有明确的目的地址的
 		fl4->daddr = fl4->saddr;
 		if (!fl4->daddr)
 			fl4->daddr = fl4->saddr = htonl(INADDR_LOOPBACK);
@@ -2454,6 +2455,7 @@ struct rtable *ip_route_output_key_hash_rcu(struct net *net, struct flowi4 *fl4,
 		goto make_route;
 	}
 
+	//找路由表
 	err = fib_lookup(net, fl4, res, 0);
 	if (err) {
 		res->fi = NULL;
@@ -2489,7 +2491,7 @@ struct rtable *ip_route_output_key_hash_rcu(struct net *net, struct flowi4 *fl4,
 		goto out;
 	}
 
-	if (res->type == RTN_LOCAL) {
+	if (res->type == RTN_LOCAL) { //大部分场景不是local路由
 		if (!fl4->saddr) {
 			if (res->fi->fib_prefsrc)
 				fl4->saddr = res->fi->fib_prefsrc;
@@ -2518,6 +2520,7 @@ struct rtable *ip_route_output_key_hash_rcu(struct net *net, struct flowi4 *fl4,
 
 
 make_route:
+	//构建路由缓存项rtable
 	rth = __mkroute_output(res, fl4, orig_oif, dev_out, flags);
 
 out:

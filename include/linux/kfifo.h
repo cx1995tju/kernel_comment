@@ -63,6 +63,7 @@ struct __kfifo {
 	void		*data;
 };
 
+//recsize: record size
 #define __STRUCT_KFIFO_COMMON(datatype, recsize, ptrtype) \
 	union { \
 		struct __kfifo	kfifo; \
@@ -72,16 +73,21 @@ struct __kfifo {
 		ptrtype		*ptr; \
 		ptrtype const	*ptr_const; \
 	}
+//union中的这些指针，都是用于记录一些类型信息的，编译时候会用上。
+//rectype的类型是一个char数组，其类型大小就是保存记录域的size的, 编译的时候我们使用sizeof就能拿到rectype的size的
+//https://blog.csdn.net/Bruno_Mars/article/details/100061793
 
+//结构连续的预先分配数据存储
 #define __STRUCT_KFIFO(type, size, recsize, ptrtype) \
 { \
 	__STRUCT_KFIFO_COMMON(type, recsize, ptrtype); \
-	type		buf[((size < 2) || (size & (size - 1))) ? -1 : size]; \
+	type		buf[((size < 2) || (size & (size - 1))) ? -1 : size]; \ //size一定是2的幂
 }
 
 #define STRUCT_KFIFO(type, size) \
 	struct __STRUCT_KFIFO(type, size, 0, type)
 
+//基于零长数组的数据存储
 #define __STRUCT_KFIFO_PTR(type, recsize, ptrtype) \
 { \
 	__STRUCT_KFIFO_COMMON(type, recsize, ptrtype); \
@@ -134,6 +140,7 @@ struct kfifo_rec_ptr_2 __STRUCT_KFIFO_PTR(unsigned char, 2, void);
 /**
  * INIT_KFIFO - Initialize a fifo declared by DECLARE_KFIFO
  * @fifo: name of the declared fifo datatype
+ * mask 2^n - 1
  */
 #define INIT_KFIFO(fifo) \
 (void)({ \
@@ -220,6 +227,8 @@ __kfifo_int_must_check_helper(int val)
  * fifo is exclusived locked or when it is secured that no other thread is
  * accessing the fifo.
  */
+//参考 https://stackoverflow.com/questions/4436889/what-is-typeofc-1-in-c
+//防止错误的将原类型作为指针参数传入了。指针才能++, 如果是传入的原始类型的话，这里编译报错
 #define kfifo_reset(fifo) \
 (void)({ \
 	typeof((fifo) + 1) __tmp = (fifo); \
@@ -234,6 +243,8 @@ __kfifo_int_must_check_helper(int val)
  * from the reader thread and there is only one concurrent reader. Otherwise
  * it is dangerous and must be handled in the same way as kfifo_reset().
  */
+//这个+1很有意思，如果fifo是一个指针的话，typeof(fifo + 1)的结果,就还是一个指针类型
+//如果错误的使用了struct fifo结构的变量做参数，这里的类型就会编译错误的。
 #define kfifo_reset_out(fifo)	\
 (void)({ \
 	typeof((fifo) + 1) __tmp = (fifo); \

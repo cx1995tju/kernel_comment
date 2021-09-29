@@ -606,7 +606,7 @@ static long inet_wait_for_connect(struct sock *sk, long timeo, int writebias)
  *	TCP 'magic' in here.
  */
 int __inet_stream_connect(struct socket *sock, struct sockaddr *uaddr,
-			  int addr_len, int flags, int is_sendmsg)
+			  int addr_len, int flags, int is_sendmsg) //fast open的syn包带数据 tcp_sendmsg_fastopen -> __inet_stream_connect fastopen场景下，不需要调用connect
 {
 	struct sock *sk = sock->sk;
 	int err;
@@ -657,7 +657,7 @@ int __inet_stream_connect(struct socket *sock, struct sockaddr *uaddr,
 				goto out;
 		}
 
-		/* tcp_connect */
+		/* tcp_v4_connect */
 		err = sk->sk_prot->connect(sk, uaddr, addr_len);
 		if (err < 0)
 			goto out;
@@ -1245,7 +1245,7 @@ int inet_sk_rebuild_header(struct sock *sk)
 	struct flowi4 *fl4;
 	int err;
 
-	/* Route is OK, nothing to do. */
+	/* Route is OK, nothing to do. 缓存的下一跳信息rt还是可用的 */
 	if (rt)
 		return 0;
 

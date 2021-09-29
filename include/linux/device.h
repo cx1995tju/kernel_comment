@@ -69,7 +69,7 @@ extern void bus_remove_file(struct bus_type *, struct bus_attribute *);
  * @bus_groups:	Default attributes of the bus.
  * @dev_groups:	Default attributes of the devices on the bus.
  * @drv_groups: Default attributes of the device drivers on the bus.
- * @match:	Called, perhaps multiple times, whenever a new device or driver
+ * @match:	Called, perhaps multiple times, whenever a new device or driver		//也是新设备与driver添加的时候调用
  *		is added for this bus. It should return a positive value if the
  *		given device can be handled by the given driver and zero
  *		otherwise. It may also return error code if determining that
@@ -77,7 +77,7 @@ extern void bus_remove_file(struct bus_type *, struct bus_attribute *);
  *		-EPROBE_DEFER it will queue the device for deferred probing.
  * @uevent:	Called when a device is added, removed, or a few other things
  *		that generate uevents to add the environment variables.
- * @probe:	Called when a new device or driver add to this bus, and callback
+ * @probe:	Called when a new device or driver add to this bus, and callback	//新设备或者driver添加的时候调用，然后调用到具体driver的probe函数
  *		the specific driver's probe to initial the matched device.
  * @remove:	Called when a device removed from this bus.
  * @shutdown:	Called at shut-down time to quiesce the device.
@@ -962,6 +962,13 @@ struct dev_links_info {
  */
  /* 设备总线驱动之间存在某种所属，匹配的关系，我们都可以借助于kobject kset ktype等来表达
   * 通过其还能实现引用计数，析构函数等功能。
+  *
+  * 多个设备可能是同一个driver，这样会组织起这些兄弟设备的
+  *
+  *
+  * device_register 注册设备
+  * device_get
+  * device_put
   * */
 struct device {
 	struct device		*parent;
@@ -981,7 +988,7 @@ struct device {
 					   device */
 	void		*platform_data;	/* Platform specific data, device
 					   core doesn't touch it */
-	void		*driver_data;	/* Driver data, set and get with
+	void		*driver_data;	/* Driver data, set and get with, 驱动使用的私有数据，多个设备同一个驱动，这个可能不同
 					   dev_set/get_drvdata */
 	struct dev_links_info	links;
 	struct dev_pm_info	power;
@@ -1036,7 +1043,7 @@ struct device {
 	struct class		*class;
 	const struct attribute_group **groups;	/* optional groups */
 
-	void	(*release)(struct device *dev);
+	void	(*release)(struct device *dev); //析构函数
 	struct iommu_group	*iommu_group;
 	struct iommu_fwspec	*iommu_fwspec;
 

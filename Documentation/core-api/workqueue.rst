@@ -102,7 +102,7 @@ get a detailed overview refer to the API description of
 When a work item is queued to a workqueue, the target worker-pool is
 determined according to the queue parameters and workqueue attributes
 and appended on the shared worklist of the worker-pool.  For example,
-unless specifically overridden, a work item of a bound workqueue will
+unless specifically overridden, a work item of a **bound workqueue** will
 be queued on the worklist of either normal or highpri worker-pool that
 is associated to the CPU the issuer is running on.
 
@@ -204,7 +204,7 @@ resources, scheduled and executed.
   Work items of a CPU intensive wq do not contribute to the
   concurrency level.  In other words, runnable CPU intensive
   work items will not prevent other work items in the same
-  worker-pool from starting execution.  This is useful for bound
+  worker-pool from starting execution.  **This is useful for bound**
   work items which are expected to hog CPU cycles so that their
   execution is regulated by the system scheduler.
 
@@ -242,8 +242,8 @@ may queue at the same time.  Unless there is a specific need for
 throttling the number of active work items, specifying '0' is
 recommended.
 
-Some users depend on the strict execution ordering of ST wq.  The
-combination of ``@max_active`` of 1 and ``WQ_UNBOUND`` used to
+**Some users depend on the strict execution ordering of ST wq.  The
+combination of ``@max_active`` of 1 and ``WQ_UNBOUND`` used to**
 achieve this behavior.  Work items on such wq were always queued to the
 unbound worker-pools and only one work item could be active at any given
 time thus achieving the same ordering property as ST wq.

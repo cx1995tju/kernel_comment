@@ -156,7 +156,7 @@ struct tcp_sock {
  *	Header prediction flags
  *	0x5?10 << 16 + snd_wnd in net byte order
  */
-	__be32	pred_flags; //首部预测标志, 该标志 + 时间戳 + 序列号都是判断是否走快速路径的条件
+	__be32	pred_flags; //首部预测标志, 该标志 + 时间戳 + 序列号都是判断是否走快速路径的条件, 记录的是TCP头部的第4个32位字 4b header_len + 4b res + 8b的flag + 16b的窗口大小
 
 /*
  *	RFC793 variables by their proper names. This means you can
@@ -205,7 +205,7 @@ struct tcp_sock {
 	struct list_head tsq_node; /* anchor in tsq_tasklet.head list */
 	struct list_head tsorted_sent_queue; /* time-sorted sent but un-SACKed skbs */
 
-	u32	snd_wl1;	/* Sequence for window update, 记录更新发送窗口的那个ack端的序号，如果后续接收到的ack端大于snd_wl1，就需要更新窗口见tcp_may_update_window		*/
+	u32	snd_wl1;	/* Sequence for window update, 记录更新发送窗口的那个ack包的自身的序号，如果后续接收到的ack端大于snd_wl1，就需要更新窗口见tcp_may_update_window		*/
 	u32	snd_wnd;	/* The window we expect to receive, 接收方提供的接收窗口大小，即发送方发送窗口大小	*/
 	u32	max_window;	/* Maximal window ever seen from peer, 对端通告过的最大窗口值	tcp_may_update_window*/
 	u32	mss_cache;	/* Cached effective mss, not including SACKS, 发送方当前有效的mss  */
@@ -301,7 +301,7 @@ struct tcp_sock {
 	u32	rate_interval_us;  /* saved rate sample: time elapsed */
 
  	u32	rcv_wnd;	/* Current receiver window,当前接收窗口大小		*/
-	u32	write_seq;	/* Tail(+1) of data held in tcp send buffer, 已经加入发送队列中的最后一个字节序号 */
+	u32	write_seq;	/* Tail(+1) of data held in tcp send buffer, 已经加入发送队列中的最后一个字节序号 , 而snd_nxt-1是已经发送出去的, write_seq >= snd_nxt。*/
 	u32	notsent_lowat;	/* TCP_NOTSENT_LOWAT */
 	u32	pushed_seq;	/* Last pushed seq, required to talk to windows, 通常表示已经真正发送出去的最后一个字节序号， 有时表示期望发送出去的最后一个字节序号*/
 	u32	lost_out;	/* Lost packets, 估计在网络中丢失的段			*/

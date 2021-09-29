@@ -1268,6 +1268,8 @@ EXPORT_SYMBOL_GPL(skb_copy_ubufs);
  *
  *	If this function is called from an interrupt gfp_mask() must be
  *	%GFP_ATOMIC.
+ *
+ *	如果clone后，就不能修改数据了, 但是好像还是可以在后面去写. 参考tcp_sendmsg
  */
 
 /* 共享数据区 */

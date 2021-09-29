@@ -495,6 +495,7 @@ int skb_zerocopy_iter_stream(struct sock *sk, struct sk_buff *skb,
  * */
 /* 可以在这里支持分散聚合功能.
  *
+ * 还保存了很多其他data相关的信息
  * */
 struct skb_shared_info {
 	__u8		__unused;
@@ -518,14 +519,14 @@ struct skb_shared_info {
 	/*
 	 * Warning : all fields before dataref are cleared in __alloc_skb()
 	 */
-	atomic_t	dataref; /* sk_buff指向的数据缓冲区的引用次数，不是sk_buff的引用次数, 譬如：克隆一个SKB */
+	atomic_t	dataref; /* sk_buff指向的数据缓冲区的引用次数，不是sk_buff的引用次数, 譬如：克隆一个SKB, 注意这个dataref被分成了高16位和低16位，分别表示不同的引用, 详见下面的注释SKB_DATAREF_SHIFT */
 
 	/* Intermediate layers must ensure that destructor_arg
 	 * remains valid until skb destructor */
 	void *		destructor_arg;
 
 	/* must be last field, see pskb_expand_head() */
-	skb_frag_t	frags[MAX_SKB_FRAGS];
+	skb_frag_t	frags[MAX_SKB_FRAGS]; //这是分散聚合的page + offset 的数组
 
 	/* frag_list 可以聚合多个sk_buff, frags可以聚合多个内存缓冲区 */
 };
@@ -546,7 +547,7 @@ struct skb_shared_info {
 
 
 enum {
-	SKB_FCLONE_UNAVAILABLE,	/* skb has no fclone (from head_cache), 没有被克隆 */
+	SKB_FCLONE_UNAVAILABLE,	/* skb has no fclone (from head_cache), 没有被克隆 , 如果父skb是ORIG，子skb的unavailable，说明这两个是从skbuff_fclone_cache中分配的，且父skb没有被克隆 */
 	SKB_FCLONE_ORIG,	/* orig skb (from fclone_cache), 可以被克隆，在skbuff_fclone_cache上分配的父SKB */
 	SKB_FCLONE_CLONE,	/* companion fclone skb (from fclone_cache), 在skbuff_fclone_cache上分配的子SKB，从父SKB克隆得到的 */
 };
@@ -623,7 +624,7 @@ typedef unsigned char *sk_buff_data_t;
  *	@ignore_df: allow local fragmentation
  *	@cloned: Head may be cloned (check refcnt to be sure)
  *	@ip_summed: Driver fed us an IP checksum
- *	@nohdr: Payload reference only, must not modify header
+ *	@nohdr: Payload reference only, must not modify header, 如果payload被其他skb单独引用，那么这里就不能修改头部了
  *	@pkt_type: Packet class
  *	@fclone: skbuff clone status
  *	@ipvs_property: skbuff is owned by ipvs
@@ -769,8 +770,8 @@ struct sk_buff {
 
 	__u8			__cloned_offset[0];
 	__u8			cloned:1, //是否已经克隆
-				nohdr:1, //payload是否被单独引用，如果的实话，不能再修改协议首部了，也不能使用skb->data来访问协议首部
-				fclone:2, //当前克隆状态 SKB_FCLONE_ORIG, 克隆skb的话，多个sk_buff指向的缓冲区是一个
+				nohdr:1, //payload是否被单独引用，如果是的话，不能再修改协议首部了，也不能使用skb->data来访问协议首部
+				fclone:2, //当前克隆状态 %SKB_FCLONE_ORIG, 克隆skb的话，多个sk_buff指向的缓冲区是一个
 				peeked:1,
 				head_frag:1,
 				xmit_more:1,
@@ -890,7 +891,7 @@ struct sk_buff {
 				*data;
 	unsigned int		truesize; /* alloc_skb(x)的时候，会将truesize初始化为x + sizeof(sk_buff) + sizeof(sharde_info) */
 					/* 整合数据缓冲区的大小，包括sk_buff， 线性数据区，非线性数据区 */
-	refcount_t		users; /* 引用计数，合适时机释放该结构, 仅仅保护的是该结构，不保护缓冲区，缓冲区的保护见skb_shared_info结构 */
+	refcount_t		users; /* 引用计数，合适时机释放该结构, 仅仅保护的是该结构，不保护缓冲区，缓冲区的保护见skb_shared_info结构的dataref */
 };
 
 #ifdef __KERNEL__
@@ -2175,7 +2176,7 @@ static inline void *pskb_pull(struct sk_buff *skb, unsigned int len)
 //检测skb中的数据是否有指定长度
 static inline int pskb_may_pull(struct sk_buff *skb, unsigned int len)
 {
-	if (likely(len <= skb_headlen(skb))) //线性区长度不可能< tcp头长度的
+	if (likely(len <= skb_headlen(skb))) 
 		return 1;
 	if (unlikely(len > skb->len))
 		return 0;

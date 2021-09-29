@@ -1282,9 +1282,9 @@ restart:
 	while (msg_data_left(msg)) {
 		int copy = 0;
 
-		skb = tcp_write_queue_tail(sk); //获取的是尾部的包？？？, 因为链表的插入是头插？？？
+		skb = tcp_write_queue_tail(sk); //获取的是尾部的包
 		if (skb)
-			copy = size_goal - skb->len; //因为一个skb的最多数据不能超过size_gola
+			copy = size_goal - skb->len; //因为一个skb的最多数据不能超过size_goal
 
 		if (copy <= 0 || !tcp_skb_can_collapse_to(skb)) { //size_goal 小于skb->len. 即skb的已使用空间大于等于size_goal了，要分配新的段了
 			bool first_skb;
@@ -1299,7 +1299,7 @@ new_segment:
 				goto restart;
 			}
 			first_skb = tcp_rtx_and_write_queues_empty(sk); //都是空的么？
-			linear = select_size(first_skb, zc); //确定线性区长度，如果支持zc的话，没有线性区
+			linear = select_size(first_skb, zc); //确定线性区长度，如果支持zc的话，没有线性区, 对于非first_skb,直接不分配线性区的，分配page
 			skb = sk_stream_alloc_skb(sk, linear, sk->sk_allocation, //分配skb
 						  first_skb);
 			if (!skb)
@@ -1335,7 +1335,7 @@ new_segment:
 			int i = skb_shinfo(skb)->nr_frags;
 			struct page_frag *pfrag = sk_page_frag(sk);
 
-			if (!sk_page_frag_refill(sk, pfrag))
+			if (!sk_page_frag_refill(sk, pfrag)) //新的skb(不是firstskb)是没有空间的，会在这里分配page
 				goto wait_for_memory;
 
 			if (!skb_can_coalesce(skb, i, pfrag->page, //判断最后一个分页能够追加数据

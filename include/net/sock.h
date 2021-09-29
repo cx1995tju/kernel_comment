@@ -183,7 +183,7 @@ struct sock_common {
 	unsigned char		skc_reuseport:1;
 	unsigned char		skc_ipv6only:1;
 	unsigned char		skc_net_refcnt:1;
-	int			skc_bound_dev_if; //是否出报文的网络设备索引号
+	int			skc_bound_dev_if; //是出报文的网络设备索引号
 	union {
 		struct hlist_node	skc_bind_node; //已经绑定的的端口的sock结构会利用这个字段插入到与之绑定的端口信息结构的链表中, bhash表
 		struct hlist_node	skc_portaddr_node;

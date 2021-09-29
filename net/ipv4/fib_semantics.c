@@ -1778,6 +1778,7 @@ void fib_select_multipath(struct fib_result *res, int hash)
 }
 #endif
 
+//配置了多路径路由的时候, 会有多个下一跳的，选一个
 void fib_select_path(struct net *net, struct fib_result *res,
 		     struct flowi4 *fl4, const struct sk_buff *skb)
 {
@@ -1794,10 +1795,10 @@ void fib_select_path(struct net *net, struct fib_result *res,
 #endif
 	if (!res->prefixlen &&
 	    res->table->tb_num_default > 1 &&
-	    res->type == RTN_UNICAST)
+	    res->type == RTN_UNICAST) //单播路由
 		fib_select_default(fl4, res);
 
 check_saddr:
 	if (!fl4->saddr)
-		fl4->saddr = FIB_RES_PREFSRC(net, *res);
+		fl4->saddr = FIB_RES_PREFSRC(net, *res); //从result结果中拿saddr
 }

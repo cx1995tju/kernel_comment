@@ -94,7 +94,7 @@ struct fnhe_hash_bucket {
 
 /* 下一跳路由的信息， next hop */
 struct fib_nh {
-	struct net_device	*nh_dev; //该路由表项的输出设备, 当相关设备被down的时候，netdev_down事件会被触发，fib_netdev_event函数被调用
+	struct net_device	*nh_dev; //该路由表项的输出设备, 当相关设备被down的时候，netdev_down事件会被触发，fib_netdev_event函数被调用, 如果要到这个下一跳，就要从这个端口出去
 	struct hlist_node	nh_hash;
 	struct fib_info		*nh_parent; //指向所属路由表项的fib_info结构
 	unsigned int		nh_flags;
@@ -280,6 +280,7 @@ static inline struct fib_table *fib_new_table(struct net *net, u32 id)
 }
 
 //这个函数有两个版本，支不支持策略路由是不同的, CONFIG_IP_MULTIPLE_TABLES
+//这个是不支持的
 static inline int fib_lookup(struct net *net, const struct flowi4 *flp,
 			     struct fib_result *res, unsigned int flags)
 {
@@ -289,9 +290,10 @@ static inline int fib_lookup(struct net *net, const struct flowi4 *flp,
 
 	rcu_read_lock();
 
+	//为什么没有查找local路由???? commit 0ddcf43d5d4a 中将LOCAL MAIN的查找整合到了一起
 	tb = fib_get_table(net, RT_TABLE_MAIN);
 	if (tb)
-		err = fib_table_lookup(tb, flp, res, flags | FIB_LOOKUP_NOREF);
+		err = fib_table_lookup(tb, flp, res, flags | FIB_LOOKUP_NOREF); //路由表中，查路由
 
 	if (err == -EAGAIN)
 		err = -ENETUNREACH;

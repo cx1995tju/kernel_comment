@@ -447,7 +447,7 @@ int __ip_queue_xmit(struct sock *sk, struct sk_buff *skb, struct flowi *fl,
 	rcu_read_lock();
 	inet_opt = rcu_dereference(inet->inet_opt); //获取选项
 	fl4 = &fl->u.ip4;
-	rt = skb_rtable(skb); //路由缓存项, 这表示skb已经被路由过了
+	rt = skb_rtable(skb); //路由缓存项, 实质是下一跳缓存项，这表示skb已经查找过路由了
 	if (rt)
 		goto packet_routed;
 
