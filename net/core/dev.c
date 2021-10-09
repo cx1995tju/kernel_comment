@@ -4815,7 +4815,7 @@ another_round:
 		pt_prev = ptype;
 	}
 
-	list_for_each_entry_rcu(ptype, &skb->dev->ptype_all, list) {
+	list_for_each_entry_rcu(ptype, &skb->dev->ptype_all, list) {	//转发一份报文给ptype_all中的协议族, 然后继续向后处理
 		if (pt_prev)
 			ret = deliver_skb(skb, pt_prev, orig_dev);
 		pt_prev = ptype;
