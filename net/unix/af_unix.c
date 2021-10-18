@@ -1847,7 +1847,7 @@ static int unix_stream_sendmsg(struct socket *sock, struct msghdr *msg,
 	int data_len;
 
 	wait_for_unix_gc();
-	err = scm_send(sock, msg, &scm, false);
+	err = scm_send(sock, msg, &scm, false); //先发送control msg， control msg的长度不包含在返回值
 	if (err < 0)
 		return err;
 

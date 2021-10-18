@@ -631,8 +631,8 @@ static struct kvm *kvm_create_vm(unsigned long type)
 	if (!kvm)
 		return ERR_PTR(-ENOMEM);
 
-	spin_lock_init(&kvm->mmu_lock);
-	mmgrab(current->mm);
+	spin_lock_init(&kvm->mmu_lock); //操作虚拟机MMU数据的锁, 
+	mmgrab(current->mm); //因为虚拟机内存就是QEMU的虚拟内存，所以要拿QEMU的mm_struct的引用
 	kvm->mm = current->mm;
 	kvm_eventfd_init(kvm);
 	mutex_init(&kvm->lock);
@@ -641,11 +641,11 @@ static struct kvm *kvm_create_vm(unsigned long type)
 	refcount_set(&kvm->users_count, 1);
 	INIT_LIST_HEAD(&kvm->devices);
 
-	r = kvm_arch_init_vm(kvm, type);
+	r = kvm_arch_init_vm(kvm, type); //kvm的arch成员，存放架构相关信息
 	if (r)
 		goto out_err_no_disable;
 
-	r = hardware_enable_all();
+	r = hardware_enable_all(); //开启VMX模式
 	if (r)
 		goto out_err_no_disable;
 
@@ -657,7 +657,7 @@ static struct kvm *kvm_create_vm(unsigned long type)
 
 	r = -ENOMEM;
 	for (i = 0; i < KVM_ADDRESS_SPACE_NUM; i++) {
-		struct kvm_memslots *slots = kvm_alloc_memslots();
+		struct kvm_memslots *slots = kvm_alloc_memslots(); //分配内存槽
 		if (!slots)
 			goto out_err_no_srcu;
 		/*
@@ -3191,10 +3191,10 @@ static struct file_operations kvm_vm_fops = {
 static int kvm_dev_ioctl_create_vm(unsigned long type)
 {
 	int r;
-	struct kvm *kvm;
+	struct kvm *kvm; //代表一台虚拟机实例
 	struct file *file;
 
-	kvm = kvm_create_vm(type);
+	kvm = kvm_create_vm(type); //创建虚拟机实例
 	if (IS_ERR(kvm))
 		return PTR_ERR(kvm);
 #ifdef CONFIG_KVM_MMIO
@@ -3202,7 +3202,7 @@ static int kvm_dev_ioctl_create_vm(unsigned long type)
 	if (r < 0)
 		goto put_kvm;
 #endif
-	r = get_unused_fd_flags(O_CLOEXEC);
+	r = get_unused_fd_flags(O_CLOEXEC); //给这个虚拟机实例搞一个vfs的fd接口
 	if (r < 0)
 		goto put_kvm;
 
@@ -3267,7 +3267,7 @@ static long kvm_dev_ioctl(struct file *filp,
 	case KVM_TRACE_DISABLE:
 		r = -EOPNOTSUPP;
 		break;
-	default:
+	default: //可以看到/dev/kvm提供的ioctl接口分成两类，前者是通用的接口, 这里是架构相关的接口
 		return kvm_arch_dev_ioctl(filp, ioctl, arg);
 	}
 out:
@@ -3349,6 +3349,7 @@ static void hardware_disable_all(void)
 	raw_spin_unlock(&kvm_count_lock);
 }
 
+//开启VMX模式
 static int hardware_enable_all(void)
 {
 	int r = 0;
@@ -3356,7 +3357,7 @@ static int hardware_enable_all(void)
 	raw_spin_lock(&kvm_count_lock);
 
 	kvm_usage_count++;
-	if (kvm_usage_count == 1) {
+	if (kvm_usage_count == 1) { //如果是创建第一个kvm实例的话，会对每个CPU调用hardware_enable_nolocak -> kvm_arch_hardware_enable
 		atomic_set(&hardware_enable_failed, 0);
 		on_each_cpu(hardware_enable_nolock, NULL, 1);
 
@@ -3993,12 +3994,14 @@ static void kvm_sched_out(struct preempt_notifier *pn,
 	kvm_arch_vcpu_put(vcpu);
 }
 
+//第二个参数是表示VMX实现的vcpu结构体的大小
 int kvm_init(void *opaque, unsigned vcpu_size, unsigned vcpu_align,
 		  struct module *module)
 {
 	int r;
 	int cpu;
 
+	//初始化架构相关
 	r = kvm_arch_init(opaque);
 	if (r)
 		goto out_fail;
@@ -4010,6 +4013,7 @@ int kvm_init(void *opaque, unsigned vcpu_size, unsigned vcpu_align,
 	 * kvm_arch_init must be called before kvm_irqfd_init to avoid creating
 	 * conflicts in case kvm is already setup for another implementation.
 	 */
+	//初始化irqfd相关数据，并且会创建一个线程
 	r = kvm_irqfd_init();
 	if (r)
 		goto out_irqfd;
@@ -4019,13 +4023,14 @@ int kvm_init(void *opaque, unsigned vcpu_size, unsigned vcpu_align,
 		goto out_free_0;
 	}
 
+	//创建一些与kvm启动相关的结构，初始化一些硬件特性
 	r = kvm_arch_hardware_setup();
 	if (r < 0)
 		goto out_free_0a;
 
 	for_each_online_cpu(cpu) {
 		smp_call_function_single(cpu,
-				kvm_arch_check_processor_compat,
+				kvm_arch_check_processor_compat, //为每个cpu调用该函数，检测所有CPU的特性是否一致, refer to %vmx_check_processor_compat
 				&r, 1);
 		if (r < 0)
 			goto out_free_1;
@@ -4035,7 +4040,7 @@ int kvm_init(void *opaque, unsigned vcpu_size, unsigned vcpu_align,
 				      kvm_starting_cpu, kvm_dying_cpu);
 	if (r)
 		goto out_free_2;
-	register_reboot_notifier(&kvm_reboot_notifier);
+	register_reboot_notifier(&kvm_reboot_notifier); //内核通知链，注册通知对象, 系统重启的时候，能够得到通知
 
 	/* A kmem cache lets us meet the alignment requirements of fx_save. */
 	if (!vcpu_align)
@@ -4051,6 +4056,7 @@ int kvm_init(void *opaque, unsigned vcpu_size, unsigned vcpu_align,
 		goto out_free_3;
 	}
 
+	//搞一个kmem cache，后续分配会快一点
 	r = kvm_async_pf_init();
 	if (r)
 		goto out_free;
@@ -4059,7 +4065,7 @@ int kvm_init(void *opaque, unsigned vcpu_size, unsigned vcpu_align,
 	kvm_vm_fops.owner = module;
 	kvm_vcpu_fops.owner = module;
 
-	r = misc_register(&kvm_dev);
+	r = misc_register(&kvm_dev); // /dev/kvm设备的注册
 	if (r) {
 		pr_err("kvm: misc device register failed\n");
 		goto out_unreg;

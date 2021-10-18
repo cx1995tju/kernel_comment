@@ -4398,7 +4398,7 @@ static __init int vmx_disabled_by_bios(void)
 
 static void kvm_cpu_vmxon(u64 addr)
 {
-	cr4_set_bits(X86_CR4_VMXE);
+	cr4_set_bits(X86_CR4_VMXE); //需要设置cr4的VMXE位
 	intel_pt_handle_vmx(1);
 
 	asm volatile (ASM_VMX_VMXON_RAX
@@ -4409,10 +4409,10 @@ static void kvm_cpu_vmxon(u64 addr)
 static int hardware_enable(void)
 {
 	int cpu = raw_smp_processor_id();
-	u64 phys_addr = __pa(per_cpu(vmxarea, cpu));
+	u64 phys_addr = __pa(per_cpu(vmxarea, cpu)); //vmxarea 参考 alloc_kvm_area
 	u64 old, test_bits;
 
-	if (cr4_read_shadow() & X86_CR4_VMXE)
+	if (cr4_read_shadow() & X86_CR4_VMXE) //
 		return -EBUSY;
 
 	/*
@@ -4449,7 +4449,7 @@ static int hardware_enable(void)
 		/* enable and lock */
 		wrmsrl(MSR_IA32_FEATURE_CONTROL, old | test_bits);
 	}
-	kvm_cpu_vmxon(phys_addr);
+	kvm_cpu_vmxon(phys_addr); //开启vmx模式
 	if (enable_ept)
 		ept_sync_global();
 
@@ -4893,6 +4893,7 @@ static void init_vmcs_shadow_fields(void)
 	max_shadow_read_write_fields = j;
 }
 
+//为每个物理CPU分配VMCS结构，并且放置到vmxarea这个per-cpu变量
 static __init int alloc_kvm_area(void)
 {
 	int cpu;
@@ -7874,14 +7875,17 @@ static __init int hardware_setup(void)
 			goto out;
 	}
 
+	//设置了两个bitmap，都设置为1，所以一开始会拦截所有的端口读写
 	memset(vmx_vmread_bitmap, 0xff, PAGE_SIZE);
 	memset(vmx_vmwrite_bitmap, 0xff, PAGE_SIZE);
 
+	//配置全局变量vmcs_config, 后续创建vCPU的时候，用其来初始化VMCS
 	if (setup_vmcs_config(&vmcs_config) < 0) {
 		r = -EIO;
 		goto out;
 	}
 
+	//根据CPU的特性，设置更多的全局变量
 	if (boot_cpu_has(X86_FEATURE_NX))
 		kvm_enable_efer_bits(EFER_NX);
 
@@ -8001,6 +8005,7 @@ static __init int hardware_setup(void)
 
 	kvm_mce_cap_supported |= MCG_LMCE_P;
 
+	//为每个物理CPU分配VMCS结构，并且放置到vmxarea这个per-cpu变量
 	r = alloc_kvm_area();
 	if (r)
 		goto out;
@@ -11168,7 +11173,7 @@ static void __init vmx_check_processor_compat(void *rtn)
 	struct vmcs_config vmcs_conf;
 
 	*(int *)rtn = 0;
-	if (setup_vmcs_config(&vmcs_conf) < 0)
+	if (setup_vmcs_config(&vmcs_conf) < 0) //用当前CPU特性构造出一个vmcs_config, 要确保所有的物理的CPU的特性一致，这样vCPU在物理CPU上调度的时候就不会出问题
 		*(int *)rtn = -EIO;
 	nested_vmx_setup_ctls_msrs(&vmcs_conf.nested, enable_apicv);
 	if (memcmp(&vmcs_config, &vmcs_conf, sizeof(struct vmcs_config)) != 0) {

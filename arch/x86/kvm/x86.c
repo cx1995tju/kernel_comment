@@ -6696,6 +6696,7 @@ static struct notifier_block pvclock_gtod_notifier = {
 };
 #endif
 
+//kvm_arch_init要确保只有一个kvm实例加载到内核
 int kvm_arch_init(void *opaque)
 {
 	int r;
@@ -6719,17 +6720,17 @@ int kvm_arch_init(void *opaque)
 	}
 
 	r = -ENOMEM;
-	shared_msrs = alloc_percpu(struct kvm_shared_msrs);
+	shared_msrs = alloc_percpu(struct kvm_shared_msrs); //分配per-cpu变量
 	if (!shared_msrs) {
 		printk(KERN_ERR "kvm: failed to allocate percpu kvm_shared_msrs\n");
 		goto out;
 	}
 
-	r = kvm_mmu_module_init();
+	r = kvm_mmu_module_init(); //内存虚拟化初始工作
 	if (r)
 		goto out_free_percpu;
 
-	kvm_set_mmio_spte_mask();
+	kvm_set_mmio_spte_mask(); //mmio内存标识符设置
 
 	kvm_x86_ops = ops;
 
@@ -8652,7 +8653,7 @@ int kvm_arch_hardware_enable(void)
 	bool stable, backwards_tsc = false;
 
 	kvm_shared_msr_cpu_online();
-	ret = kvm_x86_ops->hardware_enable();
+	ret = kvm_x86_ops->hardware_enable(); //调用具体架构的enable函数， %vmx_x86_ops->hardware_enable
 	if (ret != 0)
 		return ret;
 
@@ -8742,7 +8743,7 @@ int kvm_arch_hardware_setup(void)
 {
 	int r;
 
-	r = kvm_x86_ops->hardware_setup();
+	r = kvm_x86_ops->hardware_setup(); //%vmx_x86_ops
 	if (r != 0)
 		return r;
 
