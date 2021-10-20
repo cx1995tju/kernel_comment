@@ -952,8 +952,9 @@ struct vmx_msrs {
 	struct vmx_msr_entry	val[NR_AUTOLOAD_MSRS];
 };
 
+//代表一个vmx 的VCPU
 struct vcpu_vmx {
-	struct kvm_vcpu       vcpu;
+	struct kvm_vcpu       vcpu; //代表通用的kvm vcpu，kvm不仅仅支持intel 的vmx技术的
 	unsigned long         host_rsp;
 	u8                    fail;
 	u8		      msr_bitmap_mode;
@@ -1007,7 +1008,7 @@ struct vcpu_vmx {
 			u32 ar;
 		} seg[8];
 	} segment_cache;
-	int vpid;
+	int vpid; //每个vcpu都有一个vpid，这样在进行vCPU切换的时候，可以根据这个值来选择性flush tlb。
 	bool emulation_required;
 
 	u32 exit_reason;
@@ -3090,6 +3091,7 @@ static void vmx_vcpu_load(struct kvm_vcpu *vcpu, int cpu)
 		local_irq_enable();
 	}
 
+	//设置per-cpu变量
 	if (per_cpu(current_vmcs, cpu) != vmx->loaded_vmcs->vmcs) {
 		per_cpu(current_vmcs, cpu) = vmx->loaded_vmcs->vmcs;
 		vmcs_load(vmx->loaded_vmcs->vmcs);
@@ -4771,7 +4773,7 @@ static int alloc_loaded_vmcs(struct loaded_vmcs *loaded_vmcs)
 		return -ENOMEM;
 
 	loaded_vmcs->shadow_vmcs = NULL;
-	loaded_vmcs_init(loaded_vmcs);
+	loaded_vmcs_init(loaded_vmcs); //初始化
 
 	if (cpu_has_vmx_msr_bitmap()) {
 		loaded_vmcs->msr_bitmap = (unsigned long *)__get_free_page(GFP_KERNEL);
@@ -6569,6 +6571,7 @@ static void ept_set_mmio_spte_mask(void)
 /*
  * Sets up the vmcs for emulated real mode.
  */
+//主要是vmcs的初始化
 static void vmx_vcpu_setup(struct vcpu_vmx *vmx)
 {
 	int i;
@@ -11031,19 +11034,21 @@ static void vmx_free_vcpu(struct kvm_vcpu *vcpu)
 	kmem_cache_free(kvm_vcpu_cache, vmx);
 }
 
+//分配kvm_vcpu结构，(其中最重要的成员就是vmcs了)
+//将vmcs结构与当前的物理CPU绑定，并进行初始化(per cpu变量current_vmcs)
 static struct kvm_vcpu *vmx_create_vcpu(struct kvm *kvm, unsigned int id)
 {
 	int err;
-	struct vcpu_vmx *vmx = kmem_cache_zalloc(kvm_vcpu_cache, GFP_KERNEL);
+	struct vcpu_vmx *vmx = kmem_cache_zalloc(kvm_vcpu_cache, GFP_KERNEL); //从slab中分配vmx
 	unsigned long *msr_bitmap;
 	int cpu;
 
 	if (!vmx)
 		return ERR_PTR(-ENOMEM);
 
-	vmx->vpid = allocate_vpid();
+	vmx->vpid = allocate_vpid(); //分配vpid
 
-	err = kvm_vcpu_init(&vmx->vcpu, kvm, id);
+	err = kvm_vcpu_init(&vmx->vcpu, kvm, id); //kvm层面的初始化
 	if (err)
 		goto free_vcpu;
 
@@ -11055,12 +11060,13 @@ static struct kvm_vcpu *vmx_create_vcpu(struct kvm *kvm, unsigned int id)
 	 * avoiding dealing with cases, such as enabling PML partially on vcpus
 	 * for the guest, etc.
 	 */
-	if (enable_pml) {
-		vmx->pml_pg = alloc_page(GFP_KERNEL | __GFP_ZERO);
+	if (enable_pml) { //page modification logging, 硬件层面记录虚拟机访问过的物理页，能够实现快速标记脏页
+		vmx->pml_pg = alloc_page(GFP_KERNEL | __GFP_ZERO); //分配pml需要的页面
 		if (!vmx->pml_pg)
 			goto uninit_vcpu;
 	}
 
+	//分配msr寄存器的空间
 	vmx->guest_msrs = kmalloc(PAGE_SIZE, GFP_KERNEL);
 	BUILD_BUG_ON(ARRAY_SIZE(vmx_msr_index) * sizeof(vmx->guest_msrs[0])
 		     > PAGE_SIZE);
@@ -11068,6 +11074,7 @@ static struct kvm_vcpu *vmx_create_vcpu(struct kvm *kvm, unsigned int id)
 	if (!vmx->guest_msrs)
 		goto free_pml;
 
+	//设置vmcs01, 参考 vcpu_vmx中的注释
 	err = alloc_loaded_vmcs(&vmx->vmcs01);
 	if (err < 0)
 		goto free_msrs;
@@ -11083,9 +11090,9 @@ static struct kvm_vcpu *vmx_create_vcpu(struct kvm *kvm, unsigned int id)
 
 	vmx->loaded_vmcs = &vmx->vmcs01;
 	cpu = get_cpu();
-	vmx_vcpu_load(&vmx->vcpu, cpu);
+	vmx_vcpu_load(&vmx->vcpu, cpu); //设置per cpu变量current_vmcs
 	vmx->vcpu.cpu = cpu;
-	vmx_vcpu_setup(vmx);
+	vmx_vcpu_setup(vmx); //主要是vmcs的初始化
 	vmx_vcpu_put(&vmx->vcpu);
 	put_cpu();
 	if (cpu_need_virtualize_apic_accesses(&vmx->vcpu)) {

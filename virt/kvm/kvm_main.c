@@ -157,11 +157,12 @@ bool kvm_is_reserved_pfn(kvm_pfn_t pfn)
 /*
  * Switches to specified vcpu, until a matching vcpu_put()
  */
+//禁止抢占的前提下，注册VCPU的premmpt_notifier
 void vcpu_load(struct kvm_vcpu *vcpu)
 {
 	int cpu = get_cpu();
 	preempt_notifier_register(&vcpu->preempt_notifier);
-	kvm_arch_vcpu_load(vcpu, cpu);
+	kvm_arch_vcpu_load(vcpu, cpu); //调用vmx实现的vcpu_load(%vmx_vcpu_load)函数，来绑定物理cpu与该VCPU的VMCS
 	put_cpu();
 }
 EXPORT_SYMBOL_GPL(vcpu_load);
@@ -314,7 +315,7 @@ int kvm_vcpu_init(struct kvm_vcpu *vcpu, struct kvm *kvm, unsigned id)
 	kvm_vcpu_set_dy_eligible(vcpu, false);
 	vcpu->preempted = false;
 
-	r = kvm_arch_vcpu_init(vcpu);
+	r = kvm_arch_vcpu_init(vcpu); //初始化架构相关的内容
 	if (r < 0)
 		goto fail_free_run;
 	return 0;
@@ -2477,15 +2478,15 @@ static int kvm_vm_ioctl_create_vcpu(struct kvm *kvm, u32 id)
 	kvm->created_vcpus++;
 	mutex_unlock(&kvm->lock);
 
-	vcpu = kvm_arch_vcpu_create(kvm, id);
+	vcpu = kvm_arch_vcpu_create(kvm, id); //
 	if (IS_ERR(vcpu)) {
 		r = PTR_ERR(vcpu);
 		goto vcpu_decrement;
 	}
 
-	preempt_notifier_init(&vcpu->preempt_notifier, &kvm_preempt_ops);
+	preempt_notifier_init(&vcpu->preempt_notifier, &kvm_preempt_ops); //初始化notifier, 关于kvm_preempt_ops, refer to: kvm_init, 在VCPU线程被调度出CPU的时候，会调用其中的kvm_sched_out函数，调度到CPU的时候会调用kvm_sched_in函数
 
-	r = kvm_arch_vcpu_setup(vcpu);
+	r = kvm_arch_vcpu_setup(vcpu); //vcpu的一些初始化
 	if (r)
 		goto vcpu_destroy;
 
@@ -2503,13 +2504,13 @@ static int kvm_vm_ioctl_create_vcpu(struct kvm *kvm, u32 id)
 
 	/* Now it's all set up, let userspace reach it */
 	kvm_get_kvm(kvm);
-	r = create_vcpu_fd(vcpu);
+	r = create_vcpu_fd(vcpu); //给vcpu搞了一个fd，后续可以用这个fd来操作vcpu了
 	if (r < 0) {
 		kvm_put_kvm(kvm);
 		goto unlock_vcpu_destroy;
 	}
 
-	kvm->vcpus[atomic_read(&kvm->online_vcpus)] = vcpu;
+	kvm->vcpus[atomic_read(&kvm->online_vcpus)] = vcpu; //所有的vcpu都保存在kvm->vcpus成员中
 
 	/*
 	 * Pairs with smp_rmb() in kvm_get_vcpu.  Write kvm->vcpus

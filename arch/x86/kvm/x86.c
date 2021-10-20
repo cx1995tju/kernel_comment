@@ -3108,6 +3108,7 @@ static bool need_emulate_wbinvd(struct kvm_vcpu *vcpu)
 	return kvm_arch_has_noncoherent_dma(vcpu->kvm);
 }
 
+ //调用vmx实现的vcpu_load(%vmx_vcpu_load)函数，来绑定物理cpu与该VCPU的VMCS
 void kvm_arch_vcpu_load(struct kvm_vcpu *vcpu, int cpu)
 {
 	/* Address WBINVD may be executed by guest */
@@ -8506,7 +8507,7 @@ struct kvm_vcpu *kvm_arch_vcpu_create(struct kvm *kvm,
 		"kvm: SMP vm created on host with unstable TSC; "
 		"guest TSC will not be reliable\n");
 
-	vcpu = kvm_x86_ops->vcpu_create(kvm, id);
+	vcpu = kvm_x86_ops->vcpu_create(kvm, id); //%vmx_create_vcpu, refer to: %kvm_arch_init
 
 	return vcpu;
 }
@@ -8516,7 +8517,7 @@ int kvm_arch_vcpu_setup(struct kvm_vcpu *vcpu)
 	vcpu->arch.arch_capabilities = kvm_get_arch_capabilities();
 	kvm_vcpu_mtrr_init(vcpu);
 	vcpu_load(vcpu);
-	kvm_vcpu_reset(vcpu, false);
+	kvm_vcpu_reset(vcpu, false); //对kvm_vcpu的成员进行初始化
 	kvm_mmu_setup(vcpu);
 	vcpu_put(vcpu);
 	return 0;
@@ -8557,6 +8558,7 @@ void kvm_arch_vcpu_destroy(struct kvm_vcpu *vcpu)
 	kvm_x86_ops->vcpu_free(vcpu);
 }
 
+//对kvm_vcpu的成员进行初始化
 void kvm_vcpu_reset(struct kvm_vcpu *vcpu, bool init_event)
 {
 	kvm_lapic_reset(vcpu, init_event);
@@ -8628,7 +8630,7 @@ void kvm_vcpu_reset(struct kvm_vcpu *vcpu, bool init_event)
 
 	vcpu->arch.ia32_xss = 0;
 
-	kvm_x86_ops->vcpu_reset(vcpu, init_event);
+	kvm_x86_ops->vcpu_reset(vcpu, init_event); //初始化架构相关的成员，%vmx_vcpu_reset
 }
 
 void kvm_vcpu_deliver_sipi_vector(struct kvm_vcpu *vcpu, u8 vector)
@@ -8789,6 +8791,7 @@ bool kvm_vcpu_is_bsp(struct kvm_vcpu *vcpu)
 struct static_key kvm_no_apic_vcpu __read_mostly;
 EXPORT_SYMBOL_GPL(kvm_no_apic_vcpu);
 
+//初始化架构相关的内容, 包括LAPIC，MMU的初始化，这些都与架构紧密相关
 int kvm_arch_vcpu_init(struct kvm_vcpu *vcpu)
 {
 	struct page *page;

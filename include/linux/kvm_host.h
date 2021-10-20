@@ -394,6 +394,7 @@ struct kvm_memslots {
 	int used_slots;
 };
 
+//kvm侧 代表一台虚拟机实例
 struct kvm {
 	spinlock_t mmu_lock;
 	struct mutex slots_lock;
