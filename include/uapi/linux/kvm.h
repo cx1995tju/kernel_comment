@@ -518,7 +518,7 @@ struct kvm_vapic_addr {
 #define KVM_MP_STATE_LOAD              8
 
 struct kvm_mp_state {
-	__u32 mp_state;
+	__u32 mp_state; //在smp系统初始化的时候，首先是BSP启动并初始化，然后发送IPI给其他处理器开始初始化。BSP首先会将自己的mp_state设置为KVM_MP_STATE_RUNNABLE, 其他的处理器在收到信号后才会设置
 };
 
 struct kvm_s390_psw {

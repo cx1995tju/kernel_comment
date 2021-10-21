@@ -7424,6 +7424,7 @@ EXPORT_SYMBOL_GPL(__kvm_request_immediate_exit);
  * exiting to the userspace.  Otherwise, the value will be returned to the
  * userspace.
  */
+//如果返回1表示不让虚拟机返回到QEMU
 static int vcpu_enter_guest(struct kvm_vcpu *vcpu)
 {
 	int r;
@@ -7433,6 +7434,8 @@ static int vcpu_enter_guest(struct kvm_vcpu *vcpu)
 
 	bool req_immediate_exit = false;
 
+	//重要，处理vcpu上pending的requests, 这些request来自于多个方面，譬如：VM-Exit的你好，KVM在运行的时候需要修改虚拟机状态等。每一位表示一个请求。
+	//类似于信号的处理，都是在context 切换的时候去处理的
 	if (kvm_request_pending(vcpu)) {
 		if (kvm_check_request(KVM_REQ_GET_VMCS12_PAGES, vcpu))
 			kvm_x86_ops->get_vmcs12_pages(vcpu);
@@ -7527,6 +7530,7 @@ static int vcpu_enter_guest(struct kvm_vcpu *vcpu)
 			kvm_hv_process_stimers(vcpu);
 	}
 
+	//处理中断相关请求
 	if (kvm_check_request(KVM_REQ_EVENT, vcpu) || req_int_win) {
 		++vcpu->stat.req_event;
 		kvm_apic_accept_events(vcpu);
@@ -7575,14 +7579,14 @@ static int vcpu_enter_guest(struct kvm_vcpu *vcpu)
 
 	preempt_disable();
 
-	kvm_x86_ops->prepare_guest_switch(vcpu);
+	kvm_x86_ops->prepare_guest_switch(vcpu); // %vmx_save_host_state 保存host状态
 
 	/*
 	 * Disable IRQs before setting IN_GUEST_MODE.  Posted interrupt
 	 * IPI are then delayed after guest entry, which ensures that they
 	 * result in virtual interrupt delivery.
 	 */
-	local_irq_disable();
+	local_irq_disable(); //disable 了中断， 在non-root模式下直接关闭中断的。
 	vcpu->mode = IN_GUEST_MODE;
 
 	srcu_read_unlock(&vcpu->kvm->srcu, vcpu->srcu_idx);
@@ -7641,7 +7645,7 @@ static int vcpu_enter_guest(struct kvm_vcpu *vcpu)
 		vcpu->arch.switch_db_regs &= ~KVM_DEBUGREG_RELOAD;
 	}
 
-	kvm_x86_ops->run(vcpu);
+	kvm_x86_ops->run(vcpu); //%vmx_vcpu_run这个函数内部就有一次完整的VM-Entry VM-Exit过程
 
 	/*
 	 * Do this here before restoring debug registers on the host.  And
@@ -7676,14 +7680,14 @@ static int vcpu_enter_guest(struct kvm_vcpu *vcpu)
 	kvm_put_guest_xcr0(vcpu);
 
 	kvm_before_interrupt(vcpu);
-	kvm_x86_ops->handle_external_intr(vcpu);
+	kvm_x86_ops->handle_external_intr(vcpu); //处理外部中断 %vmx_handle_external_intr
 	kvm_after_interrupt(vcpu);
 
 	++vcpu->stat.exits;
 
 	guest_exit_irqoff();
 
-	local_irq_enable();
+	local_irq_enable(); //enable 中断
 	preempt_enable();
 
 	vcpu->srcu_idx = srcu_read_lock(&vcpu->kvm->srcu);
@@ -7703,7 +7707,7 @@ static int vcpu_enter_guest(struct kvm_vcpu *vcpu)
 		kvm_lapic_sync_from_vapic(vcpu);
 
 	vcpu->arch.gpa_available = false;
-	r = kvm_x86_ops->handle_exit(vcpu);
+	r = kvm_x86_ops->handle_exit(vcpu); //这个回调函数处理各种退出事件 %vmx_handle_exit
 	return r;
 
 cancel_injection:
@@ -7747,6 +7751,7 @@ static inline int vcpu_block(struct kvm *kvm, struct kvm_vcpu *vcpu)
 	return 1;
 }
 
+///是否可以运行
 static inline bool kvm_vcpu_running(struct kvm_vcpu *vcpu)
 {
 	if (is_guest_mode(vcpu) && kvm_x86_ops->check_nested_events)
@@ -7966,7 +7971,7 @@ int kvm_arch_vcpu_ioctl_run(struct kvm_vcpu *vcpu, struct kvm_run *kvm_run)
 	if (kvm_run->immediate_exit)
 		r = -EINTR;
 	else
-		r = vcpu_run(vcpu);
+		r = vcpu_run(vcpu); //核心函数
 
 out:
 	kvm_put_guest_fpu(vcpu);

@@ -6335,7 +6335,7 @@ static void vmx_set_constant_host_state(struct vcpu_vmx *vmx)
 	vmcs_writel(HOST_IDTR_BASE, dt.address);   /* 22.2.4 */
 	vmx->host_idt_base = dt.address;
 
-	vmcs_writel(HOST_RIP, vmx_return); /* 22.2.5 */
+	vmcs_writel(HOST_RIP, vmx_return); /* 22.2.5 */ //设置了VM-EXIT时候的返回地址
 
 	rdmsr(MSR_IA32_SYSENTER_CS, low32, high32);
 	vmcs_write32(HOST_IA32_SYSENTER_CS, low32);
@@ -9404,6 +9404,10 @@ static int handle_encls(struct kvm_vcpu *vcpu)
  * may resume.  Otherwise they set the kvm_run parameter to indicate what needs
  * to be done to userspace and return 0.
  */
+//refer to %vmx_handle_exit, 在那里根据退出原因，分发到各个回调函数
+//KVM能自己处理的就自己处理，譬如:CPUID指令导致的退出，KVM根据之前设置的CPUID信息，直接返回给虚拟机就可以了
+//对于port io，mmio处理不了就退出到QEMU去处理。 现在都还是在qemu的ioctl(KVM_RUN)的context下的
+//这些处理函数的返回值就是vcpu_run->vcpu_enter_guest的返回值，如果返回1表示不让虚拟机返回到QEMU
 static int (*const kvm_vmx_exit_handlers[])(struct kvm_vcpu *vcpu) = {
 	[EXIT_REASON_EXCEPTION_NMI]           = handle_exception,
 	[EXIT_REASON_EXTERNAL_INTERRUPT]      = handle_external_interrupt,
@@ -10083,6 +10087,8 @@ static void dump_vmcs(void)
  * The guest has exited.  See if we can fix it or if we need userspace
  * assistance.
  */
+//进入这里的时候，外部中断已经处理了
+//这个函数是退出事件的总分发函数，分发给KVM处理，KVM处理不了就给QEMU处理
 static int vmx_handle_exit(struct kvm_vcpu *vcpu)
 {
 	struct vcpu_vmx *vmx = to_vmx(vcpu);
@@ -10170,7 +10176,7 @@ static int vmx_handle_exit(struct kvm_vcpu *vcpu)
 
 	if (exit_reason < kvm_vmx_max_exit_handlers
 	    && kvm_vmx_exit_handlers[exit_reason])
-		return kvm_vmx_exit_handlers[exit_reason](vcpu);
+		return kvm_vmx_exit_handlers[exit_reason](vcpu); //这里是总的分发的地方
 	else {
 		vcpu_unimpl(vcpu, "vmx: unexpected exit reason 0x%x\n",
 				exit_reason);
@@ -10460,10 +10466,14 @@ static void vmx_complete_atomic_exit(struct vcpu_vmx *vmx)
 	}
 }
 
+//外部打给虚拟机的中断
+//在non-roo模式下运行，中断是关闭的，但是外部中断会导致CPU退出non-root模式，退出后可以在root模式下手动去读取中断信息，调用中断回调函数。甚至直接不处理
 static void vmx_handle_external_intr(struct kvm_vcpu *vcpu)
 {
+	//读取中断信息
 	u32 exit_intr_info = vmcs_read32(VM_EXIT_INTR_INFO);
 
+	//判断中断是否有效
 	if ((exit_intr_info & (INTR_INFO_VALID_MASK | INTR_INFO_INTR_TYPE_MASK))
 			== (INTR_INFO_VALID_MASK | INTR_TYPE_EXT_INTR)) {
 		unsigned int vector;
@@ -10475,7 +10485,7 @@ static void vmx_handle_external_intr(struct kvm_vcpu *vcpu)
 #endif
 
 		vector =  exit_intr_info & INTR_INFO_VECTOR_MASK;
-		desc = (gate_desc *)vmx->host_idt_base + vector;
+		desc = (gate_desc *)vmx->host_idt_base + vector; //去手动获取host IDT中断门描述符
 		entry = gate_offset(desc);
 		asm volatile(
 #ifdef CONFIG_X86_64
@@ -10493,7 +10503,7 @@ static void vmx_handle_external_intr(struct kvm_vcpu *vcpu)
 #endif
 			ASM_CALL_CONSTRAINT
 			:
-			THUNK_TARGET(entry),
+			THUNK_TARGET(entry), //手动进入中断门, 本来这些工作都是硬件自己做的
 			[ss]"i"(__KERNEL_DS),
 			[cs]"i"(__KERNEL_CS)
 			);
@@ -10776,6 +10786,9 @@ static void __noclone vmx_vcpu_run(struct kvm_vcpu *vcpu)
 	if (static_branch_unlikely(&vmx_l1d_should_flush))
 		vmx_l1d_flush(vcpu);
 
+	//上面是写一些VMCS的值
+	//下面是vmlaunch了，进入guest,然后会切换到non-root模式，当然包括pc寄存器，后续就是执行guest代码了
+	//发生退出的时候地址是vmx_return, 在vmx_vcpu_setup -> vmx_set_constant_host_state中设置的
 	asm(
 		/* Store host registers */
 		"push %%" _ASM_DX "; push %%" _ASM_BP ";"
@@ -10865,7 +10878,7 @@ static void __noclone vmx_vcpu_run(struct kvm_vcpu *vcpu)
 		"pop  %%" _ASM_BP "; pop  %%" _ASM_DX " \n\t"
 		".pushsection .rodata \n\t"
 		".global vmx_return \n\t"
-		"vmx_return: " _ASM_PTR " 2b \n\t"
+		"vmx_return: " _ASM_PTR " 2b \n\t" //这里是返回地址
 		".popsection"
 	      : : "c"(vmx), "d"((unsigned long)HOST_RSP), "S"(evmcs_rsp),
 		[launched]"i"(offsetof(struct vcpu_vmx, __launched)),
@@ -10966,6 +10979,7 @@ static void __noclone vmx_vcpu_run(struct kvm_vcpu *vcpu)
 	vmx->nested.nested_run_pending = 0;
 	vmx->idt_vectoring_info = 0;
 
+	//返回后，就需要从vmcs中读取返回原因
 	vmx->exit_reason = vmx->fail ? 0xdead : vmcs_read32(VM_EXIT_REASON);
 	if (vmx->fail || (vmx->exit_reason & VMX_EXIT_REASONS_FAILED_VMENTRY))
 		return;
@@ -10973,9 +10987,11 @@ static void __noclone vmx_vcpu_run(struct kvm_vcpu *vcpu)
 	vmx->loaded_vmcs->launched = 1;
 	vmx->idt_vectoring_info = vmcs_read32(IDT_VECTORING_INFO_FIELD);
 
+	//三个函数对本次退出做预处理
 	vmx_complete_atomic_exit(vmx);
 	vmx_recover_nmi_blocking(vmx);
 	vmx_complete_interrupts(vmx);
+	//该函数返回的时候，其实已经完成了一次VM-Entry 和 VM-Exit
 }
 STACK_FRAME_NON_STANDARD(vmx_vcpu_run);
 

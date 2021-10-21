@@ -683,7 +683,7 @@ struct kvm_vcpu_arch {
 	unsigned long last_retry_addr;
 
 	struct {
-		bool halted;
+		bool halted; //表示虚拟机中是否存在需要访问却被HOST交换出去的内存页，如果是的话，不能运行虚拟机
 		gfn_t gfns[roundup_pow_of_two(ASYNC_PF_PER_VCPU)];
 		struct gfn_to_hva_cache data;
 		u64 msr_val;
