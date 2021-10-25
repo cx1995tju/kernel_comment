@@ -4089,7 +4089,7 @@ static int tdp_page_fault(struct kvm_vcpu *vcpu, gva_t gpa, u32 error_code,
 		goto out_unlock;
 	if (likely(!force_pt_level))
 		transparent_hugepage_adjust(vcpu, &gfn, &pfn, &level);
-	r = __direct_map(vcpu, write, map_writable, level, gfn, pfn, prefault);
+	r = __direct_map(vcpu, write, map_writable, level, gfn, pfn, prefault); //建立gpa(aka hva)搭配hpa的映射，本质就是填充EPT页表
 	spin_unlock(&vcpu->kvm->mmu_lock);
 
 	return r;
@@ -4740,11 +4740,11 @@ kvm_calc_tdp_mmu_root_page_role(struct kvm_vcpu *vcpu)
 
 static void init_kvm_tdp_mmu(struct kvm_vcpu *vcpu)
 {
-	struct kvm_mmu *context = &vcpu->arch.mmu;
+	struct kvm_mmu *context = &vcpu->arch.mmu; //这个函数主要就是初始化这个结构, 设置几个回调函数，用于处理MMU的各种事件
 
 	context->base_role.word = mmu_base_role_mask.word &
 				  kvm_calc_tdp_mmu_root_page_role(vcpu).word;
-	context->page_fault = tdp_page_fault;
+	context->page_fault = tdp_page_fault; //这是最重要的回调函数，用于处理EPT的页面错误，正常的页面错误在虚拟机的OS就被处理了
 	context->sync_page = nonpaging_sync_page;
 	context->invlpg = nonpaging_invlpg;
 	context->update_pte = nonpaging_update_pte;
@@ -4755,6 +4755,7 @@ static void init_kvm_tdp_mmu(struct kvm_vcpu *vcpu)
 	context->get_pdptr = kvm_pdptr_read;
 	context->inject_page_fault = kvm_inject_page_fault;
 
+	//根据vcpu状态，设置更多回调函数
 	if (!is_paging(vcpu)) {
 		context->nx = false;
 		context->gva_to_gpa = nonpaging_gva_to_gpa;
@@ -4938,7 +4939,7 @@ void kvm_init_mmu(struct kvm_vcpu *vcpu, bool reset_roots)
 
 	if (mmu_is_nested(vcpu))
 		init_kvm_nested_mmu(vcpu);
-	else if (tdp_enabled)
+	else if (tdp_enabled) //ept enable的会从hardware_setup调用到这里的 %Two-Dimensional-Paging
 		init_kvm_tdp_mmu(vcpu);
 	else
 		init_kvm_softmmu(vcpu);
@@ -5237,7 +5238,7 @@ int kvm_mmu_page_fault(struct kvm_vcpu *vcpu, gva_t cr2, u64 error_code,
 	}
 
 	if (r == RET_PF_INVALID) {
-		r = vcpu->arch.mmu.page_fault(vcpu, cr2, lower_32_bits(error_code),
+		r = vcpu->arch.mmu.page_fault(vcpu, cr2, lower_32_bits(error_code), //%tdp_page_fault
 					      false);
 		WARN_ON(r == RET_PF_INVALID);
 	}
@@ -5381,6 +5382,7 @@ static void free_mmu_pages(struct kvm_vcpu *vcpu)
 	free_page((unsigned long)vcpu->arch.mmu.lm_root);
 }
 
+//在KVM使用影子页表的时候，才有实际的工作的, 用于分配page
 static int alloc_mmu_pages(struct kvm_vcpu *vcpu)
 {
 	struct page *page;
@@ -5405,10 +5407,12 @@ static int alloc_mmu_pages(struct kvm_vcpu *vcpu)
 	return 0;
 }
 
+//创建虚拟机MMU
 int kvm_mmu_create(struct kvm_vcpu *vcpu)
 {
 	uint i;
 
+	//设置一些初始值
 	vcpu->arch.walk_mmu = &vcpu->arch.mmu;
 	vcpu->arch.mmu.root_hpa = INVALID_PAGE;
 	vcpu->arch.mmu.translate_gpa = translate_gpa;

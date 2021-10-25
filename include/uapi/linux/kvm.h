@@ -94,12 +94,14 @@ struct kvm_memory_region {
 };
 
 /* for KVM_SET_USER_MEMORY_REGION */
+//QEMU通过ioctl(KVM_SET_USER_MEMORY_REGION) 创建进来的参数
+//表示虚拟机的一段物理内存
 struct kvm_userspace_memory_region {
-	__u32 slot;
-	__u32 flags;
-	__u64 guest_phys_addr;
+	__u32 slot; //表示ID号
+	__u32 flags; //这段内存属性
+	__u64 guest_phys_addr; //虚拟机的物理内存
 	__u64 memory_size; /* bytes */
-	__u64 userspace_addr; /* start of the userspace allocated memory */
+	__u64 userspace_addr; /* start of the userspace allocated memory */ //对应的用户态进程的虚拟地址
 };
 
 /*

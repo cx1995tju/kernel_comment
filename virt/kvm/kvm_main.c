@@ -160,10 +160,10 @@ bool kvm_is_reserved_pfn(kvm_pfn_t pfn)
 //禁止抢占的前提下，注册VCPU的premmpt_notifier
 void vcpu_load(struct kvm_vcpu *vcpu)
 {
-	int cpu = get_cpu();
-	preempt_notifier_register(&vcpu->preempt_notifier);
+	int cpu = get_cpu(); //这里会disable抢占
+	preempt_notifier_register(&vcpu->preempt_notifier); //这里注册了抢占相关的通知链 %kvm_preempt_ops, 这样当vCPU线程被抢占的时候会调用kvm_preempt_ops->kvm_sched_out; vCPU线程抢占别的线程的时候会执行kvm_preempt_ops->kvm_sched_in;
 	kvm_arch_vcpu_load(vcpu, cpu); //调用vmx实现的vcpu_load(%vmx_vcpu_load)函数，来绑定物理cpu与该VCPU的VMCS
-	put_cpu();
+	put_cpu(); //这里会enable抢占
 }
 EXPORT_SYMBOL_GPL(vcpu_load);
 
@@ -171,7 +171,7 @@ void vcpu_put(struct kvm_vcpu *vcpu)
 {
 	preempt_disable();
 	kvm_arch_vcpu_put(vcpu);
-	preempt_notifier_unregister(&vcpu->preempt_notifier);
+	preempt_notifier_unregister(&vcpu->preempt_notifier); //在vCPU线程与物理CPU解除绑定后，也就没有必要在抢占通知链上注册回调函数了。
 	preempt_enable();
 }
 EXPORT_SYMBOL_GPL(vcpu_put);
@@ -856,6 +856,8 @@ static void update_memslots(struct kvm_memslots *slots,
 	slots->id_to_index[mslots[i].id] = i;
 }
 
+
+//check flags是否合法
 static int check_memory_region_flags(const struct kvm_userspace_memory_region *mem)
 {
 	u32 valid_flags = KVM_MEM_LOG_DIRTY_PAGES;
@@ -930,6 +932,7 @@ int __kvm_set_memory_region(struct kvm *kvm,
 	if (r)
 		goto out;
 
+	//一些常规检查，譬如内存大小和物理地址需要对齐, 并且所有的QEMU的虚拟地址需要可读
 	r = -EINVAL;
 	as_id = mem->slot >> 16;
 	id = (u16)mem->slot;
@@ -951,6 +954,7 @@ int __kvm_set_memory_region(struct kvm *kvm,
 	if (mem->guest_phys_addr + mem->memory_size < mem->guest_phys_addr)
 		goto out;
 
+	//将QEMU提供的slotid转换为索引
 	slot = id_to_memslot(__kvm_memslots(kvm, as_id), id);
 	base_gfn = mem->guest_phys_addr >> PAGE_SHIFT;
 	npages = mem->memory_size >> PAGE_SHIFT;
@@ -958,6 +962,7 @@ int __kvm_set_memory_region(struct kvm *kvm,
 	if (npages > KVM_MEM_MAX_NR_PAGES)
 		goto out;
 
+	//根据slot来判断是需要创建内存，修改flag，还是删除内存
 	new = old = *slot;
 
 	new.id = id;
@@ -992,10 +997,11 @@ int __kvm_set_memory_region(struct kvm *kvm,
 		new.flags = 0;
 	}
 
+	//添加内存
 	if ((change == KVM_MR_CREATE) || (change == KVM_MR_MOVE)) {
 		/* Check for overlaps */
 		r = -EEXIST;
-		kvm_for_each_memslot(slot, __kvm_memslots(kvm, as_id)) {
+		kvm_for_each_memslot(slot, __kvm_memslots(kvm, as_id)) { //遍历内存槽，查看是否有和当前内存条重合的
 			if (slot->id == id)
 				continue;
 			if (!((base_gfn + npages <= slot->base_gfn) ||
@@ -1012,7 +1018,7 @@ int __kvm_set_memory_region(struct kvm *kvm,
 	if (change == KVM_MR_CREATE) {
 		new.userspace_addr = mem->userspace_addr;
 
-		if (kvm_arch_create_memslot(kvm, &new, npages))
+		if (kvm_arch_create_memslot(kvm, &new, npages)) //初始化架构相关的成员
 			goto out_free;
 	}
 
@@ -1063,7 +1069,7 @@ int __kvm_set_memory_region(struct kvm *kvm,
 	update_memslots(slots, &new);
 	old_memslots = install_new_memslots(kvm, as_id, slots);
 
-	kvm_arch_commit_memory_region(kvm, mem, &old, &new, change);
+	kvm_arch_commit_memory_region(kvm, mem, &old, &new, change); //提交内存
 
 	kvm_free_memslot(kvm, &old, &new);
 	kvfree(old_memslots);

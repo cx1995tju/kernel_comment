@@ -102,7 +102,7 @@
 #define UNMAPPED_GVA (~(gpa_t)0)
 
 /* KVM Hugepage definitions for x86 */
-#define KVM_NR_PAGE_SIZES	3
+#define KVM_NR_PAGE_SIZES	3 //4K 2M 1G 3种
 #define KVM_HPAGE_GFN_SHIFT(x)	(((x) - 1) * 9)
 #define KVM_HPAGE_SHIFT(x)	(PAGE_SHIFT + KVM_HPAGE_GFN_SHIFT(x))
 #define KVM_HPAGE_SIZE(x)	(1UL << KVM_HPAGE_SHIFT(x))
@@ -344,6 +344,7 @@ struct kvm_mmu_root_info {
  * and 2-level 32-bit).  The kvm_mmu structure abstracts the details of the
  * current mmu mode.
  */
+//% init_kvm_tdp_mmu
 struct kvm_mmu {
 	void (*set_cr3)(struct kvm_vcpu *vcpu, unsigned long root);
 	unsigned long (*get_cr3)(struct kvm_vcpu *vcpu);
@@ -361,12 +362,12 @@ struct kvm_mmu {
 	void (*invlpg)(struct kvm_vcpu *vcpu, gva_t gva, hpa_t root_hpa);
 	void (*update_pte)(struct kvm_vcpu *vcpu, struct kvm_mmu_page *sp,
 			   u64 *spte, const void *pte);
-	hpa_t root_hpa;
+	hpa_t root_hpa; //第一级EPT页表, 类似于CR3寄存器中保存的值
 	union kvm_mmu_page_role base_role;
 	u8 root_level;
 	u8 shadow_root_level;
 	u8 ept_ad;
-	bool direct_map;
+	bool direct_map; //表示使用直接映射，即使用EPT
 	struct kvm_mmu_root_info prev_roots[KVM_MMU_NUM_PREV_ROOTS];
 
 	/*
@@ -537,7 +538,7 @@ struct kvm_vcpu_arch {
 	 * the paging mode of the l1 guest. This context is always used to
 	 * handle faults.
 	 */
-	struct kvm_mmu mmu;
+	struct kvm_mmu mmu; //%init_kvm_tdp_mmu
 
 	/*
 	 * Paging state of an L2 guest (used for nested npt)
@@ -735,12 +736,12 @@ struct kvm_vcpu_arch {
 };
 
 struct kvm_lpage_info {
-	int disallow_lpage;
+	int disallow_lpage; //表示当前这个gfn是否支持大页
 };
 
 struct kvm_arch_memory_slot {
-	struct kvm_rmap_head *rmap[KVM_NR_PAGE_SIZES];
-	struct kvm_lpage_info *lpage_info[KVM_NR_PAGE_SIZES - 1];
+	struct kvm_rmap_head *rmap[KVM_NR_PAGE_SIZES]; //记录pfn和对应页表项的map, KVM_NR_PAGE_SIZES表示页表的类型 4K 2M 1G
+	struct kvm_lpage_info *lpage_info[KVM_NR_PAGE_SIZES - 1]; //保存大页信息
 	unsigned short *gfn_track[KVM_PAGE_TRACK_MAX];
 };
 

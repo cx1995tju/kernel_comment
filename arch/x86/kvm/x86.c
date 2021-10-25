@@ -8750,7 +8750,7 @@ int kvm_arch_hardware_setup(void)
 {
 	int r;
 
-	r = kvm_x86_ops->hardware_setup(); //%vmx_x86_ops
+	r = kvm_x86_ops->hardware_setup(); //%vmx_x86_ops, hardware_setup
 	if (r != 0)
 		return r;
 
@@ -9085,17 +9085,18 @@ int kvm_arch_create_memslot(struct kvm *kvm, struct kvm_memory_slot *slot,
 {
 	int i;
 
+	//初始化每个页面类型的rmap 和 lpage_info信息
 	for (i = 0; i < KVM_NR_PAGE_SIZES; ++i) {
 		struct kvm_lpage_info *linfo;
 		unsigned long ugfn;
 		int lpages;
 		int level = i + 1;
 
-		lpages = gfn_to_index(slot->base_gfn + npages - 1,
+		lpages = gfn_to_index(slot->base_gfn + npages - 1, //得到需要的页面个数
 				      slot->base_gfn, level) + 1;
 
 		slot->arch.rmap[i] =
-			kvcalloc(lpages, sizeof(*slot->arch.rmap[i]),
+			kvcalloc(lpages, sizeof(*slot->arch.rmap[i]), //分配相应的内存
 				 GFP_KERNEL);
 		if (!slot->arch.rmap[i])
 			goto out_free;
@@ -9112,7 +9113,7 @@ int kvm_arch_create_memslot(struct kvm *kvm, struct kvm_memory_slot *slot,
 			linfo[0].disallow_lpage = 1;
 		if ((slot->base_gfn + npages) & (KVM_PAGES_PER_HPAGE(level) - 1))
 			linfo[lpages - 1].disallow_lpage = 1;
-		ugfn = slot->userspace_addr >> PAGE_SHIFT;
+		ugfn = slot->userspace_addr >> PAGE_SHIFT; //判断用户态的设置是否支持大页
 		/*
 		 * If the gfn and userspace address are not aligned wrt each
 		 * other, or if explicitly asked to, disable large page
@@ -9218,14 +9219,15 @@ void kvm_arch_commit_memory_region(struct kvm *kvm,
 				const struct kvm_memory_slot *new,
 				enum kvm_mr_change change)
 {
-	int nr_mmu_pages = 0;
+	int nr_mmu_pages = 0; //当前虚拟机需要的mmu 页数
 
 	if (!kvm->arch.n_requested_mmu_pages)
 		nr_mmu_pages = kvm_mmu_calculate_mmu_pages(kvm);
 
 	if (nr_mmu_pages)
-		kvm_mmu_change_mmu_pages(kvm, nr_mmu_pages);
+		kvm_mmu_change_mmu_pages(kvm, nr_mmu_pages); //使得nr_mmu_pages生效
 
+	//后续其他工作，主要是脏页设置
 	/*
 	 * Dirty logging tracks sptes in 4k granularity, meaning that large
 	 * sptes have to be split.  If live migration is successful, the guest

@@ -2224,7 +2224,7 @@ static void loaded_vmcs_clear(struct loaded_vmcs *loaded_vmcs)
 {
 	int cpu = loaded_vmcs->cpu;
 
-	if (cpu != -1)
+	if (cpu != -1) //在另一个CPU上去执行CLEAR指令的
 		smp_call_function_single(cpu,
 			 __loaded_vmcs_clear, loaded_vmcs, 1);
 }
@@ -3074,7 +3074,7 @@ static void vmx_vcpu_load(struct kvm_vcpu *vcpu, int cpu)
 	bool already_loaded = vmx->loaded_vmcs->cpu == cpu;
 
 	if (!already_loaded) {
-		loaded_vmcs_clear(vmx->loaded_vmcs);
+		loaded_vmcs_clear(vmx->loaded_vmcs); //这时候其实已经是在目的物理CPU运行了，所以需要使用smp_call_function_single在源物理CPU执行VMCLEAR指令
 		local_irq_disable();
 		crash_disable_local_vmclear(cpu);
 
@@ -4542,7 +4542,7 @@ static __init int setup_vmcs_config(struct vmcs_config *vmcs_conf)
 	opt = CPU_BASED_TPR_SHADOW |
 	      CPU_BASED_USE_MSR_BITMAPS |
 	      CPU_BASED_ACTIVATE_SECONDARY_CONTROLS;
-	if (adjust_vmx_controls(min, opt, MSR_IA32_VMX_PROCBASED_CTLS,
+	if (adjust_vmx_controls(min, opt, MSR_IA32_VMX_PROCBASED_CTLS, //读取EPT使能信息
 				&_cpu_based_exec_control) < 0)
 		return -EIO;
 #ifdef CONFIG_X86_64
@@ -7656,7 +7656,7 @@ static int handle_ept_violation(struct kvm_vcpu *vcpu)
 	gpa_t gpa;
 	u64 error_code;
 
-	exit_qualification = vmcs_readl(EXIT_QUALIFICATION);
+	exit_qualification = vmcs_readl(EXIT_QUALIFICATION);//读取退出相关的信息, 该值的第7位表示，guest线性地址是否有效, 对于EPT来说大部分有效
 
 	/*
 	 * EPT violation happened while executing iret from NMI,
@@ -7669,7 +7669,7 @@ static int handle_ept_violation(struct kvm_vcpu *vcpu)
 			(exit_qualification & INTR_INFO_UNBLOCK_NMI))
 		vmcs_set_bits(GUEST_INTERRUPTIBILITY_INFO, GUEST_INTR_STATE_NMI);
 
-	gpa = vmcs_read64(GUEST_PHYSICAL_ADDRESS);
+	gpa = vmcs_read64(GUEST_PHYSICAL_ADDRESS); //读取发生EPT异常的地址
 	trace_kvm_page_fault(gpa, exit_qualification);
 
 	/* Is it a read fault? */
