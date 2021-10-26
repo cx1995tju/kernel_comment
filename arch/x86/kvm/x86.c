@@ -9204,8 +9204,8 @@ static void kvm_mmu_slot_apply_flags(struct kvm *kvm,
 	 */
 	if (new->flags & KVM_MEM_LOG_DIRTY_PAGES) {
 		if (kvm_x86_ops->slot_enable_log_dirty)
-			kvm_x86_ops->slot_enable_log_dirty(kvm, new);
-		else
+			kvm_x86_ops->slot_enable_log_dirty(kvm, new); //vmx_slot_enable_log_dirty, 如果CPU支持PML的话，这个回调函数就有
+		else //如果不支持的话，就通过移除write 权限的方式来跟踪
 			kvm_mmu_slot_remove_write_access(kvm, new);
 	} else {
 		if (kvm_x86_ops->slot_disable_log_dirty)
