@@ -149,7 +149,7 @@ static int setup_routing_entry(struct kvm *kvm,
 	 * Do not allow GSI to be mapped to the same irqchip more than once.
 	 * Allow only one to one mapping between GSI and non-irqchip routing.
 	 */
-	hlist_for_each_entry(ei, &rt->map[ue->gsi], link)
+	hlist_for_each_entry(ei, &rt->map[ue->gsi], link) //判断entry是否有效, 一个gsi只能映射到不同芯片上的引脚
 		if (ei->type != KVM_IRQ_ROUTING_IRQCHIP ||
 		    ue->type != KVM_IRQ_ROUTING_IRQCHIP ||
 		    ue->u.irqchip.irqchip == ei->irqchip.irqchip)
@@ -157,11 +157,11 @@ static int setup_routing_entry(struct kvm *kvm,
 
 	e->gsi = ue->gsi;
 	e->type = ue->type;
-	r = kvm_set_routing_entry(kvm, e, ue);
+	r = kvm_set_routing_entry(kvm, e, ue); //根据kvm_irq_routing_entry中指定的中断类型设置kvm_kernel_irq_routing_entry中不同的set回调函数
 	if (r)
 		return r;
 	if (e->type == KVM_IRQ_ROUTING_IRQCHIP)
-		rt->chip[e->irqchip.irqchip][e->irqchip.pin] = e->gsi;
+		rt->chip[e->irqchip.irqchip][e->irqchip.pin] = e->gsi; //最后设置chip成员中的相应元素的值为gsi, 然后将该kvm_kernel_irq_routing_entry加入到中断路由表的map[e->gsi]链表上
 
 	hlist_add_head(&e->link, &rt->map[e->gsi]);
 
@@ -177,8 +177,10 @@ bool __weak kvm_arch_can_set_irq_routing(struct kvm *kvm)
 	return true;
 }
 
+//将kvm_irq_routing_entry 信息转换为kvm_kernel_irq_routing_entry信息, 后者用于在内核中记录中断路由信息
+//创建虚拟机的中断路由表，保存在kvm结构的irq_routing成员中
 int kvm_set_irq_routing(struct kvm *kvm,
-			const struct kvm_irq_routing_entry *ue,
+			const struct kvm_irq_routing_entry *ue, //这是一个数组
 			unsigned nr,
 			unsigned flags)
 {
@@ -223,7 +225,7 @@ int kvm_set_irq_routing(struct kvm *kvm,
 				goto free_entry;
 			break;
 		}
-		r = setup_routing_entry(kvm, new, e, ue);
+		r = setup_routing_entry(kvm, new, e, ue); //将kvm_irq_routing_entry 转换为kvm_kernel_irq_routing_entry
 		if (r)
 			goto free_entry;
 		++ue;

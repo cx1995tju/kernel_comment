@@ -332,7 +332,7 @@ struct kvm_hv_sint {
 struct kvm_kernel_irq_routing_entry {
 	u32 gsi;
 	u32 type;
-	int (*set)(struct kvm_kernel_irq_routing_entry *e,
+	int (*set)(struct kvm_kernel_irq_routing_entry *e, //refer to kvm_set_routing_entry %kvm_set_pic_irq
 		   struct kvm *kvm, int irq_source_id, int level,
 		   bool line_status);
 	union {
@@ -355,13 +355,13 @@ struct kvm_kernel_irq_routing_entry {
 
 #ifdef CONFIG_HAVE_KVM_IRQ_ROUTING
 struct kvm_irq_routing_table {
-	int chip[KVM_NR_IRQCHIPS][KVM_IRQCHIP_NUM_PINS];
+	int chip[KVM_NR_IRQCHIPS][KVM_IRQCHIP_NUM_PINS]; //是一个二维数组，第一维表示芯片 master PIC, slave PIC, IO APIC 3个芯片, 第二维度表示中断芯片对应的引脚, PIC只使用前8个，IO APIC使用全部的24个. chip的每一个元素表示芯片引脚对应的全局中断号gsi
 	u32 nr_rt_entries;
 	/*
 	 * Array indexed by gsi. Each entry contains list of irq chips
 	 * the gsi is connected to.
 	 */
-	struct hlist_head map[0];
+	struct hlist_head map[0]; //每一个gsi都分一个map成员, map是一个hash list的头
 };
 #endif
 

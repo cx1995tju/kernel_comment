@@ -993,8 +993,8 @@ struct kvm_irq_routing_hv_sint {
 #define KVM_IRQ_ROUTING_HV_SINT 4
 
 struct kvm_irq_routing_entry {
-	__u32 gsi;
-	__u32 type;
+	__u32 gsi; //系统全局范围内中断号
+	__u32 type; //决定中断的种类
 	__u32 flags;
 	__u32 pad;
 	union {

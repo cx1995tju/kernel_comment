@@ -583,7 +583,7 @@ int kvm_pic_init(struct kvm *kvm)
 	struct kvm_pic *s;
 	int ret;
 
-	s = kzalloc(sizeof(struct kvm_pic), GFP_KERNEL);
+	s = kzalloc(sizeof(struct kvm_pic), GFP_KERNEL); //分配结构体
 	if (!s)
 		return -ENOMEM;
 	spin_lock_init(&s->lock);
@@ -600,16 +600,16 @@ int kvm_pic_init(struct kvm *kvm)
 	kvm_iodevice_init(&s->dev_slave, &picdev_slave_ops);
 	kvm_iodevice_init(&s->dev_eclr, &picdev_eclr_ops);
 	mutex_lock(&kvm->slots_lock);
-	ret = kvm_io_bus_register_dev(kvm, KVM_PIO_BUS, 0x20, 2,
+	ret = kvm_io_bus_register_dev(kvm, KVM_PIO_BUS, 0x20, 2, //创建三个设备, master pic设备，读写端口0x20 0x21
 				      &s->dev_master);
 	if (ret < 0)
 		goto fail_unlock;
 
-	ret = kvm_io_bus_register_dev(kvm, KVM_PIO_BUS, 0xa0, 2, &s->dev_slave);
+	ret = kvm_io_bus_register_dev(kvm, KVM_PIO_BUS, 0xa0, 2, &s->dev_slave); //0xa0 0xa1
 	if (ret < 0)
 		goto fail_unreg_2;
 
-	ret = kvm_io_bus_register_dev(kvm, KVM_PIO_BUS, 0x4d0, 2, &s->dev_eclr);
+	ret = kvm_io_bus_register_dev(kvm, KVM_PIO_BUS, 0x4d0, 2, &s->dev_eclr); //0x4d0 0x4d1
 	if (ret < 0)
 		goto fail_unreg_1;
 

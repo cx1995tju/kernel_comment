@@ -4437,17 +4437,17 @@ set_identity_unlock:
 		if (kvm->created_vcpus)
 			goto create_irqchip_unlock;
 
-		r = kvm_pic_init(kvm);
+		r = kvm_pic_init(kvm); //创建pic
 		if (r)
 			goto create_irqchip_unlock;
 
-		r = kvm_ioapic_init(kvm);
+		r = kvm_ioapic_init(kvm); //创建ioapic
 		if (r) {
 			kvm_pic_destroy(kvm);
 			goto create_irqchip_unlock;
 		}
 
-		r = kvm_setup_default_irq_routing(kvm);
+		r = kvm_setup_default_irq_routing(kvm); //设置默认的中断路由
 		if (r) {
 			kvm_ioapic_destroy(kvm);
 			kvm_pic_destroy(kvm);
@@ -7055,7 +7055,7 @@ static int inject_pending_event(struct kvm_vcpu *vcpu, bool req_int_win)
 		--vcpu->arch.nmi_pending;
 		vcpu->arch.nmi_injected = true;
 		kvm_x86_ops->set_nmi(vcpu);
-	} else if (kvm_cpu_has_injectable_intr(vcpu)) {
+	} else if (kvm_cpu_has_injectable_intr(vcpu)) { //判断是否有中断需要注入
 		/*
 		 * Because interrupts can be injected asynchronously, we are
 		 * calling check_nested_events again here to avoid a race condition.
@@ -7068,9 +7068,9 @@ static int inject_pending_event(struct kvm_vcpu *vcpu, bool req_int_win)
 			if (r != 0)
 				return r;
 		}
-		if (kvm_x86_ops->interrupt_allowed(vcpu)) {
-			kvm_queue_interrupt(vcpu, kvm_cpu_get_interrupt(vcpu),
-					    false);
+		if (kvm_x86_ops->interrupt_allowed(vcpu)) { //判断当前vCPU是否允许注入
+			kvm_queue_interrupt(vcpu, kvm_cpu_get_interrupt(vcpu), //获取到对应的中断向量号，并保存到vcpu->arch.interrupt.nr    refer to %vmx_inject_irq
+					    false); 
 			kvm_x86_ops->set_irq(vcpu);
 		}
 	}
@@ -7530,7 +7530,7 @@ static int vcpu_enter_guest(struct kvm_vcpu *vcpu)
 			kvm_hv_process_stimers(vcpu);
 	}
 
-	//处理中断相关请求
+	//处理中断相关请求, 前面做了各种检查的
 	if (kvm_check_request(KVM_REQ_EVENT, vcpu) || req_int_win) {
 		++vcpu->stat.req_event;
 		kvm_apic_accept_events(vcpu);

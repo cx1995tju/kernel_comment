@@ -279,6 +279,8 @@ bool kvm_arch_can_set_irq_routing(struct kvm *kvm)
 	return irqchip_in_kernel(kvm);
 }
 
+
+//根据kvm_irq_routing_entry中指定的中断类型设置kvm_kernel_irq_routing_entry中不同的set回调函数
 int kvm_set_routing_entry(struct kvm *kvm,
 			  struct kvm_kernel_irq_routing_entry *e,
 			  const struct kvm_irq_routing_entry *ue)
@@ -370,6 +372,7 @@ EXPORT_SYMBOL_GPL(kvm_intr_is_single_vcpu);
 #define ROUTING_ENTRY2(irq) \
 	IOAPIC_ROUTING_ENTRY(irq), PIC_ROUTING_ENTRY(irq)
 
+//每一项包含一个中断线的相关信息
 static const struct kvm_irq_routing_entry default_routing[] = {
 	ROUTING_ENTRY2(0), ROUTING_ENTRY2(1),
 	ROUTING_ENTRY2(2), ROUTING_ENTRY2(3),

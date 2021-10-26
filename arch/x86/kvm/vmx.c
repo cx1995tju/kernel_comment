@@ -6824,7 +6824,7 @@ static void vmx_inject_irq(struct kvm_vcpu *vcpu)
 {
 	struct vcpu_vmx *vmx = to_vmx(vcpu);
 	uint32_t intr;
-	int irq = vcpu->arch.interrupt.nr;
+	int irq = vcpu->arch.interrupt.nr; //首先获取中断向量号保存在irq中
 
 	trace_kvm_inj_virq(irq);
 
@@ -6844,7 +6844,7 @@ static void vmx_inject_irq(struct kvm_vcpu *vcpu)
 			     vmx->vcpu.arch.event_exit_inst_len);
 	} else
 		intr |= INTR_TYPE_EXT_INTR;
-	vmcs_write32(VM_ENTRY_INTR_INFO_FIELD, intr);
+	vmcs_write32(VM_ENTRY_INTR_INFO_FIELD, intr); //写入VM-entry interruption-information区域，注入中断
 
 	vmx_clear_hlt(vcpu);
 }
