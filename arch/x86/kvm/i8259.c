@@ -86,6 +86,7 @@ static void pic_clear_isr(struct kvm_kpic_state *s, int irq)
 /*
  * set irq level. If an edge is detected, then the IRR is set to 1
  */
+//设置对应的中断芯片的状态（模拟的中断芯片）, 根据中断触发方式来设置
 static inline int pic_set_irq1(struct kvm_kpic_state *s, int irq, int level)
 {
 	int mask, ret = 1;
@@ -190,13 +191,13 @@ int kvm_pic_set_irq(struct kvm_pic *s, int irq, int irq_source_id, int level)
 	BUG_ON(irq < 0 || irq >= PIC_NUM_PINS);
 
 	pic_lock(s);
-	irq_level = __kvm_irq_line_state(&s->irq_states[irq],
+	irq_level = __kvm_irq_line_state(&s->irq_states[irq], //计算出中断信号电平的高低
 					 irq_source_id, level);
-	ret = pic_set_irq1(&s->pics[irq >> 3], irq & 7, irq_level);
-	pic_update_irq(s);
+	ret = pic_set_irq1(&s->pics[irq >> 3], irq & 7, irq_level); //设置对应的中断芯片的状态（模拟的中断芯片）
+	pic_update_irq(s); //更新中断控制器状态
 	trace_kvm_pic_set_irq(irq >> 3, irq & 7, s->pics[irq >> 3].elcr,
 			      s->pics[irq >> 3].imr, ret == 0);
-	pic_unlock(s);
+	pic_unlock(s); //判断是否需要立即唤醒VCPU，进行中断注入
 
 	return ret;
 }
@@ -558,7 +559,7 @@ static void pic_irq_request(struct kvm *kvm, int level)
 {
 	struct kvm_pic *s = kvm->arch.vpic;
 
-	if (!s->output)
+	if (!s->output) //将output设置为中断电平
 		s->wakeup_needed = true;
 	s->output = level;
 }
@@ -605,7 +606,7 @@ int kvm_pic_init(struct kvm *kvm)
 	if (ret < 0)
 		goto fail_unlock;
 
-	ret = kvm_io_bus_register_dev(kvm, KVM_PIO_BUS, 0xa0, 2, &s->dev_slave); //0xa0 0xa1
+	ret = kvm_io_bus_register_dev(kvm, KVM_PIO_BUS, 0xa0, 2, &s->dev_slave); //0xa0 0xa1, slave pic设备
 	if (ret < 0)
 		goto fail_unreg_2;
 

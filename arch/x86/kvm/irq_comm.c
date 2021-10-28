@@ -381,7 +381,7 @@ static const struct kvm_irq_routing_entry default_routing[] = {
 	ROUTING_ENTRY2(8), ROUTING_ENTRY2(9),
 	ROUTING_ENTRY2(10), ROUTING_ENTRY2(11),
 	ROUTING_ENTRY2(12), ROUTING_ENTRY2(13),
-	ROUTING_ENTRY2(14), ROUTING_ENTRY2(15),
+	ROUTING_ENTRY2(14), ROUTING_ENTRY2(15), //IOAPIC的前16个需要与PIC保持兼容
 	ROUTING_ENTRY1(16), ROUTING_ENTRY1(17),
 	ROUTING_ENTRY1(18), ROUTING_ENTRY1(19),
 	ROUTING_ENTRY1(20), ROUTING_ENTRY1(21),
@@ -390,7 +390,7 @@ static const struct kvm_irq_routing_entry default_routing[] = {
 
 int kvm_setup_default_irq_routing(struct kvm *kvm)
 {
-	return kvm_set_irq_routing(kvm, default_routing,
+	return kvm_set_irq_routing(kvm, default_routing, //将kvm_irq_routing_entry结构转换为kvm_kernel_irq_routing_entry结构
 				   ARRAY_SIZE(default_routing), 0);
 }
 

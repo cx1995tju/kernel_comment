@@ -65,7 +65,7 @@ struct kvm_pic {
 	unsigned pending_acks;
 	struct kvm *kvm;
 	struct kvm_kpic_state pics[2]; /* 0 is master pic, 1 is slave pic */
-	int output;		/* intr from master PIC */
+	int output;		/* intr from master PIC 输出电平 */
 	struct kvm_io_device dev_master;
 	struct kvm_io_device dev_slave;
 	struct kvm_io_device dev_eclr;

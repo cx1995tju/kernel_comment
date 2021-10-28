@@ -3061,7 +3061,7 @@ static long kvm_vm_ioctl(struct file *filp,
 	}
 #endif
 #ifdef __KVM_HAVE_IRQ_LINE
-	case KVM_IRQ_LINE_STATUS:
+	case KVM_IRQ_LINE_STATUS: //QEMU向KVM模块提交中断信息
 	case KVM_IRQ_LINE: {
 		struct kvm_irq_level irq_event;
 

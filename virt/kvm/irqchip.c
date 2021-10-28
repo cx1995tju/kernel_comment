@@ -90,7 +90,7 @@ int kvm_set_irq(struct kvm *kvm, int irq_source_id, u32 irq, int level,
 
 	/* Not possible to detect if the guest uses the PIC or the
 	 * IOAPIC.  So set the bit in both. The guest will ignore
-	 * writes to the unused one.
+	 * writes to the unused one. //重要注释
 	 */
 	idx = srcu_read_lock(&kvm->irq_srcu);
 	i = kvm_irq_map_gsi(kvm, irq_set, irq);
@@ -98,7 +98,7 @@ int kvm_set_irq(struct kvm *kvm, int irq_source_id, u32 irq, int level,
 
 	while (i--) {
 		int r;
-		r = irq_set[i].set(&irq_set[i], kvm, irq_source_id, level,
+		r = irq_set[i].set(&irq_set[i], kvm, irq_source_id, level, //关键关键，调用set回调函数，进行中断触发 %kvm_pic_set_irq, 如果是PIC的话就是这个回调函数, 参考KVM侧的中断初始化
 				   line_status);
 		if (r < 0)
 			continue;

@@ -1302,6 +1302,7 @@ int kvm_read_guest_page_mmu(struct kvm_vcpu *vcpu, struct kvm_mmu *mmu,
 bool kvm_require_cpl(struct kvm_vcpu *vcpu, int required_cpl);
 bool kvm_require_dr(struct kvm_vcpu *vcpu, int dr);
 
+//计算出中断信号电平的高低
 static inline int __kvm_irq_line_state(unsigned long *irq_state,
 				       int irq_source_id, int level)
 {

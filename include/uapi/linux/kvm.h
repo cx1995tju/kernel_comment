@@ -959,8 +959,8 @@ struct kvm_ppc_resize_hpt {
 #ifdef KVM_CAP_IRQ_ROUTING
 
 struct kvm_irq_routing_irqchip {
-	__u32 irqchip;
-	__u32 pin;
+	__u32 irqchip; //是哪个中断芯片
+	__u32 pin; //是哪个引脚
 };
 
 struct kvm_irq_routing_msi {
@@ -993,12 +993,12 @@ struct kvm_irq_routing_hv_sint {
 #define KVM_IRQ_ROUTING_HV_SINT 4
 
 struct kvm_irq_routing_entry {
-	__u32 gsi; //系统全局范围内中断号
-	__u32 type; //决定中断的种类
+	__u32 gsi; //系统全局范围内中断号 , Global system interrupt, IRQ号已经被淘汰了, IRQ号暗示了优先级
+	__u32 type; //中断的种类, 也决定了后面union中哪一个有效
 	__u32 flags;
 	__u32 pad;
 	union {
-		struct kvm_irq_routing_irqchip irqchip;
+		struct kvm_irq_routing_irqchip irqchip; //指定了该gsi是哪个中断芯片上的哪个引脚
 		struct kvm_irq_routing_msi msi;
 		struct kvm_irq_routing_s390_adapter adapter;
 		struct kvm_irq_routing_hv_sint hv_sint;

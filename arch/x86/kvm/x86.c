@@ -4437,7 +4437,7 @@ set_identity_unlock:
 		if (kvm->created_vcpus)
 			goto create_irqchip_unlock;
 
-		r = kvm_pic_init(kvm); //创建pic
+		r = kvm_pic_init(kvm); //创建pic芯片
 		if (r)
 			goto create_irqchip_unlock;
 
