@@ -493,7 +493,7 @@ static const struct dev_pm_ops virtio_pci_pm_ops = {
 
 /* Qumranet donated their vendor ID for devices 0x1000 thru 0x10FF. */
 static const struct pci_device_id virtio_pci_id_table[] = {
-	{ PCI_DEVICE(PCI_VENDOR_ID_REDHAT_QUMRANET, PCI_ANY_ID) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_REDHAT_QUMRANET, PCI_ANY_ID) }, //这要是virtio设备的vendor id，都会匹配这个驱动的
 	{ 0 }
 };
 
@@ -513,7 +513,7 @@ static void virtio_pci_release_dev(struct device *_d)
 static int virtio_pci_probe(struct pci_dev *pci_dev,
 			    const struct pci_device_id *id)
 {
-	struct virtio_pci_device *vp_dev, *reg_dev = NULL;
+	struct virtio_pci_device *vp_dev, *reg_dev = NULL; //这是纯粹的virito机制使用的
 	int rc;
 
 	/* allocate our structure and fill it out */
@@ -521,27 +521,27 @@ static int virtio_pci_probe(struct pci_dev *pci_dev,
 	if (!vp_dev)
 		return -ENOMEM;
 
-	pci_set_drvdata(pci_dev, vp_dev);
+	pci_set_drvdata(pci_dev, vp_dev); //因为virtio driver是支持所有virtio设备的，这里需要设置一些私有的信息用来区分不同的设备
 	vp_dev->vdev.dev.parent = &pci_dev->dev;
 	vp_dev->vdev.dev.release = virtio_pci_release_dev;
-	vp_dev->pci_dev = pci_dev;
+	vp_dev->pci_dev = pci_dev; //virtio 机制的device结构指向linux 通用的pci 结构, 再次强调，这个设备其实是pci代理设备，不是直接的pci设备的
 	INIT_LIST_HEAD(&vp_dev->virtqueues);
 	spin_lock_init(&vp_dev->lock);
 
 	/* enable the device */
-	rc = pci_enable_device(pci_dev);
+	rc = pci_enable_device(pci_dev); //通用的pci接口，去enable it
 	if (rc)
 		goto err_enable_device;
 
 	if (force_legacy) {
-		rc = virtio_pci_legacy_probe(vp_dev);
+		rc = virtio_pci_legacy_probe(vp_dev); //内核看到的virito pci代理设备的，走正常的那套pci机制到这里，需要virito自己去实现virito 设备的probe机制，这里就是这样
 		/* Also try modern mode if we can't map BAR0 (no IO space). */
 		if (rc == -ENODEV || rc == -ENOMEM)
 			rc = virtio_pci_modern_probe(vp_dev);
 		if (rc)
 			goto err_probe;
 	} else {
-		rc = virtio_pci_modern_probe(vp_dev);
+		rc = virtio_pci_modern_probe(vp_dev); //refer to virtio_pci_legacy_probe
 		if (rc == -ENODEV)
 			rc = virtio_pci_legacy_probe(vp_dev);
 		if (rc)
@@ -550,7 +550,7 @@ static int virtio_pci_probe(struct pci_dev *pci_dev,
 
 	pci_set_master(pci_dev);
 
-	rc = register_virtio_device(&vp_dev->vdev);
+	rc = register_virtio_device(&vp_dev->vdev); //将设备信息注册到virtio机制中
 	reg_dev = vp_dev;
 	if (rc)
 		goto err_register;

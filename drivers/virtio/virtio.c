@@ -187,7 +187,16 @@ int virtio_finalize_features(struct virtio_device *dev)
 }
 EXPORT_SYMBOL_GPL(virtio_finalize_features);
 
-static int virtio_dev_probe(struct device *_d)
+/* virtio 驱动初始化设备的一般过程 */
+/* 1. 重置设备， register_virtio_device 中会调用dev->config->reset */
+/* 2. 设置acknowledge状态位，表示driver知道了设备存在, register_virtio_device -> add_status(dev, VIRTIO_CONFIG_S_ACKNOWLEDGE) */
+/* 3. 设置DRIVER状态位, 表示driver知道如何驱动设备, 在virtio总线的probe函数，virtio_dev_probe -> add_status(dev, VIRTIO_CONFIG_S_DRIVER) */
+/* 4. 读取virtio 设备的feature位, virtio_dev_probe 中计算driver_features device_features，然后调用virtio_finalize_features */
+/* 5. 设置FEATURES_OK特性位，这之后，virtio驱动就不接受新的feature了，这是在virtio_finalize_features -> add_status(VIRTIO_VIRTIO_CONFIG_S_FEATURES_OK) */
+/* 6. 重新读取设备的feature状态位，确保设置了FEATURES_OK，这也是 virtio_finalize_features 中完成的 */
+/* 7. 执行设备相关的初始化操作 */
+/* 8. 设置DRIVER_OK标志位， 在具体的设备probe函数中，调用virtio_device_ready完成的, %virtballoon_probe */
+static int virtio_dev_probe(struct device *_d) //virtio spec中规定的通用的部分了
 {
 	int err, i;
 	struct virtio_device *dev = dev_to_virtio(_d);
@@ -312,11 +321,12 @@ EXPORT_SYMBOL_GPL(unregister_virtio_driver);
  *
  * Returns: 0 on suceess, -error on failure
  */
+//将设备信息注册到virtio机制中
 int register_virtio_device(struct virtio_device *dev)
 {
 	int err;
 
-	dev->dev.bus = &virtio_bus;
+	dev->dev.bus = &virtio_bus; //设置设备的bus，即该virtio设备是依赖于这个类型的bus的, 所有该类型的bus都共享一个结构的
 	device_initialize(&dev->dev);
 
 	/* Assign a unique device index and hence name. */
@@ -325,7 +335,7 @@ int register_virtio_device(struct virtio_device *dev)
 		goto out;
 
 	dev->index = err;
-	dev_set_name(&dev->dev, "virtio%u", dev->index);
+	dev_set_name(&dev->dev, "virtio%u", dev->index); //设置设备名字，virito1这种模式
 
 	spin_lock_init(&dev->config_lock);
 	dev->config_enabled = false;
@@ -333,7 +343,7 @@ int register_virtio_device(struct virtio_device *dev)
 
 	/* We always start by resetting the device, in case a previous
 	 * driver messed it up.  This also tests that code path a little. */
-	dev->config->reset(dev);
+	dev->config->reset(dev); //调用重置设备的回调函数
 
 	/* Acknowledge that we've seen the device. */
 	virtio_add_status(dev, VIRTIO_CONFIG_S_ACKNOWLEDGE);

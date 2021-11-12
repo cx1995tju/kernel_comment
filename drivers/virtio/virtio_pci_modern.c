@@ -486,6 +486,7 @@ static const struct virtio_config_ops virtio_pci_config_ops = {
  *
  * Returns offset of the capability, or 0.
  */
+//遍历pci配置空间，看看pci设备有哪些capabilities呀
 static inline int virtio_pci_find_capability(struct pci_dev *dev, u8 cfg_type,
 					     u32 ioresource_types, int *bars)
 {
@@ -603,7 +604,7 @@ int virtio_pci_modern_probe(struct virtio_pci_device *vp_dev)
 		/* Modern devices: simply use PCI device id, but start from 0x1040. */
 		vp_dev->vdev.id.device = pci_dev->device - 0x1040;
 	}
-	vp_dev->vdev.id.vendor = pci_dev->subsystem_vendor;
+	vp_dev->vdev.id.vendor = pci_dev->subsystem_vendor; //保存pci设备的vendor id等信息，到virtio机制内部的device结构,这些信息从pci机制流向到virtio机制的
 
 	/* check for a common config: if not, use legacy mode (bar 0). */
 	common = virtio_pci_find_capability(pci_dev, VIRTIO_PCI_CAP_COMMON_CFG,
@@ -649,7 +650,7 @@ int virtio_pci_modern_probe(struct virtio_pci_device *vp_dev)
 		return err;
 
 	err = -EINVAL;
-	vp_dev->common = map_capability(pci_dev, common,
+	vp_dev->common = map_capability(pci_dev, common, //将bar空间映射到内核虚拟地址空间, 这里就将设备的virtio_pci_common_cfg这个bar空间映射过来了，那么后续直接通过内存读写操作访问
 					sizeof(struct virtio_pci_common_cfg), 4,
 					0, sizeof(struct virtio_pci_common_cfg),
 					NULL);
@@ -701,12 +702,12 @@ int virtio_pci_modern_probe(struct virtio_pci_device *vp_dev)
 		if (!vp_dev->device)
 			goto err_map_device;
 
-		vp_dev->vdev.config = &virtio_pci_config_ops;
+		vp_dev->vdev.config = &virtio_pci_config_ops; //设置vdev的config成员
 	} else {
 		vp_dev->vdev.config = &virtio_pci_config_nodev_ops;
 	}
 
-	vp_dev->config_vector = vp_config_vector;
+	vp_dev->config_vector = vp_config_vector; //继续设置几个回调函数
 	vp_dev->setup_vq = setup_vq;
 	vp_dev->del_vq = del_vq;
 

@@ -43,6 +43,7 @@ struct virtio_pci_vq_info {
 };
 
 /* Our device structure */
+//这是纯粹的virito机制使用的的设备，是在virito_device基础上扩充
 struct virtio_pci_device {
 	struct virtio_device vdev;
 	struct pci_dev *pci_dev;
@@ -53,7 +54,7 @@ struct virtio_pci_device {
 
 	/* Modern only fields */
 	/* The IO mapping for the PCI config space (non-legacy mode) */
-	struct virtio_pci_common_cfg __iomem *common;
+	struct virtio_pci_common_cfg __iomem *common; //会直接映射到设备的bar空间的，那么访问设备就简单了, 直接用一般的内存读写操作, 下述两个成员也都是直接指向bar空间的
 	/* Device-specific data (non-legacy mode)  */
 	void __iomem *device;
 	/* Base of vq notifications (non-legacy mode). */
@@ -97,16 +98,16 @@ struct virtio_pci_device {
 	/* Whether we have vector per vq */
 	bool per_vq_vectors;
 
-	struct virtqueue *(*setup_vq)(struct virtio_pci_device *vp_dev,
+	struct virtqueue *(*setup_vq)(struct virtio_pci_device *vp_dev, //设置virtqeueu
 				      struct virtio_pci_vq_info *info,
 				      unsigned idx,
 				      void (*callback)(struct virtqueue *vq),
 				      const char *name,
 				      bool ctx,
 				      u16 msix_vec);
-	void (*del_vq)(struct virtio_pci_vq_info *info);
+	void (*del_vq)(struct virtio_pci_vq_info *info); //删除virt queue
 
-	u16 (*config_vector)(struct virtio_pci_device *vp_dev, u16 vector);
+	u16 (*config_vector)(struct virtio_pci_device *vp_dev, u16 vector); //与MSI中断相关
 };
 
 /* Constants for MSI-X */
@@ -148,7 +149,7 @@ const struct cpumask *vp_get_vq_affinity(struct virtio_device *vdev, int index);
 #if IS_ENABLED(CONFIG_VIRTIO_PCI_LEGACY)
 int virtio_pci_legacy_probe(struct virtio_pci_device *);
 void virtio_pci_legacy_remove(struct virtio_pci_device *);
-#else
+#else//内核看到的virito pci代理设备的，走正常的那套pci机制到这里，需要virito自己去实现virito 设备的probe机制，这里就是这样
 static inline int virtio_pci_legacy_probe(struct virtio_pci_device *vp_dev)
 {
 	return -ENODEV;

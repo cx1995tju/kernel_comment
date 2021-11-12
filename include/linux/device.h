@@ -111,9 +111,10 @@ extern void bus_remove_file(struct bus_type *, struct bus_attribute *);
  * default attributes, the bus' methods, PM operations, and the driver core's
  * private data.
  */
+//每个类型的bus，一个这个结构，因为其中都是一些公共的函数接口啦
 struct bus_type {
-	const char		*name;
-	const char		*dev_name;
+	const char		*name;//bus本身也是一个设备，也要有名字的
+	const char		*dev_name; 
 	struct device		*dev_root;
 	const struct attribute_group **bus_groups;
 	const struct attribute_group **dev_groups;

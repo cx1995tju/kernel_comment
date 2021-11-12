@@ -1828,6 +1828,8 @@ static int device_private_init(struct device *dev)
  * if it returned an error! Always use put_device() to give up your
  * reference instead.
  */
+//将设备添加到系统中
+//会发送uevent消息(vendor id, device id)的，udev接收到消息后，会加载对应virtio设备驱动的，后面才能调用到对应的driver的
 int device_add(struct device *dev)
 {
 	struct device *parent;
@@ -1930,7 +1932,7 @@ int device_add(struct device *dev)
 					     BUS_NOTIFY_ADD_DEVICE, dev);
 
 	kobject_uevent(&dev->kobj, KOBJ_ADD);
-	bus_probe_device(dev);
+	bus_probe_device(dev); //调用到Bus的Probe函数，%virtio_dev_probe virtballon_probe
 	if (parent)
 		klist_add_tail(&dev->p->knode_parent,
 			       &parent->p->klist_children);
