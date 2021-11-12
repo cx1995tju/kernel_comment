@@ -603,7 +603,7 @@ static void kvm_ioapic_reset(struct kvm_ioapic *ioapic)
 	cancel_delayed_work_sync(&ioapic->eoi_inject);
 	for (i = 0; i < IOAPIC_NUM_PINS; i++)
 		ioapic->redirtbl[i].fields.mask = 1;
-	ioapic->base_address = IOAPIC_DEFAULT_BASE_ADDRESS;
+	ioapic->base_address = IOAPIC_DEFAULT_BASE_ADDRESS; //设置MMIO地址
 	ioapic->ioregsel = 0;
 	ioapic->irr = 0;
 	ioapic->irr_delivered = 0;
@@ -617,18 +617,22 @@ static const struct kvm_io_device_ops ioapic_mmio_ops = {
 	.write    = ioapic_mmio_write,
 };
 
+//初始化无非是
+//1. 分配结构
+//2. 设置变量
 int kvm_ioapic_init(struct kvm *kvm)
 {
 	struct kvm_ioapic *ioapic;
 	int ret;
 
+	//1. 分配结构
 	ioapic = kzalloc(sizeof(struct kvm_ioapic), GFP_KERNEL);
 	if (!ioapic)
 		return -ENOMEM;
 	spin_lock_init(&ioapic->lock);
 	INIT_DELAYED_WORK(&ioapic->eoi_inject, kvm_ioapic_eoi_inject_work);
-	kvm->arch.vioapic = ioapic;
-	kvm_ioapic_reset(ioapic);
+	kvm->arch.vioapic = ioapic; //赋值给对应的kvm
+	kvm_ioapic_reset(ioapic); //设置初始值
 	kvm_iodevice_init(&ioapic->dev, &ioapic_mmio_ops);
 	ioapic->kvm = kvm;
 	mutex_lock(&kvm->slots_lock);

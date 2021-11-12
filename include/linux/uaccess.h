@@ -140,6 +140,7 @@ extern unsigned long
 _copy_to_user(void __user *, const void *, unsigned long);
 #endif
 
+//返回值是还剩余多少没有copy
 static __always_inline unsigned long __must_check
 copy_from_user(void *to, const void __user *from, unsigned long n)
 {
@@ -148,6 +149,7 @@ copy_from_user(void *to, const void __user *from, unsigned long n)
 	return n;
 }
 
+//返回值是还剩余多少没有copy
 static __always_inline unsigned long __must_check
 copy_to_user(void __user *to, const void *from, unsigned long n)
 {

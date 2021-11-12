@@ -2224,7 +2224,7 @@ static int e100_poll(struct napi_struct *napi, int budget)
 	unsigned int work_done = 0;
 
 	e100_rx_clean(nic, &work_done, budget); //从具体网络设备读报文，然后调用netif_receive_skb函数
-	e100_tx_clean(nic); //发送完成后，也会触发rx 软中断的，通过napi来到这里，清理txqueue。
+	e100_tx_clean(nic); //发送完成后，也会触发tx 软中断的，通过napi来到这里，清理txqueue。
 
 	/* If budget not fully consumed, exit the polling mode */
 	if (work_done < budget) {

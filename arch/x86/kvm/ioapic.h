@@ -61,30 +61,30 @@ struct rtc_status {
 union kvm_ioapic_redirect_entry {
 	u64 bits;
 	struct {
-		u8 vector;
+		u8 vector; //中断向量号
 		u8 delivery_mode:3;
 		u8 dest_mode:1;
 		u8 delivery_status:1;
 		u8 polarity:1;
 		u8 remote_irr:1;
-		u8 trig_mode:1;
+		u8 trig_mode:1; //触发模式
 		u8 mask:1;
 		u8 reserve:7;
 		u8 reserved[4];
-		u8 dest_id;
+		u8 dest_id; //发送到LAPIC的id
 	} fields;
 };
 
-struct kvm_ioapic {
-	u64 base_address;
-	u32 ioregsel;
+struct kvm_ioapic { //模拟IO APIC
+	u64 base_address; //IO APIC的MMIO地址
+	u32 ioregsel; //IO APIC的重定向表
 	u32 id;
 	u32 irr;
 	u32 pad;
-	union kvm_ioapic_redirect_entry redirtbl[IOAPIC_NUM_PINS];
-	unsigned long irq_states[IOAPIC_NUM_PINS];
-	struct kvm_io_device dev;
-	struct kvm *kvm;
+	union kvm_ioapic_redirect_entry redirtbl[IOAPIC_NUM_PINS]; //24个中断引脚的重定向表
+	unsigned long irq_states[IOAPIC_NUM_PINS]; //中断线的状态
+	struct kvm_io_device dev; //该IO APIC对应的设备
+	struct kvm *kvm; //对应的虚拟机
 	void (*ack_notifier)(void *opaque, int irq);
 	spinlock_t lock;
 	struct rtc_status rtc_status;

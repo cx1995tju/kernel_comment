@@ -737,7 +737,7 @@ static __poll_t ep_scan_ready_list(struct eventpoll *ep,
 	/*
 	 * Now call the callback function. ep_send_events_proc()
 	 */
-	res = (*sproc)(ep, &txlist, priv);
+	res = (*sproc)(ep, &txlist, priv); //ep_send_events_proc
 
 	spin_lock_irq(&ep->wq.lock);
 	/*
