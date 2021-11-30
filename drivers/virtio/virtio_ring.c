@@ -70,30 +70,30 @@ struct vring_virtqueue {
 	bool weak_barriers;
 
 	/* Other side has made a mess, don't try any more. */
-	bool broken;
+	bool broken; //表示对端有问题了
 
 	/* Host supports indirect buffers */
-	bool indirect;
+	bool indirect; //是否支持indirect
 
 	/* Host publishes avail event idx */
-	bool event;
+	bool event; //是否支持avail event idx
 
 	/* Head of free buffer list. */
-	unsigned int free_head;
+	unsigned int free_head; //desc table第一个可用项
 	/* Number we've added since last sync. */
-	unsigned int num_added;
+	unsigned int num_added; //上一次通知对端后增加的avail ring的个数
 
 	/* Last used index we've seen. */
-	u16 last_used_idx;
+	u16 last_used_idx; //virtio驱动最后看到的used idx
 
 	/* Last written value to avail->flags */
-	u16 avail_flags_shadow;
+	u16 avail_flags_shadow; //最后一次写入avail->flags 中的值
 
 	/* Last written value to avail->idx in guest byte order */
 	u16 avail_idx_shadow;
 
 	/* How to notify other side. FIXME: commonalize hcalls! */
-	bool (*notify)(struct virtqueue *vq);
+	bool (*notify)(struct virtqueue *vq); //%vp_notify 通知对端的回调函数
 
 	/* DMA, allocation, and size information */
 	bool we_own_ring;
@@ -110,7 +110,7 @@ struct vring_virtqueue {
 #endif
 
 	/* Per-descriptor state. */
-	struct vring_desc_state desc_state[];
+	struct vring_desc_state desc_state[]; //保存每个desc的上下文的
 };
 
 #define to_vvq(_vq) container_of(_vq, struct vring_virtqueue, vq)
@@ -256,13 +256,14 @@ static struct vring_desc *alloc_indirect(struct virtqueue *_vq,
 	return desc;
 }
 
-static inline int virtqueue_add(struct virtqueue *_vq,
-				struct scatterlist *sgs[],
-				unsigned int total_sg,
-				unsigned int out_sgs,
-				unsigned int in_sgs,
-				void *data,
-				void *ctx,
+//向vq添加数据
+static inline int virtqueue_add(struct virtqueue *_vq, //需要添加的vq
+				struct scatterlist *sgs[], //数据请求放置在这里
+				unsigned int total_sg, //上述数组大小
+				unsigned int out_sgs, //表示驱动提供给设备的数据
+				unsigned int in_sgs, //表示驱动提供给设备的空间
+				void *data, 
+				void *ctx,//这一次请求的desc的上下文
 				gfp_t gfp)
 {
 	struct vring_virtqueue *vq = to_vvq(_vq);
@@ -335,8 +336,8 @@ static inline int virtqueue_add(struct virtqueue *_vq,
 		return -ENOSPC;
 	}
 
-	for (n = 0; n < out_sgs; n++) {
-		for (sg = sgs[n]; sg; sg = sg_next(sg)) {
+	for (n = 0; n < out_sgs; n++) { //这一部分是driver提供的数据
+		for (sg = sgs[n]; sg; sg = sg_next(sg)) { //填desc table
 			dma_addr_t addr = vring_map_one_sg(vq, sg, DMA_TO_DEVICE);
 			if (vring_mapping_error(vq, addr))
 				goto unmap_release;
@@ -348,7 +349,7 @@ static inline int virtqueue_add(struct virtqueue *_vq,
 			i = virtio16_to_cpu(_vq->vdev, desc[i].next);
 		}
 	}
-	for (; n < (out_sgs + in_sgs); n++) {
+	for (; n < (out_sgs + in_sgs); n++) { //这一部分是driver提供的空间，都是一个desc描述的
 		for (sg = sgs[n]; sg; sg = sg_next(sg)) {
 			dma_addr_t addr = vring_map_one_sg(vq, sg, DMA_FROM_DEVICE);
 			if (vring_mapping_error(vq, addr))
@@ -362,6 +363,7 @@ static inline int virtqueue_add(struct virtqueue *_vq,
 		}
 	}
 	/* Last one doesn't continue. */
+	//填充好后，更新各种参数了, 譬如：availa_idx
 	desc[prev].flags &= cpu_to_virtio16(_vq->vdev, ~VRING_DESC_F_NEXT);
 
 	if (indirect) {
@@ -547,6 +549,7 @@ EXPORT_SYMBOL_GPL(virtqueue_add_inbuf_ctx);
  * This is sometimes useful because the virtqueue_kick_prepare() needs
  * to be serialized, but the actual virtqueue_notify() call does not.
  */
+//是否真的有必要通知，譬如是否被抑制了，如果要通知是怎么通知呀
 bool virtqueue_kick_prepare(struct virtqueue *_vq)
 {
 	struct vring_virtqueue *vq = to_vvq(_vq);
@@ -617,7 +620,7 @@ EXPORT_SYMBOL_GPL(virtqueue_notify);
  *
  * Returns false if kick failed, otherwise true.
  */
-bool virtqueue_kick(struct virtqueue *vq)
+bool virtqueue_kick(struct virtqueue *vq) //通知后端了
 {
 	if (virtqueue_kick_prepare(vq))
 		return virtqueue_notify(vq);

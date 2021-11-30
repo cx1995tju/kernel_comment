@@ -100,7 +100,7 @@ struct virtio_pci_device {
 	/* Whether we have vector per vq */
 	bool per_vq_vectors;
 
-	struct virtqueue *(*setup_vq)(struct virtio_pci_device *vp_dev, //设置virtqeueu
+	struct virtqueue *(*setup_vq)(struct virtio_pci_device *vp_dev, //设置virtqeueue
 				      struct virtio_pci_vq_info *info,
 				      unsigned idx,
 				      void (*callback)(struct virtqueue *vq),

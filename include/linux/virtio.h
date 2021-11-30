@@ -37,7 +37,7 @@ struct virtqueue {
 	struct virtio_device *vdev;
 	unsigned int index;
 	unsigned int num_free;
-	void *priv; //会保存vq notify 位置的偏移, 需要通知设备的时候，直接谢这个成员就可以了, refer to %setup_vq
+	void *priv; //会保存vq notify 位置的偏移, 需要通知设备的时候，直接写这个成员就可以了, refer to %setup_vq
 };
 
 int virtqueue_add_outbuf(struct virtqueue *vq,

@@ -65,7 +65,7 @@
 /* Virtio ring descriptors: 16 bytes.  These can chain together via "next". */
 struct vring_desc {
 	/* Address (guest-physical). */
-	__virtio64 addr;
+	__virtio64 addr; //GPA
 	/* Length. */
 	__virtio32 len;
 	/* The flags as indicated above. */
@@ -98,7 +98,7 @@ struct vring_used {
 struct vring { //这个结构是driver分配的，driver要确保对齐，连续等条件。
 	unsigned int num; //16b的queue size
 
-	struct vring_desc *desc; //descriptor table, 要保证guest 物理连续. 显然啦，要DMA. 总大小是num*16B
+	struct vring_desc *desc; //descriptor table, 要保证guest 物理连续. 显然啦，要DMA. 总大小是num*16B, 下面的三者要放置在连续的页上 refer to %vring_create_virtqueue -> vring_alloc_queue vring_init, 注意，但不是说这三个指针也在这个页面上
 
 	struct vring_avail *avail;  //指向一段连续物理内存，其中内容是available ring
 

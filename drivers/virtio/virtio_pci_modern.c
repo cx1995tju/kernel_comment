@@ -357,7 +357,7 @@ static struct virtqueue *setup_vq(struct virtio_pci_device *vp_dev,
 	if (!vq)
 		return ERR_PTR(-ENOMEM);
 
-	/* activate the queue 激活队列，将相关信息写入到寄存器中 */
+	/* activate the queue 激活队列，将相关信息写入到寄存器中, 这样设备就能访问driver分配的队列了 */
 	vp_iowrite16(virtqueue_get_vring_size(vq), &cfg->queue_size);
 	vp_iowrite64_twopart(virtqueue_get_desc_addr(vq),
 			     &cfg->queue_desc_lo, &cfg->queue_desc_hi);
