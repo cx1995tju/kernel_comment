@@ -1932,7 +1932,7 @@ int device_add(struct device *dev)
 					     BUS_NOTIFY_ADD_DEVICE, dev);
 
 	kobject_uevent(&dev->kobj, KOBJ_ADD);
-	bus_probe_device(dev); //调用到Bus的Probe函数，%virtio_dev_probe virtballon_probe
+	bus_probe_device(dev); //调用到Bus的Probe函数，%virtio_dev_probe virtballoon_probe, 重要
 	if (parent)
 		klist_add_tail(&dev->p->knode_parent,
 			       &parent->p->klist_children);

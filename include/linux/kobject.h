@@ -136,7 +136,7 @@ static inline bool kobject_has_children(struct kobject *kobj)
 	return kobj->sd && kobj->sd->dir.subdirs;
 }
 
-struct kobj_type { //和kobject相关的各种函数
+struct kobj_type { //和kobject相关的各种函数, 同样ktype 的kobject共享这些信息咯
 	void (*release)(struct kobject *kobj); /* 析构函数 */
 	const struct sysfs_ops *sysfs_ops;
 	struct attribute **default_attrs;
@@ -189,6 +189,7 @@ struct sock;
  * can add new environment variables, or filter out the uevents if so
  * desired.
  */
+//kset 本身也是一个kobject，集合本身也可以作为元素存在，这个很好理解
 struct kset { //特定objects的集合，其定义了一组kobjects
 	struct list_head list; //将kobject链接起来
 	spinlock_t list_lock;

@@ -40,7 +40,7 @@ void __iomem *pci_iomap_range(struct pci_dev *dev,
 	start += offset;
 	if (maxlen && len > maxlen)
 		len = maxlen;
-	if (flags & IORESOURCE_IO)
+	if (flags & IORESOURCE_IO) //pci bar还可能是PIO形式访问？？？？ 的确可以，参考virtio spec 1.1 的说明 > The BAR is permitted to be either 32-bit or 64-bit, it can map Memory Space or I/O Space.
 		return __pci_ioport_map(dev, start, len);
 	if (flags & IORESOURCE_MEM)
 		return ioremap(start, len);

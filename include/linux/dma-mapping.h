@@ -200,9 +200,9 @@ static inline int dma_mmap_from_global_coherent(struct vm_area_struct *vma,
 #include <asm/dma-mapping.h>
 static inline const struct dma_map_ops *get_dma_ops(struct device *dev)
 {
-	if (dev && dev->dma_ops)
+	if (dev && dev->dma_ops) //设备实现了那就使用这个
 		return dev->dma_ops;
-	return get_arch_dma_ops(dev ? dev->bus : NULL);
+	return get_arch_dma_ops(dev ? dev->bus : NULL); //没有实现就使用架构相关的默认的ops
 }
 
 static inline void set_dma_ops(struct device *dev,

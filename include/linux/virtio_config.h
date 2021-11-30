@@ -148,6 +148,7 @@ static inline void __virtio_clear_bit(struct virtio_device *vdev,
  * @vdev: the device
  * @fbit: the feature bit
  */
+//判断是否有某个features
 static inline bool virtio_has_feature(const struct virtio_device *vdev,
 				      unsigned int fbit)
 {
@@ -190,6 +191,8 @@ int virtio_find_vqs(struct virtio_device *vdev, unsigned nvqs,
 			const char * const names[],
 			struct irq_affinity *desc)
 {
+	//%virtio_pci_modern_probe %virtio_pci_config_ops
+	//%vp_modern_find_vqs
 	return vdev->config->find_vqs(vdev, nvqs, vqs, callbacks, names, NULL, desc);
 }
 

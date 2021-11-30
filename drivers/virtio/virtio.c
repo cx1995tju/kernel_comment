@@ -343,10 +343,11 @@ int register_virtio_device(struct virtio_device *dev)
 
 	/* We always start by resetting the device, in case a previous
 	 * driver messed it up.  This also tests that code path a little. */
-	dev->config->reset(dev); //调用重置设备的回调函数
+	dev->config->reset(dev); //调用重置设备的回调函数, refer to virtio_pci_modern_probe 
 
 	/* Acknowledge that we've seen the device. */
-	virtio_add_status(dev, VIRTIO_CONFIG_S_ACKNOWLEDGE);
+	//参考virtio spec
+	virtio_add_status(dev, VIRTIO_CONFIG_S_ACKNOWLEDGE); // virtio_pci_config_ops
 
 	INIT_LIST_HEAD(&dev->vqs);
 
@@ -354,7 +355,9 @@ int register_virtio_device(struct virtio_device *dev)
 	 * device_add() causes the bus infrastructure to look for a matching
 	 * driver.
 	 */
-	err = device_add(&dev->dev);
+	//极其重要
+	err = device_add(&dev->dev); //这里通过bus_probe_device 进入到具体的virtio bus 和设备的probe函数: bus_probe: %virtio_dev_probe, drv probe: %virtballoon_probe, 注意：virtiobus和设备是1:1的
+	//  device_add -> bus_probe_device -> device_initial_probe -> __device_attach -> __device_attach_driver -> driver_probe_device -> really_probe -> bus_probe / driver_probe
 	if (err)
 		ida_simple_remove(&virtio_index_ida, dev->index);
 out:

@@ -387,10 +387,11 @@ static void update_balloon_size_func(struct work_struct *work)
 		queue_work(system_freezable_wq, work);
 }
 
+//基于virtio机制提供的相关接口来初始化用于通信的vq
 static int init_vqs(struct virtio_balloon *vb)
 {
 	struct virtqueue *vqs[3];
-	vq_callback_t *callbacks[] = { balloon_ack, balloon_ack, stats_request };
+	vq_callback_t *callbacks[] = { balloon_ack, balloon_ack, stats_request }; //重要结构
 	static const char * const names[] = { "inflate", "deflate", "stats" };
 	int err, nvqs;
 
@@ -398,7 +399,7 @@ static int init_vqs(struct virtio_balloon *vb)
 	 * We expect two virtqueues: inflate and deflate, and
 	 * optionally stat.
 	 */
-	nvqs = virtio_has_feature(vb->vdev, VIRTIO_BALLOON_F_STATS_VQ) ? 3 : 2;
+	nvqs = virtio_has_feature(vb->vdev, VIRTIO_BALLOON_F_STATS_VQ) ? 3 : 2; //有没有这个feature呀，有的话就需要搞3个VQ了
 	err = virtio_find_vqs(vb->vdev, nvqs, vqs, callbacks, names, NULL);
 	if (err)
 		return err;
@@ -583,11 +584,11 @@ static int virtballoon_probe(struct virtio_device *vdev)
 	spin_lock_init(&vb->stop_update_lock);
 	mutex_init(&vb->balloon_lock);
 	init_waitqueue_head(&vb->acked);
-	vb->vdev = vdev; //将vb结构反向
+	vb->vdev = vdev; //将vb结构反指
 
 	balloon_devinfo_init(&vb->vb_dev_info);
 
-	err = init_vqs(vb);
+	err = init_vqs(vb); //这是balloon设备最重要的函数了
 	if (err)
 		goto out_free_vb;
 

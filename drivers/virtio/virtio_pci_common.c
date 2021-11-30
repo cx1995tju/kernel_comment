@@ -174,6 +174,8 @@ error:
 	return err;
 }
 
+//初始化virtio queue
+//设置，保存vq相关信息
 static struct virtqueue *vp_setup_vq(struct virtio_device *vdev, unsigned index,
 				     void (*callback)(struct virtqueue *vq),
 				     const char *name,
@@ -189,6 +191,7 @@ static struct virtqueue *vp_setup_vq(struct virtio_device *vdev, unsigned index,
 	if (!info)
 		return ERR_PTR(-ENOMEM);
 
+	//refer to %virtio_pci_modern_probe setup_vq
 	vq = vp_dev->setup_vq(vp_dev, info, index, callback, name, ctx,
 			      msix_vec);
 	if (IS_ERR(vq))
@@ -302,13 +305,13 @@ static int vp_find_vqs_msix(struct virtio_device *vdev, unsigned nvqs,
 		nvectors = 2;
 	}
 
-	err = vp_request_msix_vectors(vdev, nvectors, per_vq_vectors,
+	err = vp_request_msix_vectors(vdev, nvectors, per_vq_vectors, //请求msix 中断向量
 				      per_vq_vectors ? desc : NULL);
 	if (err)
 		goto error_find;
 
 	vp_dev->per_vq_vectors = per_vq_vectors;
-	allocated_vectors = vp_dev->msix_used_vectors;
+	allocated_vectors = vp_dev->msix_used_vectors; //前面已经分配好中断了，那么这里就来创建vq相关的信息了
 	for (i = 0; i < nvqs; ++i) {
 		if (!names[i]) {
 			vqs[i] = NULL;
@@ -321,7 +324,7 @@ static int vp_find_vqs_msix(struct virtio_device *vdev, unsigned nvqs,
 			msix_vec = allocated_vectors++;
 		else
 			msix_vec = VP_MSIX_VQ_VECTOR;
-		vqs[i] = vp_setup_vq(vdev, i, callbacks[i], names[i],
+		vqs[i] = vp_setup_vq(vdev, i, callbacks[i], names[i], //这里记录了vq的信息了
 				     ctx ? ctx[i] : false,
 				     msix_vec);
 		if (IS_ERR(vqs[i])) {
@@ -337,7 +340,7 @@ static int vp_find_vqs_msix(struct virtio_device *vdev, unsigned nvqs,
 			 sizeof *vp_dev->msix_names,
 			 "%s-%s",
 			 dev_name(&vp_dev->vdev.dev), names[i]);
-		err = request_irq(pci_irq_vector(vp_dev->pci_dev, msix_vec),
+		err = request_irq(pci_irq_vector(vp_dev->pci_dev, msix_vec), //设置中断处理函数
 				  vring_interrupt, 0,
 				  vp_dev->msix_names[msix_vec],
 				  vqs[i]);
@@ -358,6 +361,7 @@ static int vp_find_vqs_intx(struct virtio_device *vdev, unsigned nvqs,
 	struct virtio_pci_device *vp_dev = to_vp_device(vdev);
 	int i, err;
 
+	//分配vq结构的指针空间，申请中断处理函数vp_interrupt
 	vp_dev->vqs = kcalloc(nvqs, sizeof(*vp_dev->vqs), GFP_KERNEL);
 	if (!vp_dev->vqs)
 		return -ENOMEM;
@@ -369,7 +373,7 @@ static int vp_find_vqs_intx(struct virtio_device *vdev, unsigned nvqs,
 
 	vp_dev->intx_enabled = 1;
 	vp_dev->per_vq_vectors = false;
-	for (i = 0; i < nvqs; ++i) {
+	for (i = 0; i < nvqs; ++i) { //记录vq的信息
 		if (!names[i]) {
 			vqs[i] = NULL;
 			continue;
@@ -521,15 +525,17 @@ static int virtio_pci_probe(struct pci_dev *pci_dev,
 	if (!vp_dev)
 		return -ENOMEM;
 
+	//构建pci设备结构，到virtio pci设备结构的关系
+	//构建vp_dev pci_dev dev 等结构的关系
 	pci_set_drvdata(pci_dev, vp_dev); //因为virtio driver是支持所有virtio设备的，这里需要设置一些私有的信息用来区分不同的设备
-	vp_dev->vdev.dev.parent = &pci_dev->dev;
+	vp_dev->vdev.dev.parent = &pci_dev->dev; //是想表达pci代理设备和virtio设备之间的关系么？？？
 	vp_dev->vdev.dev.release = virtio_pci_release_dev;
 	vp_dev->pci_dev = pci_dev; //virtio 机制的device结构指向linux 通用的pci 结构, 再次强调，这个设备其实是pci代理设备，不是直接的pci设备的
-	INIT_LIST_HEAD(&vp_dev->virtqueues);
+	INIT_LIST_HEAD(&vp_dev->virtqueues); //初始化一个list
 	spin_lock_init(&vp_dev->lock);
 
 	/* enable the device */
-	rc = pci_enable_device(pci_dev); //通用的pci接口，去enable it
+	rc = pci_enable_device(pci_dev); //通用的pci接口，enable it, 应该需要去参考pci spec
 	if (rc)
 		goto err_enable_device;
 
@@ -550,7 +556,7 @@ static int virtio_pci_probe(struct pci_dev *pci_dev,
 
 	pci_set_master(pci_dev);
 
-	rc = register_virtio_device(&vp_dev->vdev); //将设备信息注册到virtio机制中
+	rc = register_virtio_device(&vp_dev->vdev); //将设备信息注册到virtio机制中, 那么显然是使用vdev结构咯
 	reg_dev = vp_dev;
 	if (rc)
 		goto err_register;
@@ -619,7 +625,7 @@ static int virtio_pci_sriov_configure(struct pci_dev *pci_dev, int num_vfs)
 
 static struct pci_driver virtio_pci_driver = {
 	.name		= "virtio-pci",
-	.id_table	= virtio_pci_id_table,
+	.id_table	= virtio_pci_id_table, //所有的virtio设备都能匹配到这个驱动，然后probe函数就会被加载
 	.probe		= virtio_pci_probe,
 	.remove		= virtio_pci_remove,
 #ifdef CONFIG_PM_SLEEP

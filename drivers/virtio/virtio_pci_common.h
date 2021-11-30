@@ -31,6 +31,8 @@
 #include <linux/highmem.h>
 #include <linux/spinlock.h>
 
+//表示一个virito queue的信息
+//是vq的最顶层结构
 struct virtio_pci_vq_info {
 	/* the actual virtqueue */
 	struct virtqueue *vq;
@@ -54,11 +56,11 @@ struct virtio_pci_device {
 
 	/* Modern only fields */
 	/* The IO mapping for the PCI config space (non-legacy mode) */
-	struct virtio_pci_common_cfg __iomem *common; //会直接映射到设备的bar空间的，那么访问设备就简单了, 直接用一般的内存读写操作, 下述两个成员也都是直接指向bar空间的
+	struct virtio_pci_common_cfg __iomem *common; //会直接映射到设备的bar空间的，那么访问设备就简单了, 直接用一般的内存读写操作, 下述两个成员也都是直接指向bar空间的, 后续读写这些地址的话，会陷入到qemu的
 	/* Device-specific data (non-legacy mode)  */
 	void __iomem *device;
 	/* Base of vq notifications (non-legacy mode). */
-	void __iomem *notify_base;
+	void __iomem *notify_base; //通知设备的时候，在这个位置去写
 
 	/* So we can sanity-check accesses. */
 	size_t notify_len;

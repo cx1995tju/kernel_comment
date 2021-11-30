@@ -270,7 +270,7 @@ static u32 vp_generation(struct virtio_device *vdev)
 static u8 vp_get_status(struct virtio_device *vdev)
 {
 	struct virtio_pci_device *vp_dev = to_vp_device(vdev);
-	return vp_ioread8(&vp_dev->common->device_status);
+	return vp_ioread8(&vp_dev->common->device_status); //直接读取virtio spec规定的device status位置
 }
 
 static void vp_set_status(struct virtio_device *vdev, u8 status)
@@ -306,6 +306,15 @@ static u16 vp_config_vector(struct virtio_pci_device *vp_dev, u16 vector)
 	return vp_ioread16(&vp_dev->common->msix_config);
 }
 
+/* virtio_pci_modern.c: setup_vq 初始化一个virt queue的步骤 */
+/* 	1. 将传入的queue的index，与从设备中读取的queue的数据比较 */ 
+/* 	2. 选择要配置的queue，即queue的index写入到config空间的queue_select, 写该位置的时候，会exit到qemu，qemu会在后端做对应的操作 */
+/* 	3. 读取队列大小, 队列大小不能是0，必须是power of 2，而且队列不能是enable状态 */
+/* 	4. 读取queue_notify_off寄存器的值，这个值表示virito驱动在通知virtio设备后端的时候应该写的地址在notify_base的偏移, QEMU只是简单的以队列的索引返回，素以进行通知的时候，需要队列index * notify_offset_multiplier */
+/* 	5. 调用alloc_virtqueue_pages分配virtqueue需要的page，用于保存vring的desc table，available ring，used ring, 这3部分是保存在连续的物理地址空间的，info->queue保存了分配空间的虚拟地址 */
+/* 	6. call __vring_new_virtqueue 创建一个vring_virtqueue结构 */
+/* 	7. 激活队列，将desc table，avail ring，used ring等信息写入到对应的寄存器 */
+/* 	8. 设置virtqueu 的priv成员为notify地址 */
 static struct virtqueue *setup_vq(struct virtio_pci_device *vp_dev,
 				  struct virtio_pci_vq_info *info,
 				  unsigned index,
@@ -348,7 +357,7 @@ static struct virtqueue *setup_vq(struct virtio_pci_device *vp_dev,
 	if (!vq)
 		return ERR_PTR(-ENOMEM);
 
-	/* activate the queue */
+	/* activate the queue 激活队列，将相关信息写入到寄存器中 */
 	vp_iowrite16(virtqueue_get_vring_size(vq), &cfg->queue_size);
 	vp_iowrite64_twopart(virtqueue_get_desc_addr(vq),
 			     &cfg->queue_desc_lo, &cfg->queue_desc_hi);
@@ -376,7 +385,7 @@ static struct virtqueue *setup_vq(struct virtio_pci_device *vp_dev,
 					  vp_dev->notify_map_cap, 2, 2,
 					  off * vp_dev->notify_offset_multiplier, 2,
 					  NULL);
-	}
+	} //保存notify的偏移信息，这样子在通知notify的时候，直接谢vq->priv成员就可以了 refer to %vp_notify
 
 	if (!vq->priv) {
 		err = -ENOMEM;
@@ -410,7 +419,7 @@ static int vp_modern_find_vqs(struct virtio_device *vdev, unsigned nvqs,
 {
 	struct virtio_pci_device *vp_dev = to_vp_device(vdev);
 	struct virtqueue *vq;
-	int rc = vp_find_vqs(vdev, nvqs, vqs, callbacks, names, ctx, desc);
+	int rc = vp_find_vqs(vdev, nvqs, vqs, callbacks, names, ctx, desc); //使用同样的参数调用该函数
 
 	if (rc)
 		return rc;
@@ -486,7 +495,7 @@ static const struct virtio_config_ops virtio_pci_config_ops = {
  *
  * Returns offset of the capability, or 0.
  */
-//遍历pci配置空间，看看pci设备有哪些capabilities呀
+//遍历pci配置空间，看看pci设备有哪些capabilities呀, 主要是用来找几种配置空间
 static inline int virtio_pci_find_capability(struct pci_dev *dev, u8 cfg_type,
 					     u32 ioresource_types, int *bars)
 {
@@ -582,6 +591,8 @@ static inline void check_offsets(void)
 }
 
 /* the PCI probing function */
+//这里是virtio pci设备的一些通用的设置，当然是pci层的，
+//所以围绕对应的pci_dev来设置
 int virtio_pci_modern_probe(struct virtio_pci_device *vp_dev)
 {
 	struct pci_dev *pci_dev = vp_dev->pci_dev;
@@ -604,10 +615,10 @@ int virtio_pci_modern_probe(struct virtio_pci_device *vp_dev)
 		/* Modern devices: simply use PCI device id, but start from 0x1040. */
 		vp_dev->vdev.id.device = pci_dev->device - 0x1040;
 	}
-	vp_dev->vdev.id.vendor = pci_dev->subsystem_vendor; //保存pci设备的vendor id等信息，到virtio机制内部的device结构,这些信息从pci机制流向到virtio机制的
+	vp_dev->vdev.id.vendor = pci_dev->subsystem_vendor; //保存pci设备的vendor id等信息到virtio机制内部的device结构,这些信息从pci机制流向到virtio机制的
 
 	/* check for a common config: if not, use legacy mode (bar 0). */
-	common = virtio_pci_find_capability(pci_dev, VIRTIO_PCI_CAP_COMMON_CFG,
+	common = virtio_pci_find_capability(pci_dev, VIRTIO_PCI_CAP_COMMON_CFG, //通过pci capability，来寻找common cfg空间
 					    IORESOURCE_IO | IORESOURCE_MEM,
 					    &vp_dev->modern_bars);
 	if (!common) {
@@ -650,6 +661,7 @@ int virtio_pci_modern_probe(struct virtio_pci_device *vp_dev)
 		return err;
 
 	err = -EINVAL;
+	//重要
 	vp_dev->common = map_capability(pci_dev, common, //将bar空间映射到内核虚拟地址空间, 这里就将设备的virtio_pci_common_cfg这个bar空间映射过来了，那么后续直接通过内存读写操作访问
 					sizeof(struct virtio_pci_common_cfg), 4,
 					0, sizeof(struct virtio_pci_common_cfg),

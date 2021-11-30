@@ -133,6 +133,8 @@ struct virtio_pci_notify_cap {
 };
 
 /* Fields in VIRTIO_PCI_CAP_COMMON_CFG: */
+//读写下述成员都会陷入到qemu的
+//譬如：对于device_status成员，其在qemu中对应的memory region 操作结构就是MemoryRegionOps common_ops
 struct virtio_pci_common_cfg {
 	/* About the whole device. */
 	__le32 device_feature_select;	/* read-write */
