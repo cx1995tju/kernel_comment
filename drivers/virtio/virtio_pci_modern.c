@@ -315,6 +315,7 @@ static u16 vp_config_vector(struct virtio_pci_device *vp_dev, u16 vector)
 /* 	6. call __vring_new_virtqueue 创建一个vring_virtqueue结构 */
 /* 	7. 激活队列，将desc table，avail ring，used ring等信息写入到对应的寄存器 */
 /* 	8. 设置virtqueu 的priv成员为notify地址 */
+// 这个函数会将前端分配的物理内存告诉后端的
 static struct virtqueue *setup_vq(struct virtio_pci_device *vp_dev,
 				  struct virtio_pci_vq_info *info,
 				  unsigned index,
@@ -335,7 +336,7 @@ static struct virtqueue *setup_vq(struct virtio_pci_device *vp_dev,
 	vp_iowrite16(index, &cfg->queue_select);
 
 	/* Check if queue is either not available or already active. */
-	num = vp_ioread16(&cfg->queue_size);
+	num = vp_ioread16(&cfg->queue_size); //设备提供的queue size
 	if (!num || vp_ioread16(&cfg->queue_enable))
 		return ERR_PTR(-ENOENT);
 
@@ -662,7 +663,7 @@ int virtio_pci_modern_probe(struct virtio_pci_device *vp_dev)
 
 	err = -EINVAL;
 	//重要
-	vp_dev->common = map_capability(pci_dev, common, //将bar空间映射到内核虚拟地址空间, 这里就将设备的virtio_pci_common_cfg这个bar空间映射过来了，那么后续直接通过内存读写操作访问
+	vp_dev->common = map_capability(pci_dev, common, //将bar空间映射到内核虚拟地址空间, 这里就将设备的virtio_pci_common_cfg这个bar空间映射过来了，那么后续直接通过内存读写操作访问.而物理内存的分配则是与bios相关，或者pci host bridge。
 					sizeof(struct virtio_pci_common_cfg), 4,
 					0, sizeof(struct virtio_pci_common_cfg),
 					NULL);

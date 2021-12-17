@@ -185,6 +185,7 @@ EXPORT_SYMBOL_GPL(nf_conntrack_max);
 seqcount_t nf_conntrack_generation __read_mostly;
 static unsigned int nf_conntrack_hash_rnd __read_mostly;
 
+//根据tuple 计算一个32b的hash key
 static u32 hash_conntrack_raw(const struct nf_conntrack_tuple *tuple,
 			      const struct net *net)
 {
@@ -1528,15 +1529,15 @@ nf_conntrack_in(struct net *net, u_int8_t pf, unsigned int hooknum,
 	u_int8_t protonum;
 	int dataoff, ret;
 
-	tmpl = nf_ct_get(skb, &ctinfo);
-	if (tmpl || ctinfo == IP_CT_UNTRACKED) {
+	tmpl = nf_ct_get(skb, &ctinfo); //获取skb对应的conntrack_info 和 连接记录
+	if (tmpl || ctinfo == IP_CT_UNTRACKED) { //记录存在，或者是不需要跟踪的类型
 		/* Previously seen (loopback or untracked)?  Ignore. */
 		if ((tmpl && !nf_ct_is_template(tmpl)) ||
 		     ctinfo == IP_CT_UNTRACKED) {
-			NF_CT_STAT_INC_ATOMIC(net, ignore);
+			NF_CT_STAT_INC_ATOMIC(net, ignore); //不需要跟踪的类型，增加ignore计数就可以了
 			return NF_ACCEPT;
 		}
-		skb->_nfct = 0;
+		skb->_nfct = 0; //不属于ignore类型，计数器置零，准备后续处理
 	}
 
 	/* rcu_read_lock()ed by nf_hook_thresh */
@@ -1549,7 +1550,7 @@ nf_conntrack_in(struct net *net, u_int8_t pf, unsigned int hooknum,
 		goto out;
 	}
 
-	l4proto = __nf_ct_l4proto_find(pf, protonum);
+	l4proto = __nf_ct_l4proto_find(pf, protonum); //获取协议相关的L4头信息
 
 	/* It may be an special packet, error, unclean...
 	 * inverse of the return code tells to the netfilter
@@ -1566,7 +1567,7 @@ nf_conntrack_in(struct net *net, u_int8_t pf, unsigned int hooknum,
 		if (skb->_nfct)
 			goto out;
 	}
-repeat:
+repeat: //开始连接跟踪： 提取tuple；创建新连接记录，或者更新已有连接的状态
 	ret = resolve_normal_ct(net, tmpl, skb, dataoff, pf, protonum, l4proto);
 	if (ret < 0) {
 		/* Too stressed to deal. */

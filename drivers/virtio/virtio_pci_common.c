@@ -514,6 +514,7 @@ static void virtio_pci_release_dev(struct device *_d)
 	kfree(vp_dev);
 }
 
+//注意区分virtio pci代理设备与virtio设备的区别
 static int virtio_pci_probe(struct pci_dev *pci_dev,
 			    const struct pci_device_id *id)
 {
@@ -527,7 +528,7 @@ static int virtio_pci_probe(struct pci_dev *pci_dev,
 
 	//构建pci设备结构，到virtio pci设备结构的关系
 	//构建vp_dev pci_dev dev 等结构的关系
-	pci_set_drvdata(pci_dev, vp_dev); //因为virtio driver是支持所有virtio设备的，这里需要设置一些私有的信息用来区分不同的设备
+	pci_set_drvdata(pci_dev, vp_dev); //因为virtio driver是支持所有virtio设备的，这里需要设置一些私有的信息用来区分不同的设备。
 	vp_dev->vdev.dev.parent = &pci_dev->dev; //是想表达pci代理设备和virtio设备之间的关系么？？？
 	vp_dev->vdev.dev.release = virtio_pci_release_dev;
 	vp_dev->pci_dev = pci_dev; //virtio 机制的device结构指向linux 通用的pci 结构, 再次强调，这个设备其实是pci代理设备，不是直接的pci设备的
@@ -547,7 +548,7 @@ static int virtio_pci_probe(struct pci_dev *pci_dev,
 		if (rc)
 			goto err_probe;
 	} else {
-		rc = virtio_pci_modern_probe(vp_dev); //refer to virtio_pci_legacy_probe
+		rc = virtio_pci_modern_probe(vp_dev); //refer to above virtio_pci_legacy_probe
 		if (rc == -ENODEV)
 			rc = virtio_pci_legacy_probe(vp_dev);
 		if (rc)

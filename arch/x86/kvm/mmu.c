@@ -5424,7 +5424,7 @@ int kvm_mmu_create(struct kvm_vcpu *vcpu)
 	return alloc_mmu_pages(vcpu);
 }
 
-void kvm_mmu_setup(struct kvm_vcpu *vcpu)
+void kvm_mmu_setup(struct kvm_vcpu *vcpu) //vcpu层次的
 {
 	MMU_WARN_ON(VALID_PAGE(vcpu->arch.mmu.root_hpa));
 

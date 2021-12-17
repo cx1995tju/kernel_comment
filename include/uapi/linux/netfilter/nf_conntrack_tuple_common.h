@@ -17,7 +17,7 @@ enum ip_conntrack_dir {
 /* The protocol-specific manipulable parts of the tuple: always in
  * network order
  */
-union nf_conntrack_man_proto {
+union nf_conntrack_man_proto { //不同协议不通，本质就是不同协议用来标记 connection的id不同
 	/* Add other protocols here. */
 	__be16 all;
 

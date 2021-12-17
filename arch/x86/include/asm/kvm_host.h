@@ -740,7 +740,7 @@ struct kvm_lpage_info {
 };
 
 struct kvm_arch_memory_slot {
-	struct kvm_rmap_head *rmap[KVM_NR_PAGE_SIZES]; //记录pfn和对应页表项的map, KVM_NR_PAGE_SIZES表示页表的类型 4K 2M 1G
+	struct kvm_rmap_head *rmap[KVM_NR_PAGE_SIZES]; //记录gfn和对应页表项的map, KVM_NR_PAGE_SIZES表示页表的类型 4K 2M 1G
 	struct kvm_lpage_info *lpage_info[KVM_NR_PAGE_SIZES - 1]; //保存大页信息
 	unsigned short *gfn_track[KVM_PAGE_TRACK_MAX];
 };

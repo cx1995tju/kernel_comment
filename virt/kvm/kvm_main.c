@@ -972,7 +972,7 @@ int __kvm_set_memory_region(struct kvm *kvm,
 
 	if (npages) {
 		if (!old.npages)
-			change = KVM_MR_CREATE;
+			change = KVM_MR_CREATE; //需要添加内存
 		else { /* Modify an existing slot. */
 			if ((mem->userspace_addr != old.userspace_addr) ||
 			    (npages != old.npages) ||
@@ -1018,7 +1018,7 @@ int __kvm_set_memory_region(struct kvm *kvm,
 	if (change == KVM_MR_CREATE) {
 		new.userspace_addr = mem->userspace_addr;
 
-		if (kvm_arch_create_memslot(kvm, &new, npages)) //初始化架构相关的成员
+		if (kvm_arch_create_memslot(kvm, &new, npages)) 
 			goto out_free;
 	}
 
@@ -1084,6 +1084,7 @@ out:
 }
 EXPORT_SYMBOL_GPL(__kvm_set_memory_region);
 
+//为虚拟机kvm设置mem这个MR
 int kvm_set_memory_region(struct kvm *kvm,
 			  const struct kvm_userspace_memory_region *mem)
 {
@@ -2516,6 +2517,7 @@ static int kvm_vm_ioctl_create_vcpu(struct kvm *kvm, u32 id)
 		goto unlock_vcpu_destroy;
 	}
 
+	//又创建了一个vcpu了
 	kvm->vcpus[atomic_read(&kvm->online_vcpus)] = vcpu; //所有的vcpu都保存在kvm->vcpus成员中
 
 	/*
@@ -2995,7 +2997,7 @@ static long kvm_vm_ioctl(struct file *filp,
 		struct kvm_userspace_memory_region kvm_userspace_mem;
 
 		r = -EFAULT;
-		if (copy_from_user(&kvm_userspace_mem, argp,
+		if (copy_from_user(&kvm_userspace_mem, argp, //qemu提供的参数copy进来
 						sizeof(kvm_userspace_mem)))
 			goto out;
 
@@ -4002,6 +4004,7 @@ static void kvm_sched_out(struct preempt_notifier *pn,
 }
 
 //第二个参数是表示VMX实现的vcpu结构体的大小
+//如果是其他架构的话，大小是不同的, %vcpu_vmx
 int kvm_init(void *opaque, unsigned vcpu_size, unsigned vcpu_align,
 		  struct module *module)
 {
@@ -4009,7 +4012,7 @@ int kvm_init(void *opaque, unsigned vcpu_size, unsigned vcpu_align,
 	int cpu;
 
 	//初始化架构相关
-	r = kvm_arch_init(opaque);
+	r = kvm_arch_init(opaque); //%vmx_x86_ops
 	if (r)
 		goto out_fail;
 

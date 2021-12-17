@@ -52,6 +52,7 @@ struct nf_conntrack_net {
 #include <net/netfilter/ipv4/nf_conntrack_ipv4.h>
 #include <net/netfilter/ipv6/nf_conntrack_ipv6.h>
 
+//表示一个ct机制中的connection
 struct nf_conn {
 	/* Usage count in here is 1 for hash table, 1 per skb,
 	 * plus 1 for any connection(s) we are `master' for
@@ -74,10 +75,10 @@ struct nf_conn {
 	struct nf_conntrack_tuple_hash tuplehash[IP_CT_DIR_MAX];
 
 	/* Have we seen traffic both ways yet? (bitset) */
-	unsigned long status;
+	unsigned long status; //连接状态 referto: enum ip_conntrack_status
 
 	/* jiffies32 when this ct is considered dead */
-	u32 timeout;
+	u32 timeout; //连接状态的定时器
 
 	possible_net_t ct_net;
 
@@ -91,7 +92,7 @@ struct nf_conn {
 	struct nf_conn *master;
 
 #if defined(CONFIG_NF_CONNTRACK_MARK)
-	u_int32_t mark;
+	u_int32_t mark; //对skb做特殊标记
 #endif
 
 #ifdef CONFIG_NF_CONNTRACK_SECMARK
@@ -102,7 +103,7 @@ struct nf_conn {
 	struct nf_ct_ext *ext;
 
 	/* Storage reserved for other modules, must be the last member */
-	union nf_conntrack_proto proto;
+	union nf_conntrack_proto proto; //per conntrack， 是proto的私有信息
 };
 
 static inline struct nf_conn *

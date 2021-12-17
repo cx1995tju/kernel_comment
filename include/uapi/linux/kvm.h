@@ -99,9 +99,9 @@ struct kvm_memory_region {
 struct kvm_userspace_memory_region {
 	__u32 slot; //表示ID号
 	__u32 flags; //这段内存属性
-	__u64 guest_phys_addr; //虚拟机的物理内存
+	__u64 guest_phys_addr; //虚拟机的物理内存, GPA
 	__u64 memory_size; /* bytes */
-	__u64 userspace_addr; /* start of the userspace allocated memory */ //对应的用户态进程的虚拟地址
+	__u64 userspace_addr; /* start of the userspace allocated memory */ //对应的用户态进程的虚拟地址, HVA
 };
 
 /*
@@ -992,7 +992,8 @@ struct kvm_irq_routing_hv_sint {
 #define KVM_IRQ_ROUTING_S390_ADAPTER 3
 #define KVM_IRQ_ROUTING_HV_SINT 4
 
-struct kvm_irq_routing_entry {
+//记录了gsi号对应于哪个芯片的哪个引脚
+struct kvm_irq_routing_entry { 
 	__u32 gsi; //系统全局范围内中断号 , Global system interrupt, IRQ号已经被淘汰了, IRQ号暗示了优先级
 	__u32 type; //中断的种类, 也决定了后面union中哪一个有效
 	__u32 flags;

@@ -597,6 +597,7 @@ int kvm_pic_init(struct kvm *kvm)
 	/*
 	 * Initialize PIO device
 	 */
+	//PIC芯片是三个设备构成：mater pic， slave pic，eclr
 	kvm_iodevice_init(&s->dev_master, &picdev_master_ops);
 	kvm_iodevice_init(&s->dev_slave, &picdev_slave_ops);
 	kvm_iodevice_init(&s->dev_eclr, &picdev_eclr_ops);

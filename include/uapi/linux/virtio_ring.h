@@ -141,6 +141,7 @@ struct vring { //这个结构是driver分配的，driver要确保对齐，连续
 #define vring_used_event(vr) ((vr)->avail->ring[(vr)->num])
 #define vring_avail_event(vr) (*(__virtio16 *)&(vr)->used->ring[(vr)->num])
 
+//只有driver知道这个地址呀，device怎么知道呢？
 static inline void vring_init(struct vring *vr, unsigned int num, void *p,
 			      unsigned long align)
 {

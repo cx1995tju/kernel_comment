@@ -17,6 +17,7 @@
 
 struct seq_file;
 
+//CT目前支持6种协议，每种协议都需要实现下述结构
 struct nf_conntrack_l4proto {
 	/* L3 Protocol number. */
 	u_int16_t l3proto;
@@ -32,7 +33,7 @@ struct nf_conntrack_l4proto {
 
 	/* Try to fill in the third arg: dataoff is offset past network protocol
            hdr.  Return true if possible. */
-	bool (*pkt_to_tuple)(const struct sk_buff *skb, unsigned int dataoff,
+	bool (*pkt_to_tuple)(const struct sk_buff *skb, unsigned int dataoff, //从包里提取tuple
 			     struct net *net, struct nf_conntrack_tuple *tuple);
 
 	/* Invert the per-proto part of the tuple: ie. turn xmit into reply.
@@ -42,20 +43,20 @@ struct nf_conntrack_l4proto {
 			     const struct nf_conntrack_tuple *orig);
 
 	/* Returns verdict for packet, or -1 for invalid. */
-	int (*packet)(struct nf_conn *ct,
+	int (*packet)(struct nf_conn *ct, //对包进行判决，返回判决结果
 		      const struct sk_buff *skb,
 		      unsigned int dataoff,
 		      enum ip_conntrack_info ctinfo);
 
 	/* Called when a new connection for this protocol found;
 	 * returns TRUE if it's OK.  If so, packet() called next. */
-	bool (*new)(struct nf_conn *ct, const struct sk_buff *skb,
+	bool (*new)(struct nf_conn *ct, const struct sk_buff *skb, //创建一个新连接
 		    unsigned int dataoff);
 
 	/* Called when a conntrack entry is destroyed */
 	void (*destroy)(struct nf_conn *ct);
 
-	int (*error)(struct net *net, struct nf_conn *tmpl, struct sk_buff *skb,
+	int (*error)(struct net *net, struct nf_conn *tmpl, struct sk_buff *skb, //判断当前数据包能否被连接跟踪，如果返回成功，接下来会调用packet方法的
 		     unsigned int dataoff,
 		     u_int8_t pf, unsigned int hooknum);
 

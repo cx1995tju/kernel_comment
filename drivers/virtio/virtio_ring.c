@@ -60,6 +60,7 @@ struct vring_desc_state {
 	struct vring_desc *indir_desc;	/* Indirect descriptor, if any. */
 };
 
+//对比qemu struct VirtQueue
 struct vring_virtqueue {
 	struct virtqueue vq;
 
@@ -950,7 +951,7 @@ irqreturn_t vring_interrupt(int irq, void *_vq)
 
 	pr_debug("virtqueue callback for %p (%p)\n", vq, vq->vq.callback);
 	if (vq->vq.callback)
-		vq->vq.callback(&vq->vq);
+		vq->vq.callback(&vq->vq); //这里厉害，直接在中断上下文执行这些cb了，而不是去触发软中断，或者其他tasklet来处理
 
 	return IRQ_HANDLED;
 }
@@ -973,7 +974,7 @@ struct virtqueue *__vring_new_virtqueue(unsigned int index,
 	if (!vq)
 		return NULL;
 
-	vq->vring = vring;
+	vq->vring = vring; //注意哟，这里可不是指针赋值
 	vq->vq.callback = callback;
 	vq->vq.vdev = vdev;
 	vq->vq.name = name;
@@ -1135,7 +1136,7 @@ struct virtqueue *vring_new_virtqueue(unsigned int index,
 				      const char *name)
 {
 	struct vring vring;
-	vring_init(&vring, num, pages, vring_align);
+	vring_init(&vring, num, pages, vring_align); //注意，这里的vring是局部变量
 	return __vring_new_virtqueue(index, vring, vdev, weak_barriers, context,
 				     notify, callback, name);
 }

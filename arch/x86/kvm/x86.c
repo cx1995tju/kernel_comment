@@ -9080,6 +9080,7 @@ void kvm_arch_free_memslot(struct kvm *kvm, struct kvm_memory_slot *free,
 	kvm_page_track_free_memslot(free, dont);
 }
 
+//分配kvm_arch_memory_slot 需要的空间
 int kvm_arch_create_memslot(struct kvm *kvm, struct kvm_memory_slot *slot,
 			    unsigned long npages)
 {
@@ -9096,14 +9097,14 @@ int kvm_arch_create_memslot(struct kvm *kvm, struct kvm_memory_slot *slot,
 				      slot->base_gfn, level) + 1;
 
 		slot->arch.rmap[i] =
-			kvcalloc(lpages, sizeof(*slot->arch.rmap[i]), //分配相应的内存
-				 GFP_KERNEL);
+			kvcalloc(lpages, sizeof(*slot->arch.rmap[i]), 
+				 GFP_KERNEL); //分配保存地址的空间
 		if (!slot->arch.rmap[i])
 			goto out_free;
 		if (i == 0)
 			continue;
 
-		linfo = kvcalloc(lpages, sizeof(*linfo), GFP_KERNEL);
+		linfo = kvcalloc(lpages, sizeof(*linfo), GFP_KERNEL); //分配保存大页信息的空间
 		if (!linfo)
 			goto out_free;
 

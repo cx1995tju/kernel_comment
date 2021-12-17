@@ -192,7 +192,7 @@ int virtio_find_vqs(struct virtio_device *vdev, unsigned nvqs,
 			struct irq_affinity *desc)
 {
 	//%virtio_pci_modern_probe %virtio_pci_config_ops
-	//%vp_modern_find_vqs
+	//%vp_modern_find_vqs, 同时还注册了回调函数
 	return vdev->config->find_vqs(vdev, nvqs, vqs, callbacks, names, NULL, desc);
 }
 

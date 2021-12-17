@@ -20,7 +20,7 @@
   are in the same connection; if not, they are not.
 
   We divide the structure along "manipulatable" and
-  "non-manipulatable" lines, for the benefit of the NAT code.
+  "non-manipulatable" lines, for the benefit of the NAT code. 为了方便nat的实现
 */
 
 #define NF_CT_TUPLE_L3SIZE	ARRAY_SIZE(((union nf_inet_addr *)NULL)->all)
@@ -28,14 +28,14 @@
 /* The manipulable part of the tuple. */
 struct nf_conntrack_man {
 	union nf_inet_addr u3;
-	union nf_conntrack_man_proto u;
+	union nf_conntrack_man_proto u; //协议相关的部分
 	/* Layer 3 protocol */
 	u_int16_t l3num;
 };
 
 /* This contains the information to distinguish a connection. */
 struct nf_conntrack_tuple {
-	struct nf_conntrack_man src;
+	struct nf_conntrack_man src; //源地址信息，manipulable part
 
 	/* These are the parts of the tuple which are fixed. */
 	struct {
@@ -65,11 +65,11 @@ struct nf_conntrack_tuple {
 		} u;
 
 		/* The protocol. */
-		u_int8_t protonum;
+		u_int8_t protonum; //协议类型
 
 		/* The direction (for tuplehash) */
 		u_int8_t dir;
-	} dst;
+	} dst; //目的地址信息
 };
 
 struct nf_conntrack_tuple_mask {
@@ -116,9 +116,12 @@ static inline void nf_ct_dump_tuple(const struct nf_conntrack_tuple *t)
 	((enum ip_conntrack_dir)(h)->tuple.dst.dir)
 
 /* Connections have two entries in the hash table: one for each way */
+//ct框架将连接的状态存储在一张hash表中，本质就是说这个连接数据库的组织就是hash表
+//每个连接在hash表中都有两个entry，分别对应 egress ingress
+//refer to  hash_conntrack_raw
 struct nf_conntrack_tuple_hash {
-	struct hlist_nulls_node hnnode;
-	struct nf_conntrack_tuple tuple;
+	struct hlist_nulls_node hnnode; //指向该hash对应的连接 nf_conn
+	struct nf_conntrack_tuple tuple; //tuple，唯一标识一个flow，一个连接
 };
 
 static inline bool __nf_ct_tuple_src_equal(const struct nf_conntrack_tuple *t1,

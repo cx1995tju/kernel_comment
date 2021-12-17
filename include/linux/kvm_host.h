@@ -333,7 +333,7 @@ struct kvm_hv_sint {
 struct kvm_kernel_irq_routing_entry {
 	u32 gsi; //全局中断号
 	u32 type; //中断芯片类型，决定后文的union的解析
-	int (*set)(struct kvm_kernel_irq_routing_entry *e, //refer to kvm_set_routing_entry %kvm_set_pic_irq
+	int (*set)(struct kvm_kernel_irq_routing_entry *e, //refer to kvm_set_routing_entry函数设置的 %kvm_set_pic_irq, 设置对应的中断芯片，触发中断的函数, 当然最后的中断注入还是要通过VMCS完成的
 		   struct kvm *kvm, int irq_source_id, int level,
 		   bool line_status);
 	union {
@@ -356,7 +356,7 @@ struct kvm_kernel_irq_routing_entry {
 
 #ifdef CONFIG_HAVE_KVM_IRQ_ROUTING
 struct kvm_irq_routing_table {
-	//记录了哪个芯片的哪个引脚对应的是哪一个gsi, 然后用gsi做索引去map中搜索kvm_kernel_irq_routing_entry结构, 每个map的entry都是一个hlist，记录了该gsi对应的所有irq routing entry
+	//记录了哪个芯片的哪个引脚对应的是哪一个gsi, 然后用gsi做索引去map中搜索kvm_kernel_irq_routing_entry结构, 每个map的entry都是一个hlist，记录了该gsi对应的所有irq routing entry, kvm_kernel_irq_routing_entry中还记录有触发中断的回调函数
 	int chip[KVM_NR_IRQCHIPS][KVM_IRQCHIP_NUM_PINS]; //是一个二维数组，第一维表示芯片 master PIC, slave PIC, IO APIC 3个芯片, 第二维度表示中断芯片对应的引脚, PIC只使用前8个，IO APIC使用全部的24个. chip的每一个元素表示芯片引脚对应的全局中断号gsi
 	u32 nr_rt_entries;
 	/*

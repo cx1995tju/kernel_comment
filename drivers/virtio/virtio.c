@@ -259,7 +259,7 @@ static int virtio_dev_probe(struct device *_d) //virtio spec中规定的通用�
 	if (!(dev->config->get_status(dev) & VIRTIO_CONFIG_S_DRIVER_OK))
 		virtio_device_ready(dev);
 
-	if (drv->scan)
+	if (drv->scan) //有些设备米有scan函数
 		drv->scan(dev);
 
 	virtio_config_enable(dev);

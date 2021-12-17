@@ -84,6 +84,7 @@
 #define to_virtio_mmio_device(_plat_dev) \
 	container_of(_plat_dev, struct virtio_mmio_device, vdev)
 
+//virtio mmio代理设备， refer to: virtio_pci_device
 struct virtio_mmio_device {
 	struct virtio_device vdev;
 	struct platform_device *pdev;

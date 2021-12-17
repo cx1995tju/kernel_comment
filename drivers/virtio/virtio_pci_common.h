@@ -45,9 +45,9 @@ struct virtio_pci_vq_info {
 };
 
 /* Our device structure */
-//这是纯粹的virito机制使用的的设备，是在virito_device基础上扩充
+//这是纯粹的virito机制使用的的设备，是在virito_device基础上扩充, 表示一个virtio pci代理设备
 struct virtio_pci_device {
-	struct virtio_device vdev;
+	struct virtio_device vdev; //表示该代理设备对应的virtio设备
 	struct pci_dev *pci_dev;
 
 	/* In legacy mode, these two point to within ->legacy. */

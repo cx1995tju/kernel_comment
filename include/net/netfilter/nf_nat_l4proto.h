@@ -8,13 +8,14 @@
 struct nf_nat_range;
 struct nf_nat_l3proto;
 
+//支持nat的协议需要实现这个
 struct nf_nat_l4proto {
 	/* Protocol number. */
-	u8 l4proto;
+	u8 l4proto; //%IPPROTO_TCP
 
 	/* Translate a packet to the target according to manip type.
 	 * Return true if succeeded.
-	 */
+	 */ //根据传入的tuple和NAT类型(SNAT DNAT), 修改包的L3/4头
 	bool (*manip_pkt)(struct sk_buff *skb,
 			  const struct nf_nat_l3proto *l3proto,
 			  unsigned int iphdroff, unsigned int hdroff,
@@ -31,7 +32,7 @@ struct nf_nat_l4proto {
 	 * maniptype), to give a unique tuple in the given range if
 	 * possible.  Per-protocol part of tuple is initialized to the
 	 * incoming packet.
-	 */
+	 */ //创建一个唯一的tuple
 	void (*unique_tuple)(const struct nf_nat_l3proto *l3proto,
 			     struct nf_conntrack_tuple *tuple,
 			     const struct nf_nat_range2 *range,
