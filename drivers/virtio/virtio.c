@@ -187,7 +187,7 @@ int virtio_finalize_features(struct virtio_device *dev)
 }
 EXPORT_SYMBOL_GPL(virtio_finalize_features);
 
-/* virtio 驱动初始化设备的一般过程 */
+/* virtio 驱动初始化设备的一般过程, 具体设备specific的还是要参考具体设备的probe函数， %virtio_balloon_probe */
 /* 1. 重置设备， register_virtio_device 中会调用dev->config->reset */
 /* 2. 设置acknowledge状态位，表示driver知道了设备存在, register_virtio_device -> add_status(dev, VIRTIO_CONFIG_S_ACKNOWLEDGE) */
 /* 3. 设置DRIVER状态位, 表示driver知道如何驱动设备, 在virtio总线的probe函数，virtio_dev_probe -> add_status(dev, VIRTIO_CONFIG_S_DRIVER) */
@@ -322,6 +322,14 @@ EXPORT_SYMBOL_GPL(unregister_virtio_driver);
  * Returns: 0 on suceess, -error on failure
  */
 //将设备信息注册到virtio机制中
+//这部分与pci已经完全无关了，需要的信息已经通过virtio_pci_modern_probe, 从pci机制流动到了virtio机制了
+//这里是纯粹的virtio bus，virtio设备的操作了
+//1. 设置bus
+//2. 做bus probe，driver probe
+//	1. bus probe中做设备match，设置好设备驱动
+//	2. 然后进入driver probe做具体设备的probe
+//3. 一些virtio spec要求的操作
+//注：注意virtio pci代理设备，virtio bus，virtio设备的1:1:1关系
 int register_virtio_device(struct virtio_device *dev)
 {
 	int err;
@@ -355,7 +363,7 @@ int register_virtio_device(struct virtio_device *dev)
 	 * device_add() causes the bus infrastructure to look for a matching
 	 * driver.
 	 */
-	//极其重要
+	//极其重要, virtio bus probe, virtio device probe
 	err = device_add(&dev->dev); //这里通过bus_probe_device 进入到具体的virtio bus 和设备的probe函数: bus_probe: %virtio_dev_probe, drv probe: %virtballoon_probe, 注意：virtiobus和设备是1:1的
 	//  device_add -> bus_probe_device -> device_initial_probe -> __device_attach -> __device_attach_driver -> driver_probe_device -> really_probe -> bus_probe / driver_probe
 	if (err)

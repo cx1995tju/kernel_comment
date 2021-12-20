@@ -592,11 +592,13 @@ static inline void check_offsets(void)
 }
 
 /* the PCI probing function */
-//这里是virtio pci设备的一些通用的设置，当然是pci层的，
-//所以围绕对应的pci_dev来设置
-int virtio_pci_modern_probe(struct virtio_pci_device *vp_dev)
+//从pci机制中获取各种信息保存到virtio机制中，是信息从pci机制流动到virtio机制的关键函数
+//核心结构：pci代理设备pci_dev, virtio设备vp_dev
+/* 1. 基于pci机制，从对应的pci代理设备读取一些信息，并映射好 %map_capability, 映射好的信息当然要保存到vp_dev中 */
+/* 2. 设置vp_dev中的一些回调函数 */
+int virtio_pci_modern_probe(struct virtio_pci_device *vp_dev) //virtio 设备
 {
-	struct pci_dev *pci_dev = vp_dev->pci_dev;
+	struct pci_dev *pci_dev = vp_dev->pci_dev; //对应的virtio代理设备
 	int err, common, isr, notify, device;
 	u32 notify_length;
 	u32 notify_offset;
@@ -662,7 +664,7 @@ int virtio_pci_modern_probe(struct virtio_pci_device *vp_dev)
 		return err;
 
 	err = -EINVAL;
-	//重要
+	//重要, 映射各个bar空间，并保存到vp_dev中
 	vp_dev->common = map_capability(pci_dev, common, //将bar空间映射到内核虚拟地址空间, 这里就将设备的virtio_pci_common_cfg这个bar空间映射过来了，那么后续直接通过内存读写操作访问.而物理内存的分配则是与bios相关，或者pci host bridge。
 					sizeof(struct virtio_pci_common_cfg), 4,
 					0, sizeof(struct virtio_pci_common_cfg),
@@ -675,6 +677,7 @@ int virtio_pci_modern_probe(struct virtio_pci_device *vp_dev)
 	if (!vp_dev->isr)
 		goto err_map_isr;
 
+	//同上，读取一些配置信息并保存
 	/* Read notify_off_multiplier from config space. */
 	pci_read_config_dword(pci_dev,
 			      notify + offsetof(struct virtio_pci_notify_cap,
@@ -720,6 +723,7 @@ int virtio_pci_modern_probe(struct virtio_pci_device *vp_dev)
 		vp_dev->vdev.config = &virtio_pci_config_nodev_ops;
 	}
 
+	//同样是设置呀，设置好一些重要的回调函数
 	vp_dev->config_vector = vp_config_vector; //继续设置几个回调函数
 	vp_dev->setup_vq = setup_vq;
 	vp_dev->del_vq = del_vq;

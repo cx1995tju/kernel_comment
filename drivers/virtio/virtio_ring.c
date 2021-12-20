@@ -257,7 +257,9 @@ static struct vring_desc *alloc_indirect(struct virtqueue *_vq,
 	return desc;
 }
 
-//向vq添加数据
+//向vq添加数据, 具体的描述buffer的desc是在这里面分配的
+//sgs 中前部分是driver提供的数据
+//后部分是driver提供的空间
 static inline int virtqueue_add(struct virtqueue *_vq, //需要添加的vq
 				struct scatterlist *sgs[], //数据请求放置在这里
 				unsigned int total_sg, //上述数组大小
@@ -601,7 +603,7 @@ bool virtqueue_notify(struct virtqueue *_vq)
 		return false;
 
 	/* Prod other side to tell it about changes. */
-	if (!vq->notify(_vq)) {
+	if (!vq->notify(_vq)) { //%vp_notify 
 		vq->broken = true;
 		return false;
 	}

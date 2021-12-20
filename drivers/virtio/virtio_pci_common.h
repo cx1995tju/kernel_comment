@@ -45,10 +45,10 @@ struct virtio_pci_vq_info {
 };
 
 /* Our device structure */
-//这是纯粹的virito机制使用的的设备，是在virito_device基础上扩充, 表示一个virtio pci代理设备
+//这是纯粹的virito机制使用的的设备， 是virtio设备，不是virtio pci代理设备
 struct virtio_pci_device {
 	struct virtio_device vdev; //表示该代理设备对应的virtio设备
-	struct pci_dev *pci_dev;
+	struct pci_dev *pci_dev; //指向virtio pci代理设备
 
 	/* In legacy mode, these two point to within ->legacy. */
 	/* Where to read and clear interrupt */
@@ -56,7 +56,7 @@ struct virtio_pci_device {
 
 	/* Modern only fields */
 	/* The IO mapping for the PCI config space (non-legacy mode) */
-	struct virtio_pci_common_cfg __iomem *common; //会直接映射到设备的bar空间的，那么访问设备就简单了, 直接用一般的内存读写操作, 下述两个成员也都是直接指向bar空间的, 后续读写这些地址的话，会陷入到qemu的
+	struct virtio_pci_common_cfg __iomem *common; //会直接映射到设备的bar空间的，那么访问设备就简单了, 直接用一般的内存读写操作, 下述两个成员也都是直接指向bar空间的, 后续读写这些地址的话，会陷入到qemu的。 refer to virtio_pci_modern_probe
 	/* Device-specific data (non-legacy mode)  */
 	void __iomem *device;
 	/* Base of vq notifications (non-legacy mode). */

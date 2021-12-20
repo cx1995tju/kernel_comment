@@ -45,7 +45,8 @@ bool vp_notify(struct virtqueue *vq)
 {
 	/* we write the queue's selector into the notification register to
 	 * signal the other end */
-	iowrite16(vq->index, (void __iomem *)vq->priv);
+	iowrite16(vq->index, (void __iomem *)vq->priv); //通知哪个queue有数据
+	// 这里的写操作是一个mmio，就会导致VM-EXIT，然后经过kvm分发到qemu，qemu根据地址找到对应的MR，然后通过MR的回调函数，过QEMU测的virtio的通用机制(virtio_queue_notify)，最终到达具体的virtio_balloon的handle 函数。
 	return true;
 }
 
@@ -366,6 +367,7 @@ static int vp_find_vqs_intx(struct virtio_device *vdev, unsigned nvqs,
 	if (!vp_dev->vqs)
 		return -ENOMEM;
 
+	//注册中断处理函数
 	err = request_irq(vp_dev->pci_dev->irq, vp_interrupt, IRQF_SHARED,
 			dev_name(&vdev->dev), vp_dev);
 	if (err)
@@ -401,6 +403,8 @@ int vp_find_vqs(struct virtio_device *vdev, unsigned nvqs,
 {
 	int err;
 
+	//根据设备使用不同的中断做不同的操作的，这些信息从设备的配置空间应该能够读出来的
+	//这里面还会设置vq的中断处理函数
 	/* Try MSI-X with one vector per queue. */
 	err = vp_find_vqs_msix(vdev, nvqs, vqs, callbacks, names, true, ctx, desc);
 	if (!err)
@@ -515,10 +519,14 @@ static void virtio_pci_release_dev(struct device *_d)
 }
 
 //注意区分virtio pci代理设备与virtio设备的区别
+//所有virtio pci设备驱动的入口函数都是这里
+/* 1. 创建virtio pci设备vp_dev, 并建立其与对应的pci代理设备的关系 */
+/* 2. virtio_pci_modern_probe */
+/* 3. register_virtio_device */
 static int virtio_pci_probe(struct pci_dev *pci_dev,
 			    const struct pci_device_id *id)
 {
-	struct virtio_pci_device *vp_dev, *reg_dev = NULL; //这是纯粹的virito机制使用的
+	struct virtio_pci_device *vp_dev, *reg_dev = NULL; //这是纯粹的virito机制使用的, vp_dev: virtio pci device。 这个结构是在内部分配的，从QEMU的角度看的话，可以认为pci_dev 是virtio pci的代理设备，这个才是真正的virtio设备
 	int rc;
 
 	/* allocate our structure and fill it out */
@@ -557,7 +565,9 @@ static int virtio_pci_probe(struct pci_dev *pci_dev,
 
 	pci_set_master(pci_dev);
 
-	rc = register_virtio_device(&vp_dev->vdev); //将设备信息注册到virtio机制中, 那么显然是使用vdev结构咯
+	//前面virtio_pci_modern_probe已经设置好vp_dev结构了，现在注册到virtio机制统一管理
+	//这部分可以说是完全与pci无关了。因为信息已经在前面从pic机制流动到了virtio机制了
+	rc = register_virtio_device(&vp_dev->vdev); //将设备信息注册到virtio机制中, 那么显然是使用vdev结构咯, virtio 机制的bus probe，device probe都是从这儿进入的
 	reg_dev = vp_dev;
 	if (rc)
 		goto err_register;

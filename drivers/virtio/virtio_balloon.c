@@ -400,7 +400,7 @@ static int init_vqs(struct virtio_balloon *vb)
 	 * optionally stat.
 	 */
 	nvqs = virtio_has_feature(vb->vdev, VIRTIO_BALLOON_F_STATS_VQ) ? 3 : 2; //有没有这个feature呀，有的话就需要搞3个VQ了
-	err = virtio_find_vqs(vb->vdev, nvqs, vqs, callbacks, names, NULL);
+	err = virtio_find_vqs(vb->vdev, nvqs, vqs, callbacks, names, NULL); //这里面会setup_vq, 同时将desc告诉后端设备 最重要的函数
 	if (err)
 		return err;
 
@@ -572,7 +572,7 @@ static int virtballoon_probe(struct virtio_device *vdev)
 	}
 
 	//将virtio_balloon_device结构与virtio_balloon结构关联起来
-	vdev->priv = vb = kzalloc(sizeof(*vb), GFP_KERNEL);
+	vdev->priv = vb = kzalloc(sizeof(*vb), GFP_KERNEL); //具体的balloon设备的私有成员
 	if (!vb) {
 		err = -ENOMEM;
 		goto out;
@@ -588,7 +588,7 @@ static int virtballoon_probe(struct virtio_device *vdev)
 
 	balloon_devinfo_init(&vb->vb_dev_info);
 
-	err = init_vqs(vb); //这是balloon设备最重要的函数了
+	err = init_vqs(vb); //这是balloon设备最重要的函数了，一个virtio设备的实体就是几个vq咯，这个就是最关键的地方
 	if (err)
 		goto out_free_vb;
 
