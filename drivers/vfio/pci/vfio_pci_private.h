@@ -77,7 +77,7 @@ struct vfio_pci_dummy_resource {
 };
 
 struct vfio_pci_device {
-	struct pci_dev		*pdev;
+	struct pci_dev		*pdev; //表示实际的pci设备
 	void __iomem		*barmap[PCI_STD_RESOURCE_END + 1];
 	bool			bar_mmap_supported[PCI_STD_RESOURCE_END + 1];
 	u8			*pci_config_map;

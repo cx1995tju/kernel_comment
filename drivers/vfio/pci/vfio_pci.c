@@ -1463,6 +1463,7 @@ static int __init vfio_pci_init(void)
 		return ret;
 
 	/* Register and scan for devices */
+	//注册了一个新驱动，在设备绑定到vfio-pci的时候，就是使用的这个驱动
 	ret = pci_register_driver(&vfio_pci_driver);
 	if (ret)
 		goto out_driver;

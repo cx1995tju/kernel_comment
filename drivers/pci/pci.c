@@ -1657,7 +1657,7 @@ EXPORT_SYMBOL(pci_enable_device_mem);
  *  Note we don't actually enable the device many times if we call
  *  this function repeatedly (we just increment the count).
  */
-int pci_enable_device(struct pci_dev *dev)
+int pci_enable_device(struct pci_dev *dev) //每个pci设备的使能都需要调用这个函数
 {
 	return pci_enable_device_flags(dev, IORESOURCE_MEM | IORESOURCE_IO);
 }
