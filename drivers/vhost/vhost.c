@@ -174,7 +174,7 @@ static int vhost_poll_wakeup(wait_queue_entry_t *wait, unsigned mode, int sync,
 	if (!(key_to_poll(key) & poll->mask))
 		return 0;
 
-	vhost_poll_queue(poll);
+	vhost_poll_queue(poll); //这里去执行dev 对应的worker, refer to vhost_poll_init -> vhost_work_init
 	return 0;
 }
 
@@ -190,17 +190,20 @@ void vhost_poll_init(struct vhost_poll *poll, vhost_work_fn_t fn,
 		     __poll_t mask, struct vhost_dev *dev)
 {
 	init_waitqueue_func_entry(&poll->wait, vhost_poll_wakeup);
-	init_poll_funcptr(&poll->table, vhost_poll_func);
+	init_poll_funcptr(&poll->table, vhost_poll_func); 
+
 	poll->mask = mask;
 	poll->dev = dev;
 	poll->wqh = NULL;
 
-	vhost_work_init(&poll->work, fn);
+	vhost_work_init(&poll->work, fn); //应该是对应的worker函数
 }
 EXPORT_SYMBOL_GPL(vhost_poll_init);
 
 /* Start polling a file. We add ourselves to file's wait queue. The caller must
  * keep a reference to a file until after vhost_poll_stop is called. */
+//这个file是某个eventfd
+//eventfd被唤醒的时候，执行poll这个调度实体的，vhost_poll_wakup 函数
 int vhost_poll_start(struct vhost_poll *poll, struct file *file)
 {
 	__poll_t mask;
@@ -209,7 +212,7 @@ int vhost_poll_start(struct vhost_poll *poll, struct file *file)
 	if (poll->wqh)
 		return 0;
 
-	mask = vfs_poll(file, &poll->table);
+	mask = vfs_poll(file, &poll->table); //在对应的file上挂了一个调度实体, 唤醒的时候就会执行vhost_poll_wakeup. %vhost_poll_func
 	if (mask)
 		vhost_poll_wakeup(&poll->wait, 0, 0, poll_to_key(mask));
 	if (mask & EPOLLERR) {
@@ -265,7 +268,7 @@ void vhost_work_queue(struct vhost_dev *dev, struct vhost_work *work)
 		 * test_and_set_bit() implies a memory barrier.
 		 */
 		llist_add(&work->node, &dev->work_list); //在work_list上增加了工作
-		wake_up_process(dev->worker); //这个线程去完成发送工作？？？？？,是一个task_struct结构，肯定是在某个地方初始化的。肯定是这个设备被初始化的时候初始化了一个线程
+		wake_up_process(dev->worker); //这个线程去完成发送工作？？？？？,是一个task_struct结构，肯定是在某个地方初始化的。肯定是这个设备被初始化的时候初始化了一个线程. 唤醒worker， %vhost_poll_init %vhost_dev_set_owner
 	}
 }
 EXPORT_SYMBOL_GPL(vhost_work_queue);
@@ -330,6 +333,7 @@ static void vhost_vq_reset(struct vhost_dev *dev,
 	__vhost_vq_meta_reset(vq);
 }
 
+//核心工作：从vhost_dev的work_list上取下vhost_work下来，然后执行当前的work。
 static int vhost_worker(void *data)
 {
 	struct vhost_dev *dev = data;
@@ -503,8 +507,8 @@ long vhost_dev_set_owner(struct vhost_dev *dev)
 	}
 
 	/* No owner, become one */
-	dev->mm = get_task_mm(current);
-	worker = kthread_create(vhost_worker, dev, "vhost-%d", current->pid);
+	dev->mm = get_task_mm(current); //这里也是关键，保存了当前进程的mm
+	worker = kthread_create(vhost_worker, dev, "vhost-%d", current->pid); //构建了内核线程，设备dev，以及当前的进程current->pid绑定了
 	if (IS_ERR(worker)) {
 		err = PTR_ERR(worker);
 		goto err_worker;
@@ -1316,6 +1320,7 @@ static struct vhost_umem *vhost_umem_alloc(void)
 	return umem;
 }
 
+//用户态传进来的参数保存下来就可以了
 static long vhost_set_memory(struct vhost_dev *d, struct vhost_memory __user *m)
 {
 	struct vhost_memory mem, *newmem;
@@ -1324,7 +1329,7 @@ static long vhost_set_memory(struct vhost_dev *d, struct vhost_memory __user *m)
 	unsigned long size = offsetof(struct vhost_memory, regions);
 	int i;
 
-	if (copy_from_user(&mem, m, size))
+	if (copy_from_user(&mem, m, size)) 
 		return -EFAULT;
 	if (mem.padding)
 		return -EOPNOTSUPP;
@@ -1336,7 +1341,7 @@ static long vhost_set_memory(struct vhost_dev *d, struct vhost_memory __user *m)
 		return -ENOMEM;
 
 	memcpy(newmem, &mem, size);
-	if (copy_from_user(newmem->regions, m->regions,
+	if (copy_from_user(newmem->regions, m->regions,//内存布局信息保存到mem中, 这样vhost模块才能根据虚拟机的物理地址，找到对应的QEMU的虚拟地址，结合其保存的QEMU的mm才能做内存读写
 			   mem.nregions * sizeof *m->regions)) {
 		kvfree(newmem);
 		return -EFAULT;
@@ -1384,6 +1389,7 @@ err:
 	return -EFAULT;
 }
 
+//需要卸载数据面，当然需要将vring相关的信息都告诉vhost-net模块的
 long vhost_vring_ioctl(struct vhost_dev *d, unsigned int ioctl, void __user *argp)
 {
 	struct file *eventfp, *filep = NULL;
@@ -1409,7 +1415,7 @@ long vhost_vring_ioctl(struct vhost_dev *d, unsigned int ioctl, void __user *arg
 	mutex_lock(&vq->mutex);
 
 	switch (ioctl) {
-	case VHOST_SET_VRING_NUM:
+	case VHOST_SET_VRING_NUM: //设置vring大小
 		/* Resizing ring with an active backend?
 		 * You don't want to do that. */
 		if (vq->private_data) {
@@ -1451,7 +1457,7 @@ long vhost_vring_ioctl(struct vhost_dev *d, unsigned int ioctl, void __user *arg
 		if (copy_to_user(argp, &s, sizeof s))
 			r = -EFAULT;
 		break;
-	case VHOST_SET_VRING_ADDR:
+	case VHOST_SET_VRING_ADDR: //设置vring所在地址
 		if (copy_from_user(&a, argp, sizeof a)) {
 			r = -EFAULT;
 			break;
@@ -1507,7 +1513,7 @@ long vhost_vring_ioctl(struct vhost_dev *d, unsigned int ioctl, void __user *arg
 		vq->log_addr = a.log_guest_addr;
 		vq->used = (void __user *)(unsigned long)a.used_user_addr;
 		break;
-	case VHOST_SET_VRING_KICK:
+	case VHOST_SET_VRING_KICK: //重要，用来告诉vhost-net，前端virtio驱动发送通知的时候会触发哪个eventfd，vhost模块直接监控这个fd就可以了
 		if (copy_from_user(&f, argp, sizeof f)) {
 			r = -EFAULT;
 			break;
@@ -1519,11 +1525,11 @@ long vhost_vring_ioctl(struct vhost_dev *d, unsigned int ioctl, void __user *arg
 		}
 		if (eventfp != vq->kick) {
 			pollstop = (filep = vq->kick) != NULL;
-			pollstart = (vq->kick = eventfp) != NULL;
+			pollstart = (vq->kick = eventfp) != NULL; //这里的赋值是关键
 		} else
 			filep = eventfp;
 		break;
-	case VHOST_SET_VRING_CALL:
+	case VHOST_SET_VRING_CALL: //用来设置irqfd的，这样vhost net才能发中断给虚拟机
 		if (copy_from_user(&f, argp, sizeof f)) {
 			r = -EFAULT;
 			break;
@@ -1579,7 +1585,7 @@ long vhost_vring_ioctl(struct vhost_dev *d, unsigned int ioctl, void __user *arg
 		fput(filep);
 
 	if (pollstart && vq->handle_kick)
-		r = vhost_poll_start(&vq->poll, vq->kick);
+		r = vhost_poll_start(&vq->poll, vq->kick); //在vq->kick上去poll
 
 	mutex_unlock(&vq->mutex);
 

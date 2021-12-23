@@ -125,10 +125,11 @@ struct vhost_net_virtqueue {
 	struct vhost_net_buf rxq;
 };
 
+// %vhost_poll_init
 struct vhost_net {
 	struct vhost_dev dev;
 	struct vhost_net_virtqueue vqs[VHOST_NET_VQ_MAX];
-	struct vhost_poll poll[VHOST_NET_VQ_MAX];
+	struct vhost_poll poll[VHOST_NET_VQ_MAX]; //只有有多个poll的实体的, 每个VQ一个
 	/* Number of TX recently submitted.
 	 * Protected by tx vq lock. */
 	unsigned tx_packets;
@@ -1075,7 +1076,7 @@ static void handle_rx_net(struct vhost_work *work)
 
 static int vhost_net_open(struct inode *inode, struct file *f)
 {
-	struct vhost_net *n;
+	struct vhost_net *n; //核心就是围绕这个结构
 	struct vhost_dev *dev;
 	struct vhost_virtqueue **vqs;
 	void **queue;
@@ -1084,13 +1085,14 @@ static int vhost_net_open(struct inode *inode, struct file *f)
 	n = kvmalloc(sizeof *n, GFP_KERNEL | __GFP_RETRY_MAYFAIL);
 	if (!n)
 		return -ENOMEM;
-	vqs = kmalloc_array(VHOST_NET_VQ_MAX, sizeof(*vqs), GFP_KERNEL);
+	//对vhost_virtqueue 做初始化
+	vqs = kmalloc_array(VHOST_NET_VQ_MAX, sizeof(*vqs), GFP_KERNEL); //分配对应的vhost_virtqueue结构, 最多支持两个对立的，一收一发
 	if (!vqs) {
 		kvfree(n);
 		return -ENOMEM;
 	}
 
-	queue = kmalloc_array(VHOST_NET_BATCH, sizeof(void *),
+	queue = kmalloc_array(VHOST_NET_BATCH, sizeof(void *), //队列的深度？
 			      GFP_KERNEL);
 	if (!queue) {
 		kfree(vqs);
@@ -1102,7 +1104,7 @@ static int vhost_net_open(struct inode *inode, struct file *f)
 	dev = &n->dev;
 	vqs[VHOST_NET_VQ_TX] = &n->vqs[VHOST_NET_VQ_TX].vq;
 	vqs[VHOST_NET_VQ_RX] = &n->vqs[VHOST_NET_VQ_RX].vq;
-	n->vqs[VHOST_NET_VQ_TX].vq.handle_kick = handle_tx_kick;
+	n->vqs[VHOST_NET_VQ_TX].vq.handle_kick = handle_tx_kick; //收发包的kick函数, 这两个函数用来通知对端的
 	n->vqs[VHOST_NET_VQ_RX].vq.handle_kick = handle_rx_kick;
 	for (i = 0; i < VHOST_NET_VQ_MAX; i++) {
 		n->vqs[i].ubufs = NULL;
@@ -1117,7 +1119,8 @@ static int vhost_net_open(struct inode *inode, struct file *f)
 	vhost_dev_init(dev, vqs, VHOST_NET_VQ_MAX,
 		       UIO_MAXIOV + VHOST_NET_BATCH);
 
-	vhost_poll_init(n->poll + VHOST_NET_VQ_TX, handle_tx_net, EPOLLOUT, dev);
+	//这里的两个函数是用来处理对端的通知的, 将一个vq纳入到vhost_poll机制中做监听了, 对应vq发生了事件后，最后会调用到这里的回调函数的。
+	vhost_poll_init(n->poll + VHOST_NET_VQ_TX, handle_tx_net, EPOLLOUT, dev); //设置poll的回调函数, 这里init了一个work的调度实体
 	vhost_poll_init(n->poll + VHOST_NET_VQ_RX, handle_rx_net, EPOLLIN, dev);
 
 	f->private_data = n;
@@ -1468,14 +1471,14 @@ static long vhost_net_set_owner(struct vhost_net *n)
 	int r;
 
 	mutex_lock(&n->dev.mutex);
-	if (vhost_dev_has_owner(&n->dev)) {
+	if (vhost_dev_has_owner(&n->dev)) { //检查是不是已经有owner了
 		r = -EBUSY;
 		goto out;
 	}
 	r = vhost_net_set_ubuf_info(n);
 	if (r)
 		goto out;
-	r = vhost_dev_set_owner(&n->dev);
+	r = vhost_dev_set_owner(&n->dev); //完成绑定工作, 而且这里面会创建内核线程的
 	if (r)
 		vhost_net_clear_ubuf_info(n);
 	vhost_net_flush(n);
@@ -1495,7 +1498,7 @@ static long vhost_net_ioctl(struct file *f, unsigned int ioctl,
 	int r;
 
 	switch (ioctl) {
-	case VHOST_NET_SET_BACKEND:
+	case VHOST_NET_SET_BACKEND: //接收qemu丢进来的fd，这个fd指示的是一个tap设备
 		if (copy_from_user(&backend, argp, sizeof backend))
 			return -EFAULT;
 		return vhost_net_set_backend(n, backend.index, backend.fd);
@@ -1523,7 +1526,7 @@ static long vhost_net_ioctl(struct file *f, unsigned int ioctl,
 		return vhost_net_set_backend_features(n, features);
 	case VHOST_RESET_OWNER:
 		return vhost_net_reset_owner(n);
-	case VHOST_SET_OWNER:
+	case VHOST_SET_OWNER: //将一个打开的vhost-net fd
 		return vhost_net_set_owner(n);
 	default:
 		mutex_lock(&n->dev.mutex);
@@ -1579,15 +1582,15 @@ static const struct file_operations vhost_net_fops = {
 	.read_iter      = vhost_net_chr_read_iter,
 	.write_iter     = vhost_net_chr_write_iter,
 	.poll           = vhost_net_chr_poll,
-	.unlocked_ioctl = vhost_net_ioctl,
+	.unlocked_ioctl = vhost_net_ioctl, //核心函数
 #ifdef CONFIG_COMPAT
 	.compat_ioctl   = vhost_net_compat_ioctl,
 #endif
-	.open           = vhost_net_open,
+	.open           = vhost_net_open, //核心函数
 	.llseek		= noop_llseek,
 };
 
-static struct miscdevice vhost_net_misc = {
+static struct miscdevice vhost_net_misc = { //注册一个混杂设备的
 	.minor = VHOST_NET_MINOR,
 	.name = "vhost-net",
 	.fops = &vhost_net_fops,

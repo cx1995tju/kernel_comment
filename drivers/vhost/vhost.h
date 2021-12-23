@@ -25,13 +25,15 @@ struct vhost_work {
 
 /* Poll a file (eventfd or socket) */
 /* Note: there's nothing vhost specific about this structure. */
+//vhost_poll 本身是一个调度实体，同时其有一个睡眠队列
+//%vhost_poll_init
 struct vhost_poll {
-	poll_table                table;
-	wait_queue_head_t        *wqh;
-	wait_queue_entry_t              wait;
-	struct vhost_work	  work;
-	__poll_t		  mask;
-	struct vhost_dev	 *dev;
+	poll_table                table; //与poll机制关联的一个函数设置 %vhost_poll_wakeup, 参考poll_wait -> vhost_poll_wakeup, 在这个函数中，通过container_of将该vhost_poll的调度实体挂载到某个文件的睡眠队列上
+	wait_queue_head_t        *wqh;	//用来保存其睡眠的队列, 即我睡在哪里 vhost_poll_func
+	wait_queue_entry_t              wait; //作为睡眠实体，可以挂载的, 调度实体的执行函数%vhost_poll_func
+	struct vhost_work	  work;	//worker, 其作为一个调度实体的时候，执行的操作
+	__poll_t		  mask; //事件mask POLLOUT POLLIN
+	struct vhost_dev	 *dev; //对应的vhost 设备
 };
 
 void vhost_work_init(struct vhost_work *work, vhost_work_fn_t fn);

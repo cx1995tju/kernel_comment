@@ -94,10 +94,11 @@ struct vhost_memory_region {
 /* All region addresses and sizes must be 4K aligned. */
 #define VHOST_PAGE_SIZE 0x1000
 
+//保存了虚拟机内存布局的信息，
 struct vhost_memory {
-	__u32 nregions;
+	__u32 nregions; //表示数组大小
 	__u32 padding;
-	struct vhost_memory_region regions[0];
+	struct vhost_memory_region regions[0]; //数组的每一项都保存了一个虚拟机物理地址到QEMU虚拟地址之间的映射
 };
 
 /* ioctls */

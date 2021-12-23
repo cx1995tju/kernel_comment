@@ -36,6 +36,7 @@ typedef void (*poll_queue_proc)(struct file *, wait_queue_head_t *, struct poll_
  * Do not touch the structure directly, use the access functions
  * poll_does_not_wait() and poll_requested_events() instead.
  */
+//与poll机制相关的结构，参考poll_wait函数
 typedef struct poll_table_struct {
 	poll_queue_proc _qproc;
 	__poll_t _key;
