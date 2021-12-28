@@ -256,7 +256,7 @@ static int vfio_pci_enable(struct vfio_pci_device *vdev)
 		pci_write_config_word(pdev, PCI_COMMAND, cmd);
 	}
 
-	ret = vfio_config_init(vdev);
+	ret = vfio_config_init(vdev); //根据物理设备的pci信息，生成vfio device的配置信息
 	if (ret) {
 		kfree(vdev->pci_saved_state);
 		vdev->pci_saved_state = NULL;
@@ -264,6 +264,7 @@ static int vfio_pci_enable(struct vfio_pci_device *vdev)
 		return ret;
 	}
 
+	//根据vfio自己的情况，对pci设备做一些配置的修改
 	msix_pos = pdev->msix_cap;
 	if (msix_pos) {
 		u16 flags;
@@ -416,7 +417,7 @@ static int vfio_pci_open(void *device_data)
 	mutex_lock(&driver_lock);
 
 	if (!vdev->refcnt) {
-		ret = vfio_pci_enable(vdev);
+		ret = vfio_pci_enable(vdev); //pci设备之前的驱动被解绑了，这里需要重新使能pci设备
 		if (ret)
 			goto error;
 
@@ -624,6 +625,7 @@ static long vfio_pci_ioctl(void *device_data,
 		if (copy_from_user(&info, (void __user *)arg, minsz))
 			return -EFAULT;
 
+		//返回vfio设备的基本信息
 		if (info.argsz < minsz)
 			return -EINVAL;
 
@@ -638,7 +640,7 @@ static long vfio_pci_ioctl(void *device_data,
 		return copy_to_user((void __user *)arg, &info, minsz) ?
 			-EFAULT : 0;
 
-	} else if (cmd == VFIO_DEVICE_GET_REGION_INFO) {
+	} else if (cmd == VFIO_DEVICE_GET_REGION_INFO) { //获取设备的各个内存区域的信息
 		struct pci_dev *pdev = vdev->pdev;
 		struct vfio_region_info info;
 		struct vfio_info_cap caps = { .buf = NULL, .size = 0 };
@@ -653,13 +655,13 @@ static long vfio_pci_ioctl(void *device_data,
 			return -EINVAL;
 
 		switch (info.index) {
-		case VFIO_PCI_CONFIG_REGION_INDEX:
+		case VFIO_PCI_CONFIG_REGION_INDEX: //可以获取PCI配置空间的相关信息
 			info.offset = VFIO_PCI_INDEX_TO_OFFSET(info.index);
 			info.size = pdev->cfg_size;
 			info.flags = VFIO_REGION_INFO_FLAG_READ |
 				     VFIO_REGION_INFO_FLAG_WRITE;
 			break;
-		case VFIO_PCI_BAR0_REGION_INDEX ... VFIO_PCI_BAR5_REGION_INDEX:
+		case VFIO_PCI_BAR0_REGION_INDEX ... VFIO_PCI_BAR5_REGION_INDEX: //长见识
 			info.offset = VFIO_PCI_INDEX_TO_OFFSET(info.index);
 			info.size = pci_resource_len(pdev, info.index);
 			if (!info.size) {
@@ -771,7 +773,7 @@ static long vfio_pci_ioctl(void *device_data,
 		return copy_to_user((void __user *)arg, &info, minsz) ?
 			-EFAULT : 0;
 
-	} else if (cmd == VFIO_DEVICE_GET_IRQ_INFO) {
+	} else if (cmd == VFIO_DEVICE_GET_IRQ_INFO) { //获取设备中断信息
 		struct vfio_irq_info info;
 
 		minsz = offsetofend(struct vfio_irq_info, count);
@@ -1185,7 +1187,7 @@ static const struct vfio_device_ops vfio_pci_ops = {
 
 static int vfio_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 {
-	struct vfio_pci_device *vdev;
+	struct vfio_pci_device *vdev; //表示一个vfio pci 设备， 其对应的pci设备是pdev
 	struct iommu_group *group;
 	int ret;
 
@@ -1222,7 +1224,7 @@ static int vfio_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	mutex_init(&vdev->ioeventfds_lock);
 	INIT_LIST_HEAD(&vdev->ioeventfds_list);
 
-	ret = vfio_add_group_dev(&pdev->dev, &vfio_pci_ops, vdev);
+	ret = vfio_add_group_dev(&pdev->dev, &vfio_pci_ops, vdev); //核心
 	if (ret) {
 		vfio_iommu_group_put(group, &pdev->dev);
 		kfree(vdev);
@@ -1308,6 +1310,7 @@ static const struct pci_error_handlers vfio_err_handlers = {
 	.error_detected = vfio_pci_aer_err_detected,
 };
 
+//虽然vfio是基于pcidriver来暴露接口给用户，有趣的是vfio_pci本身也是一个pcidriver, 在将vfio驱动绑定到设备的时候，会触发probe函数的
 static struct pci_driver vfio_pci_driver = {
 	.name		= "vfio-pci",
 	.id_table	= NULL, /* only dynamic ids */

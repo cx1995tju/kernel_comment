@@ -58,11 +58,12 @@ module_param_named(disable_hugepages,
 MODULE_PARM_DESC(disable_hugepages,
 		 "Disable VFIO IOMMU support for IOMMU hugepages.");
 
+//per vfio container
 struct vfio_iommu {
 	struct list_head	domain_list;
-	struct vfio_domain	*external_domain; /* domain for external user */
+	struct vfio_domain	*external_domain; /* domain for external user */ //链接所有的vfio domain
 	struct mutex		lock;
-	struct rb_root		dma_list;
+	struct rb_root		dma_list; //该container中DMA 重定向的映射表, 即GPA -> HPA的转换
 	struct blocking_notifier_head notifier;
 	bool			v2;
 	bool			nesting;
@@ -1327,6 +1328,7 @@ static bool vfio_iommu_has_sw_msi(struct iommu_group *group, phys_addr_t *base)
 	return ret;
 }
 
+//将group atatch到 一个container后，该group下的所有设备信息都会写入到IOMMU硬件context表中了
 static int vfio_iommu_type1_attach_group(void *iommu_data,
 					 struct iommu_group *iommu_group)
 {
@@ -1588,11 +1590,13 @@ detach_group_done:
 	mutex_unlock(&iommu->lock);
 }
 
+//每一个container都需要open 一个vfio iommu driver
+//%vfio_ioctl_set_iommu
 static void *vfio_iommu_type1_open(unsigned long arg)
 {
 	struct vfio_iommu *iommu;
 
-	iommu = kzalloc(sizeof(*iommu), GFP_KERNEL);
+	iommu = kzalloc(sizeof(*iommu), GFP_KERNEL); //搞一个这个结构
 	if (!iommu)
 		return ERR_PTR(-ENOMEM);
 
@@ -1788,7 +1792,7 @@ static const struct vfio_iommu_driver_ops vfio_iommu_driver_ops_type1 = {
 
 static int __init vfio_iommu_type1_init(void)
 {
-	return vfio_register_iommu_driver(&vfio_iommu_driver_ops_type1);
+	return vfio_register_iommu_driver(&vfio_iommu_driver_ops_type1); //注册vfio iommu driver驱动
 }
 
 static void __exit vfio_iommu_type1_cleanup(void)

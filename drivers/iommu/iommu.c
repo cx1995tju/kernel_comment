@@ -46,7 +46,7 @@ struct iommu_callback_data {
 	const struct iommu_ops *ops;
 };
 
-struct iommu_group {
+struct iommu_group { //表示iommu驱动层的group, 设备初始化的时候会为每个pci设备设置其对应的group，然后保存在device结构体的iommu_group成员中
 	struct kobject kobj;
 	struct kobject *devices_kobj;
 	struct list_head devices;

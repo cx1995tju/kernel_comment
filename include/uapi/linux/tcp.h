@@ -31,7 +31,7 @@ struct tcphdr {
 #if defined(__LITTLE_ENDIAN_BITFIELD)
 	__u16	res1:4, 
 		doff:4, //header offset 头部长度*4B
-		fin:1,
+		fin:1, //小端机器上，从数据解析的角度fin放置在字节的低位，但是对于小端机器，网卡会自动做一次转换，所以转换为比特流发出去的时候，会映射到比特流的高位的, 故符合网络顺序 
 		syn:1,
 		rst:1,
 		psh:1,

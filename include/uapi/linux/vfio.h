@@ -200,8 +200,8 @@ struct vfio_device_info {
 #define VFIO_DEVICE_FLAGS_PLATFORM (1 << 2)	/* vfio-platform device */
 #define VFIO_DEVICE_FLAGS_AMBA  (1 << 3)	/* vfio-amba device */
 #define VFIO_DEVICE_FLAGS_CCW	(1 << 4)	/* vfio-ccw device */
-	__u32	num_regions;	/* Max region index + 1 */
-	__u32	num_irqs;	/* Max IRQ index + 1 */
+	__u32	num_regions;	/* Max region index + 1 */ //设备的内存区域个数，包括：BAR空间，PCI配置空间，以及VGA空间
+	__u32	num_irqs;	/* Max IRQ index + 1 */ //支持的irq数目
 };
 #define VFIO_DEVICE_GET_INFO		_IO(VFIO_TYPE, VFIO_BASE + 7)
 
@@ -229,16 +229,16 @@ struct vfio_device_info {
  * Return: 0 on success, -errno on failure.
  */
 struct vfio_region_info {
-	__u32	argsz;
-	__u32	flags;
+	__u32	argsz; //参数的大小, ioctl的输入参数
+	__u32	flags; //内存区域允许的操作, ioctl的输出参数
 #define VFIO_REGION_INFO_FLAG_READ	(1 << 0) /* Region supports read */
 #define VFIO_REGION_INFO_FLAG_WRITE	(1 << 1) /* Region supports write */
 #define VFIO_REGION_INFO_FLAG_MMAP	(1 << 2) /* Region supports mmap */
 #define VFIO_REGION_INFO_FLAG_CAPS	(1 << 3) /* Info supports caps */
-	__u32	index;		/* Region index */
+	__u32	index;		/* Region index */ //ioctl的输入参数 %VFIO_PCI_CONFIG_REGION_INDEX
 	__u32	cap_offset;	/* Offset within info struct of first cap */
-	__u64	size;		/* Region size (bytes) */
-	__u64	offset;		/* Region offset from start of device fd */
+	__u64	size;		/* Region size (bytes) */ //ioctl的输出参数
+	__u64	offset;		/* Region offset from start of device fd */ //在vfio设备文件中对应的偏移， ioctl的输出参数, vfio的设备文件，实现了类似文件的读写，需要读取哪个空间，直接使用write/read等操作加上offset就可以访问了。
 };
 #define VFIO_DEVICE_GET_REGION_INFO	_IO(VFIO_TYPE, VFIO_BASE + 8)
 

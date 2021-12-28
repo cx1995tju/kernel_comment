@@ -39,9 +39,10 @@
 #define DRIVER_AUTHOR	"Alex Williamson <alex.williamson@redhat.com>"
 #define DRIVER_DESC	"VFIO - User Level meta-driver"
 
+//全局变量，保存vfio机制的一些metadata
 static struct vfio {
 	struct class			*class;
-	struct list_head		iommu_drivers_list;
+	struct list_head		iommu_drivers_list; //所有vfio iommu driver 都会挂到这个链表, vfio iommu driver是 vfio层与iommu层的中间层
 	struct mutex			iommu_drivers_lock;
 	struct list_head		group_list;
 	struct idr			group_idr;
@@ -51,8 +52,9 @@ static struct vfio {
 	wait_queue_head_t		release_q;
 } vfio;
 
+//表示vfio iommu 驱动
 struct vfio_iommu_driver {
-	const struct vfio_iommu_driver_ops	*ops;
+	const struct vfio_iommu_driver_ops	*ops; //%vfio_iommu_driver_ops_type1 
 	struct list_head			vfio_next;
 };
 
@@ -70,13 +72,14 @@ struct vfio_unbound_dev {
 	struct list_head		unbound_next;
 };
 
+//%vfio_create_group
 struct vfio_group {
 	struct kref			kref;
 	int				minor;
 	atomic_t			container_users;
 	struct iommu_group		*iommu_group;
-	struct vfio_container		*container;
-	struct list_head		device_list;
+	struct vfio_container		*container; //链接到其所属的container
+	struct list_head		device_list; //属于其的所有device都链接在这个list中
 	struct mutex			device_lock;
 	struct device			*dev;
 	struct notifier_block		nb;
@@ -91,10 +94,11 @@ struct vfio_group {
 	struct blocking_notifier_head	notifier;
 };
 
+//表示一个vfio层的设备
 struct vfio_device {
 	struct kref			kref;
-	struct device			*dev;
-	const struct vfio_device_ops	*ops;
+	struct device			*dev; //指向其对应的物理设备
+	const struct vfio_device_ops	*ops; //vfio_pci_ops
 	struct vfio_group		*group;
 	struct list_head		group_next;
 	void				*device_data;
@@ -219,17 +223,17 @@ static const struct vfio_iommu_driver_ops vfio_noiommu_ops = {
 
 
 /**
- * IOMMU driver registration
+ * IOMMU driver registration, 注册IOMMU driver驱动
  */
 int vfio_register_iommu_driver(const struct vfio_iommu_driver_ops *ops)
 {
 	struct vfio_iommu_driver *driver, *tmp;
 
-	driver = kzalloc(sizeof(*driver), GFP_KERNEL);
+	driver = kzalloc(sizeof(*driver), GFP_KERNEL); //分配结构
 	if (!driver)
 		return -ENOMEM;
 
-	driver->ops = ops;
+	driver->ops = ops; //保存最重要的ops
 
 	mutex_lock(&vfio.iommu_drivers_lock);
 
@@ -242,7 +246,7 @@ int vfio_register_iommu_driver(const struct vfio_iommu_driver_ops *ops)
 		}
 	}
 
-	list_add(&driver->vfio_next, &vfio.iommu_drivers_list);
+	list_add(&driver->vfio_next, &vfio.iommu_drivers_list); //加到链中保存
 
 	mutex_unlock(&vfio.iommu_drivers_lock);
 
@@ -378,7 +382,7 @@ static struct vfio_group *vfio_create_group(struct iommu_group *iommu_group)
 		return ERR_PTR(minor);
 	}
 
-	dev = device_create(vfio.class, NULL,
+	dev = device_create(vfio.class, NULL,					// 就是创建 /dev/vfio/$group_id 设备
 			    MKDEV(MAJOR(vfio.group_devt), minor),
 			    group, "%s%d", group->noiommu ? "noiommu-" : "",
 			    iommu_group_id(iommu_group));
@@ -802,20 +806,21 @@ static int vfio_iommu_group_notifier(struct notifier_block *nb,
 /**
  * VFIO driver API
  */
-int vfio_add_group_dev(struct device *dev,
-		       const struct vfio_device_ops *ops, void *device_data)
+//创建一个vfio_device 结构，绑定到对应的vfio_group结构，如果vfio_group还没有创建的话，就创建后绑定
+int vfio_add_group_dev(struct device *dev, //vfio pci设备对应的底层的pci设备
+		       const struct vfio_device_ops *ops, void *device_data) //data 可能是vfio pci设备结构
 {
 	struct iommu_group *iommu_group;
 	struct vfio_group *group;
 	struct vfio_device *device;
 
-	iommu_group = iommu_group_get(dev);
+	iommu_group = iommu_group_get(dev); //返回device对应的iommu_group
 	if (!iommu_group)
 		return -EINVAL;
 
 	group = vfio_group_get_from_iommu(iommu_group);
 	if (!group) {
-		group = vfio_create_group(iommu_group);
+		group = vfio_create_group(iommu_group); //由于同一个group可能有多个设备的，group只会在第一个设备直通的时候去创建的
 		if (IS_ERR(group)) {
 			iommu_group_put(iommu_group);
 			return PTR_ERR(group);
@@ -837,7 +842,7 @@ int vfio_add_group_dev(struct device *dev,
 		return -EBUSY;
 	}
 
-	device = vfio_group_create_device(group, dev, ops, device_data);
+	device = vfio_group_create_device(group, dev, ops, device_data); //创建一个vfio层的设备代表
 	if (IS_ERR(device)) {
 		vfio_group_put(group);
 		return PTR_ERR(device);
@@ -1209,6 +1214,7 @@ static long vfio_fops_compat_ioctl(struct file *filep,
 }
 #endif	/* CONFIG_COMPAT */
 
+//每个进程open这个混杂设备的时候，就分配一个container，作为该进程所有vfio设备的最高载体
 static int vfio_fops_open(struct inode *inode, struct file *filep)
 {
 	struct vfio_container *container;
@@ -1361,6 +1367,10 @@ static void vfio_group_try_dissolve_container(struct vfio_group *group)
 		__vfio_group_unset_container(group);
 }
 
+/* 1. 将group attach到container */
+/* 	1. open /dev/vfio/vfio 获取一个container */
+/* 	2. open /dev/vfio/$group_id 获取一个group */
+/* 	3. ioctl(GROUP_FD, VFIO_GROUP_SET_CONTAINER), 将一个group attach到一个container上`vfio_group_set_container` */
 static int vfio_group_set_container(struct vfio_group *group, int container_fd)
 {
 	struct fd f;
@@ -1460,7 +1470,7 @@ static int vfio_group_get_device_fd(struct vfio_group *group, char *buf)
 	if (!device)
 		return -ENODEV;
 
-	ret = device->ops->open(device->device_data);
+	ret = device->ops->open(device->device_data); //%vfio_pci_open
 	if (ret) {
 		vfio_device_put(device);
 		return ret;
@@ -1478,7 +1488,7 @@ static int vfio_group_get_device_fd(struct vfio_group *group, char *buf)
 	}
 
 	filep = anon_inode_getfile("[vfio-device]", &vfio_device_fops,
-				   device, O_RDWR);
+				   device, O_RDWR); //device作为私有信息，保存到fd对应的file结构中
 	if (IS_ERR(filep)) {
 		put_unused_fd(ret);
 		ret = PTR_ERR(filep);
@@ -1502,7 +1512,7 @@ static int vfio_group_get_device_fd(struct vfio_group *group, char *buf)
 		dev_warn(device->dev, "vfio-noiommu device opened by user "
 			 "(%s:%d)\n", current->comm, task_pid_nr(current));
 
-	return ret;
+	return ret; //最后返回device_fd, 后续对device的操作就基于这个fd了 %vfio_device_fops
 }
 
 static long vfio_group_fops_unl_ioctl(struct file *filep,
@@ -1690,7 +1700,7 @@ static ssize_t vfio_device_fops_write(struct file *filep,
 	if (unlikely(!device->ops->write))
 		return -EINVAL;
 
-	return device->ops->write(device->device_data, buf, count, ppos);
+	return device->ops->write(device->device_data, buf, count, ppos); //%vfio_pci_ops
 }
 
 static int vfio_device_fops_mmap(struct file *filep, struct vm_area_struct *vma)
@@ -1712,6 +1722,7 @@ static long vfio_device_fops_compat_ioctl(struct file *filep,
 }
 #endif	/* CONFIG_COMPAT */
 
+//下述函数基本就是做一个简单的代理，vfio_pci_ops中的各种函数，进而转换为对pci driver的各种操作
 static const struct file_operations vfio_device_fops = {
 	.owner		= THIS_MODULE,
 	.release	= vfio_device_fops_release,
@@ -2185,6 +2196,7 @@ static char *vfio_devnode(struct device *dev, umode_t *mode)
 	return kasprintf(GFP_KERNEL, "vfio/%s", dev_name(dev));
 }
 
+//一个混在设备 /dev/vfio/vfio
 static struct miscdevice vfio_dev = {
 	.minor = VFIO_MINOR,
 	.name = "vfio",
