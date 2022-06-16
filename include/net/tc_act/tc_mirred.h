@@ -9,7 +9,7 @@ struct tcf_mirred {
 	struct tc_action	common;
 	int			tcfm_eaction;
 	bool			tcfm_mac_header_xmit;
-	struct net_device __rcu	*tcfm_dev;
+	struct net_device __rcu	*tcfm_dev; //target device
 	struct list_head	tcfm_list;
 };
 #define to_mirred(a) ((struct tcf_mirred *)a)

@@ -368,7 +368,7 @@ struct pci_dev {
 	 * directly, use the values stored here. They might be different!
 	 */
 	unsigned int	irq;
-	struct resource resource[DEVICE_COUNT_RESOURCE]; /* I/O and memory regions + expansion ROMs */
+	struct resource resource[DEVICE_COUNT_RESOURCE]; /* I/O and memory regions + expansion ROMs , resource 即bar空间，可以是mmio的，也可以是port io的 */
 
 	bool		match_driver;		/* Skip attaching driver */
 

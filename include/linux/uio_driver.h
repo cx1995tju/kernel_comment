@@ -34,6 +34,8 @@ struct uio_map;
  * @memtype:		type of memory addr points to
  * @internal_addr:	ioremap-ped version of addr, for driver internal use
  * @map:		for use by the UIO core only.
+ *
+ * Refer to Documentation/driver-api/uio-howto.rst
  */
 struct uio_mem {
 	const char		*name;
@@ -41,8 +43,11 @@ struct uio_mem {
 	unsigned long		offs;
 	resource_size_t		size;
 	int			memtype;
-	void __iomem		*internal_addr;
+	void __iomem		*internal_addr; //如果在内核也要访问的话，就ioremap映射后，保存
 	struct uio_map		*map;
+						/* Please do not touch the ``map`` element of ``struct uio_mem``! It is */
+						/* used by the UIO framework to set up sysfs files for this mapping. Simply */
+						/* leave it alone. */
 };
 
 #define MAX_UIO_MAPS	5
@@ -100,14 +105,14 @@ struct uio_info {
 	struct uio_device	*uio_dev;
 	const char		*name;
 	const char		*version;
-	struct uio_mem		mem[MAX_UIO_MAPS];
-	struct uio_port		port[MAX_UIO_PORT_REGIONS];
-	long			irq;
-	unsigned long		irq_flags;
+	struct uio_mem		mem[MAX_UIO_MAPS]; //在用户空间可以mmap的多段内存
+	struct uio_port		port[MAX_UIO_PORT_REGIONS]; //ioport接口暴露的，无法mmap的设备内存
+	long			irq; //必须有，中断号	%UIO_IRQ_CUSTOM %UIO_IRQ_NONE
+	unsigned long		irq_flags; //必须有，request_irq的参数
 	void			*priv;
 	irqreturn_t (*handler)(int irq, struct uio_info *dev_info);
-	int (*mmap)(struct uio_info *info, struct vm_area_struct *vma);
-	int (*open)(struct uio_info *info, struct inode *inode);
+	int (*mmap)(struct uio_info *info, struct vm_area_struct *vma); //需要替换uio_fops 中的mmap的话，就可以实现
+	int (*open)(struct uio_info *info, struct inode *inode); //下述函数都是optional的，如果想要覆盖原有的函数的话
 	int (*release)(struct uio_info *info, struct inode *inode);
 	int (*irqcontrol)(struct uio_info *info, s32 irq_on);
 };
