@@ -1441,6 +1441,9 @@ static inline int pci_irq_get_node(struct pci_dev *pdev, int vec)
 }
 #endif
 
+/* min_vecs是设备对中断向量数目的最小要求，如果小于该值，会返回错误。 */
+/* max_vecs是期望分配的中断向量最大个数。 */
+/* flags用于区分设备和驱动能够使用的中断类型，一般有4种： %PCI_IRQ_LEGACY */
 static inline int
 pci_alloc_irq_vectors(struct pci_dev *dev, unsigned int min_vecs,
 		      unsigned int max_vecs, unsigned int flags)

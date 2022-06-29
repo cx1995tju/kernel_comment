@@ -27,7 +27,7 @@
  */
 
 //仅仅是driver使用的一个更高level的vring管理结构（这个名字与spec中的virtqueue不是一个概念）
-//在virtio_vring.c中还有一个更高level的结构，继承了virtqueue和vring结构，同时将这两个结构一一对应起来了。
+//在virtio_ring.c中还有一个更高level的结构，继承了virtqueue和vring结构，同时将这两个结构一一对应起来了。
 //通过container_of可以互相索引了
 //在driver侧管理都是直接使用vring_virtqueue结构的，virtqueue和vring结构都是其成员之一
 struct virtqueue {

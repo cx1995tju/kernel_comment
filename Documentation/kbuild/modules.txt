@@ -459,7 +459,7 @@ build.
 
 --- 6.2 Symbols and External Modules
 
-	When building an external module, the build system needs access    构建外部模块的时候，必须能够在Modules.symvers文件中找到对应的符号
+	When building an external module, the build system needs access
 	to the symbols from the kernel to check if all external symbols
 	are defined. This is done in the MODPOST step. modpost obtains      在MODPOST步骤完成的, modpost通过读取该文件，获取到所有符号
 	the symbols by reading Module.symvers from the kernel source        结束后会生成外部模块的Moudules.symvers文件

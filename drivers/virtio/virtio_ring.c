@@ -265,7 +265,7 @@ static inline int virtqueue_add(struct virtqueue *_vq, //需要添加的vq
 				unsigned int total_sg, //上述数组大小
 				unsigned int out_sgs, //表示驱动提供给设备的数据
 				unsigned int in_sgs, //表示驱动提供给设备的空间
-				void *data, 
+				void *data,  //buffer相关的一个信息
 				void *ctx,//这一次请求的desc的上下文
 				gfp_t gfp)
 {
