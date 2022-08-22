@@ -395,7 +395,7 @@ out_del_vqs:
 	return err;
 }
 
-/* the config->find_vqs() implementation */
+/* the config->find_vqs() implementation %virtnet_find_vqs */
 int vp_find_vqs(struct virtio_device *vdev, unsigned nvqs,
 		struct virtqueue *vqs[], vq_callback_t *callbacks[],
 		const char * const names[], const bool *ctx,

@@ -71,7 +71,7 @@ struct vring_virtqueue {
 	bool weak_barriers;
 
 	/* Other side has made a mess, don't try any more. */
-	bool broken; //表示对端有问题了
+	bool broken; //表示对端有问题了, 这个q坏了，不能使用了
 
 	/* Host supports indirect buffers */
 	bool indirect; //是否支持indirect
@@ -80,7 +80,7 @@ struct vring_virtqueue {
 	bool event; //是否支持avail event idx
 
 	/* Head of free buffer list. */
-	unsigned int free_head; //desc table第一个可用项
+	unsigned int free_head; //desc sstate table第一个可用项, 本质就是desc_state 这个静态list的 free list 的head
 	/* Number we've added since last sync. */
 	unsigned int num_added; //上一次通知对端后增加的avail ring的个数
 
@@ -111,7 +111,7 @@ struct vring_virtqueue {
 #endif
 
 	/* Per-descriptor state. */
-	struct vring_desc_state desc_state[]; //保存每个desc的上下文的
+	struct vring_desc_state desc_state[]; //保存每个desc的上下文的, 事实上，这个数组构成了一个静态list，free_head 就是这个list的head；每次分配和回收的时候，都是从head开始的。desc中的id就是这个数组的index
 };
 
 #define to_vvq(_vq) container_of(_vq, struct vring_virtqueue, vq)
