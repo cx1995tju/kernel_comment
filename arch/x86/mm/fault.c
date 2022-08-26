@@ -886,10 +886,12 @@ __bad_area_nosemaphore(struct pt_regs *regs, unsigned long error_code,
 		if (likely(show_unhandled_signals))
 			show_signal_msg(regs, error_code, address, tsk);
 
+		//在tsk中，记录一些异常的信息
 		tsk->thread.cr2		= address;
 		tsk->thread.error_code	= error_code;
 		tsk->thread.trap_nr	= X86_TRAP_PF;
 
+		//给进程发一个信号，后续处理信号的时候，会kill掉进程
 		force_sig_info_fault(SIGSEGV, si_code, address, tsk, pkey, 0);
 
 		return;
@@ -922,7 +924,7 @@ __bad_area(struct pt_regs *regs, unsigned long error_code,
 	 * Something tried to access memory that isn't in our memory map..
 	 * Fix it, but check if it's kernel or user first..
 	 */
-	up_read(&mm->mmap_sem);
+	up_read(&mm->mmap_sem); //不需要操作mm了，通过up操作，退出临界区
 
 	__bad_area_nosemaphore(regs, error_code, address,
 			       (vma) ? &pkey : NULL, si_code);
@@ -1207,6 +1209,14 @@ static inline bool smap_violation(int error_code, struct pt_regs *regs)
  * and the problem, and then passes it off to one of the appropriate
  * routines.
  */
+//使用已有的信息，mm vma 判断到底为什么出现了缺页异常，进而做出处理：
+//1. 如果是堆栈扩充，那就补上内存
+//2. 如果是非法访问，就给进程发SEGMENTATION FAULT等信号，在信号处理的时候，进程会被干掉
+//
+//address 是从CR2寄存器读到的出问题的线性地址
+//regs error_code 是linux 的异常处理机制构建的参数：
+//pt_regs 保存的是出问题时，进程的各个寄存器值
+//error_code 表明出问题的原因
 static noinline void
 __do_page_fault(struct pt_regs *regs, unsigned long error_code,
 		unsigned long address)
@@ -1289,7 +1299,7 @@ __do_page_fault(struct pt_regs *regs, unsigned long error_code,
 	 * User-mode registers count as a user access even for any
 	 * potential system fault or CPU buglet:
 	 */
-	if (user_mode(regs)) {
+	if (user_mode(regs)) { //用户态出的问题
 		local_irq_enable();
 		error_code |= X86_PF_USER;
 		flags |= FAULT_FLAG_USER;
@@ -1338,15 +1348,16 @@ retry:
 		might_sleep();
 	}
 
+	//尝试找一找出问题的这个地址 到底有没有对应的vma，是不是权限等问题
 	vma = find_vma(mm, address);
-	if (unlikely(!vma)) {
+	if (unlikely(!vma)) { //找不到对应的vma，说明这一次的访问是越界了
 		bad_area(regs, error_code, address);
 		return;
 	}
-	if (likely(vma->vm_start <= address))
+	if (likely(vma->vm_start <= address)) //找到的addr在vma里，去good_area 做进一步分析
 		goto good_area;
-	if (unlikely(!(vma->vm_flags & VM_GROWSDOWN))) {
-		bad_area(regs, error_code, address);
+	if (unlikely(!(vma->vm_flags & VM_GROWSDOWN))) { //栈就是GROWSDOWN的, 表示这个vma是栈区
+		bad_area(regs, error_code, address); //这里不是栈区，就跳到bad_area
 		return;
 	}
 	if (error_code & X86_PF_USER) {
@@ -1356,12 +1367,15 @@ retry:
 		 * and pusha to work. ("enter $65535, $31" pushes
 		 * 32 pointers and then decrements %sp by 65535.)
 		 */
+		// 1.  pusha 指令可以一次性填充32 个 寄存器，所以访问的地址是%sp - 32 * 8 都可能是在访问栈
+		// 2. entery 指令一次性最多可以消耗65535 Bytes 栈空间
 		if (unlikely(address + 65536 + 32 * sizeof(unsigned long) < regs->sp)) {
 			bad_area(regs, error_code, address);
 			return;
 		}
 	}
-	if (unlikely(expand_stack(vma, address))) {
+	//注意：expand_stack 仅仅是构建扩充了vma，内存还没有分配的，需要后续的good_area处理
+	if (unlikely(expand_stack(vma, address))) { //访问栈的时候，出问题了，那么做一些扩展
 		bad_area(regs, error_code, address);
 		return;
 	}
@@ -1460,8 +1474,8 @@ trace_page_fault_entries(unsigned long address, struct pt_regs *regs,
 dotraplinkage void notrace
 do_page_fault(struct pt_regs *regs, unsigned long error_code)
 {
-	unsigned long address = read_cr2(); /* Get the faulting address */
-	enum ctx_state prev_state;
+	unsigned long address = read_cr2(); /* Get the faulting address */ // CR2是页故障线性地址寄存器，保存最后一次出现页故障的全32位线性地址(经过段寄存器转换的地址，在linux下这个值与虚拟地址一样)。
+	enum ctx_state prev_state; //address: 出问题的线性地址，在linux下就是虚拟地址
 
 	prev_state = exception_enter();
 	if (trace_pagefault_enabled())

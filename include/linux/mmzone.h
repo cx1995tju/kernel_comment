@@ -391,7 +391,7 @@ struct zone {
 #endif /* CONFIG_SPARSEMEM */
 
 	/* zone_start_pfn == zone_start_paddr >> PAGE_SHIFT */
-	unsigned long		zone_start_pfn; //该内存域的第一个物理页索引
+	unsigned long		zone_start_pfn; //该内存域的第一个物理页索引, 接mem_map 数组的idx, 一个page属于某个zone，就永久的属于了。不会改变了
 
 	/*
 	 * spanned_pages is the total pages spanned by the zone, including
@@ -624,7 +624,7 @@ extern struct page *mem_map;
 struct bootmem_data;
 typedef struct pglist_data {
 	struct zone node_zones[MAX_NR_ZONES]; //包含了该结点的所有内存域管理结构，参考zone_type
-	struct zonelist node_zonelists[MAX_ZONELISTS]; //备用结点列表，结点内存不够分配的时候，从备用结点分配
+	struct zonelist node_zonelists[MAX_ZONELISTS]; //备用zone列表，结点内存不够分配的时候，从备用zone分配。譬如：属于本NUMA的内存不够分了，就去别的NUMA Node 拿
 	int nr_zones;
 #ifdef CONFIG_FLAT_NODE_MEM_MAP	/* means !SPARSEMEM */
 	struct page *node_mem_map; //指向该结点管理的所有page结构
@@ -649,7 +649,7 @@ typedef struct pglist_data {
 	 */
 	spinlock_t node_size_lock;
 #endif
-	unsigned long node_start_pfn; //该numa结点，第一个物理页的逻辑编号，所有结点的逻辑编号依次增加，全局唯一
+	unsigned long node_start_pfn; //该numa结点，第一个物理页的逻辑编号，所有结点的逻辑编号依次增加，全局唯一。本质就是mem_map 数组的idx
 	unsigned long node_present_pages; /* total number of physical pages 结点page数目*/
 	unsigned long node_spanned_pages; /* total size of physical page
 					     range, including holes */

@@ -155,6 +155,8 @@ static inline void write_cr0(unsigned long x)
 	native_write_cr0(x);
 }
 
+
+// CR2是页故障线性地址寄存器，保存最后一次出现页故障的全32位线性地址(经过段寄存器转换的地址，在linux下这个值与虚拟地址一样)。
 static inline unsigned long read_cr2(void)
 {
 	return native_read_cr2();

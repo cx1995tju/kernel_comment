@@ -393,6 +393,7 @@ enum page_entry_size {
  * unmapping it (needed to keep files on disk up-to-date etc), pointer
  * to the functions called when a no-page or a wp-page exception occurs.
  */
+//实现mmap的时候，需要提供这样一个结构的
 struct vm_operations_struct {
 	void (*open)(struct vm_area_struct * area);
 	void (*close)(struct vm_area_struct * area);
@@ -1551,6 +1552,7 @@ int clear_page_dirty_for_io(struct page *page);
 
 int get_cmdline(struct task_struct *task, char *buffer, int buflen);
 
+//没有ops，说明没有后备的存储器，即没有办法来构造一个page。所以就来分配匿名页
 static inline bool vma_is_anonymous(struct vm_area_struct *vma)
 {
 	return !vma->vm_ops;

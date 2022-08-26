@@ -264,14 +264,14 @@ struct vm_userfaultfd_ctx {};
 struct vm_area_struct {
 	/* The first cache line has the info for VMA tree walking. */
 
-	unsigned long vm_start;		/* Our start address within vm_mm. */
-	unsigned long vm_end;		/* The first byte after our end address
+	unsigned long vm_start;		/* Our start address within vm_mm. */       // [vm_start, vm_end)
+	unsigned long vm_end;		/* The first byte after our end address //VMA 的划分，除了取决于地址范围，也取决于 页面权限。如果两个范围是毗邻的，但是权限不同，就需要两个VMA来描述
 					   within vm_mm. */
 
 	/* linked list of VM areas per task, sorted by address */
-	struct vm_area_struct *vm_next, *vm_prev;
+	struct vm_area_struct *vm_next, *vm_prev; // 单链表组织该结构
 
-	struct rb_node vm_rb; //通过该成员，组织到红黑树管理
+	struct rb_node vm_rb; //通过该成员，组织到红黑树管理, 这个结构使用非常频繁，需要多种方式组织
 
 	/*
 	 * Largest free memory gap in bytes to the left of this VMA.
@@ -284,7 +284,7 @@ struct vm_area_struct {
 	/* Second cache line starts here. */
 
 	struct mm_struct *vm_mm;	/* The address space we belong to. */
-	pgprot_t vm_page_prot;		/* Access permissions of this VMA. */ //访问权限
+	pgprot_t vm_page_prot;		/* Access permissions of this VMA. */ //访问权限, 这个东西是内核软件使用的，不像页表，段寄存器中的权限是硬件使用的
 	unsigned long vm_flags;		/* Flags, see mm.h. */
 
 	/*
@@ -294,7 +294,7 @@ struct vm_area_struct {
 	struct {
 		struct rb_node rb;
 		unsigned long rb_subtree_last;
-	} shared; //如果有后备存储器的话，这个结点会链接到对应的address_space的i_mapping成员的, 在address_space中被组织成rbtree
+	} shared; //如果有后备存储器的话，这个结点会链接到对应的address_space的i_mmap成员的, 在address_space中被组织成rbtree
 
 	/*
 	 * A file's MAP_PRIVATE vma can be in both i_mmap tree and anon_vma
@@ -307,12 +307,12 @@ struct vm_area_struct {
 	struct anon_vma *anon_vma;	/* Serialized by page_table_lock */
 
 	/* Function pointers to deal with this struct. */
-	const struct vm_operations_struct *vm_ops;
+	const struct vm_operations_struct *vm_ops; //操作这个vma的相关函数
 
 	/* Information about our backing store: */
 	unsigned long vm_pgoff;		/* Offset (within vm_file) in PAGE_SIZE //文件映射的偏移，单位是页
 					   units */
-	struct file * vm_file;		/* File we map to (can be NULL). */ //描述了一个被映射的文件, vma -> file -> address_space -> 磁盘
+	struct file * vm_file;		/* File we map to (can be NULL). */		//描述了一个被映射的文件, vma -> file -> address_space -> 磁盘。参考前面的address_space, 一个vma也可以直接与后备存储器构建联系
 	void * vm_private_data;		/* was vm_pte (shared mem) */
 
 	atomic_long_t swap_readahead_info;
@@ -337,11 +337,13 @@ struct core_state {
 };
 
 struct kioctx_table;
+//表示一个进程的整个虚拟空间，由一个有一个的vm_area_struct 构建，串联
+//进程整个用户空间的抽象
 struct mm_struct {
 	struct {
 		struct vm_area_struct *mmap;		/* list of VMAs */
 		struct rb_root mm_rb;
-		u64 vmacache_seqnum;                   /* per-thread vmacache */
+		u64 vmacache_seqnum;                   /* per-thread vmacache */ //优化，局部性原理
 #ifdef CONFIG_MMU
 		unsigned long (*get_unmapped_area) (struct file *filp,
 				unsigned long addr, unsigned long len,
@@ -356,7 +358,7 @@ struct mm_struct {
 #endif
 		unsigned long task_size;	/* size of task vm space */
 		unsigned long highest_vm_end;	/* highest vma end address */
-		pgd_t * pgd;
+		pgd_t * pgd; //切换内存的时候，需要将这个表示 PGD 表的物理地址(*pgd 是 物理地址)填充到 CR3 寄存器
 
 		/**
 		 * @mm_users: The number of users including userspace.
@@ -381,7 +383,7 @@ struct mm_struct {
 #ifdef CONFIG_MMU
 		atomic_long_t pgtables_bytes;	/* PTE page table pages */
 #endif
-		int map_count;			/* number of VMAs */
+		int map_count;			/* number of VMAs */ //VMA 的数目
 
 		spinlock_t page_table_lock; /* Protects page tables and some
 					     * counters
@@ -407,7 +409,7 @@ struct mm_struct {
 		unsigned long def_flags;
 
 		spinlock_t arg_lock; /* protect the below fields */
-		unsigned long start_code, end_code, start_data, end_data;
+		unsigned long start_code, end_code, start_data, end_data; //显而易见
 		unsigned long start_brk, brk, start_stack; //堆信息
 		unsigned long arg_start, arg_end, env_start, env_end;
 

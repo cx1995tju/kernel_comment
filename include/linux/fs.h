@@ -411,7 +411,7 @@ int pagecache_write_end(struct file *, struct address_space *mapping,
 //而后备存储器相关的操作就是a_ops成员, 另外两个核心成员就是host i_pages
 struct address_space { //vma要与这个结构关联起来的
 	struct inode		*host;		/* owner: inode, block_device 后备存储器 */
-	struct radix_tree_root	i_pages;	/* cached pages */ //该地址空间的所有页, 基于基数树进行管理
+	struct radix_tree_root	i_pages;	/* cached pages */ //该地址空间的所有页, 基于基数树进行管理, 使用一个index可以在基数树中找到对应的page
 	atomic_t		i_mmap_writable;/* count VM_SHARED mappings 因为这种页可能同时备多个用户共享 */
 	struct rb_root_cached	i_mmap;		/* tree of private and shared mappings 组织VMA的优先树, 现在是红黑树了 */
 	struct rw_semaphore	i_mmap_rwsem;	/* protect tree, count, list */
