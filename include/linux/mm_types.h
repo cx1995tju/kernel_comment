@@ -83,9 +83,9 @@ struct page {
 			 * zone_lru_lock.  Sometimes used as a generic list
 			 * by the page owner.
 			 */
-			struct list_head lru; //实现LRU回收的挂链结构
+			struct list_head lru; //实现LRU回收的挂链结构, 通过该结构可以挂到各个LRU队列上
 			/* See page-flags.h for PAGE_MAPPING_FLAGS */
-			struct address_space *mapping; //该页所在地址空间, 如果mapping最低位为1的话，则其指向anon_vma结构, 如果是二进制可执行文件的话，这个address_space可能表示的是一个文件, 参考__page_set_anon_rmap
+			struct address_space *mapping; //该页所在地址空间, 如果mapping最低位为1的话，则其指向anon_vma(实现匿名页的反向映射)结构, 如果是二进制可执行文件的话，这个address_space可能表示的是一个文件, 参考__page_set_anon_rmap
 			pgoff_t index;		/* Our offset within mapping. */
 			/**
 			 * @private: Mapping-private opaque data.
@@ -122,7 +122,7 @@ struct page {
 				};
 			};
 		};
-		struct {	/* Tail pages of compound page */
+		struct {	/* Tail pages of compound page */ //内核可以将多个连续的页组织成一个大的复合页, 这个head就是存储的头page
 			unsigned long compound_head;	/* Bit zero is set */
 
 			/* First tail page only */
@@ -197,7 +197,7 @@ struct page {
 	 * WANT_PAGE_VIRTUAL in asm/page.h
 	 */
 #if defined(WANT_PAGE_VIRTUAL)
-	void *virtual;			/* Kernel virtual address (NULL if //用于高端内存，保存内核虚拟地址
+	void *virtual;			/* Kernel virtual address (NULL if //用于高端内存，保存该高端内存内核虚拟地址
 					   not kmapped, ie. highmem) */
 #endif /* WANT_PAGE_VIRTUAL */
 

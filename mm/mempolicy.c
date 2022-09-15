@@ -12,39 +12,39 @@
  *
  * The VMA policy has priority over the process policy for a page fault.
  *
- * interleave     Allocate memory interleaved over a set of nodes,
+ * interleave     Allocate memory interleaved over a set of nodes, //在一个node 集合上 交叉的 分配 内存
  *                with normal fallback if it fails.
  *                For VMA based allocations this interleaves based on the
  *                offset into the backing object or offset into the mapping
  *                for anonymous memory. For process policy an process counter
  *                is used.
  *
- * bind           Only allocate memory on a specific set of nodes,
+ * bind           Only allocate memory on a specific set of nodes, //必须在一个指定的node set中分配, 不允许fallback
  *                no fallback.
  *                FIXME: memory is allocated starting with the first node
  *                to the last. It would be better if bind would truly restrict
  *                the allocation to memory nodes instead
  *
- * preferred       Try a specific node first before normal fallback.
+ * preferred       Try a specific node first before normal fallback. //在fallback之前，尝试从一个指定的node分配
  *                As a special case NUMA_NO_NODE here means do the allocation
  *                on the local CPU. This is normally identical to default,
  *                but useful to set in a VMA when you have a non default
  *                process policy.
  *
- * default        Allocate on the local node first, or when on a VMA
+ * default        Allocate on the local node first, or when on a VMA	//首先在local node分配。在NUMA系统中，这个是最常见的
  *                use the process policy. This is what Linux always did
  *		  in a NUMA aware kernel and still does by, ahem, default.
  *
  * The process policy is applied for most non interrupt memory allocations
- * in that process' context. Interrupts ignore the policies and always
- * try to allocate on the local CPU. The VMA policy is only applied for memory
+ * in that process' context.  _Interrupts ignore the policies and always_  //在interrupt context 忽略mempolicy，首先都是从local CPU分配
+ * try to allocate on the local CPU. The VMA policy is only applied for memory //VMA policy
  * allocations for a VMA in the VM.
  *
  * Currently there are a few corner cases in swapping where the policy
  * is not applied, but the majority should be handled. When process policy
- * is used it is not remembered over swap outs/swap ins.
+ * is used it is not remembered over swap outs/swap ins. //换入换出的过程中，不会记忆mempolicy
  *
- * Only the highest zone in the zone hierarchy gets policied. Allocations
+ * Only the highest zone in the zone hierarchy gets policied. Allocations //只有highest zone 有policy，其他的zone都是default policy
  * requesting a lower zone just use default policy. This implies that
  * on systems with highmem kernel lowmem allocation don't get policied.
  * Same with GFP_DMA allocations.
@@ -132,18 +132,19 @@ struct mempolicy *get_task_policy(struct task_struct *p)
 	struct mempolicy *pol = p->mempolicy;
 	int node;
 
+	//task 有mempolicy，那么直接返回
 	if (pol)
 		return pol;
 
 	node = numa_node_id();
-	if (node != NUMA_NO_NODE) {
+	if (node != NUMA_NO_NODE) { //否则，根据当前的numa node来获取一个policy
 		pol = &preferred_node_policy[node];
 		/* preferred_node_policy is not initialised early in boot */
 		if (pol->mode)
 			return pol;
 	}
 
-	return &default_policy;
+	return &default_policy; //最后，会fall back到default policy
 }
 
 static const struct mempolicy_operations {
@@ -1731,6 +1732,7 @@ static int apply_policy_zone(struct mempolicy *policy, enum zone_type zone)
  * Return a nodemask representing a mempolicy for filtering nodes for
  * page allocation
  */
+//获取nodemask
 static nodemask_t *policy_nodemask(gfp_t gfp, struct mempolicy *policy)
 {
 	/* Lower zones don't get a nodemask applied for MPOL_BIND */
@@ -1743,6 +1745,9 @@ static nodemask_t *policy_nodemask(gfp_t gfp, struct mempolicy *policy)
 }
 
 /* Return the node id preferred by the given mempolicy, or the given id */
+//根据node id，以及policy 返回node
+//1. policy 有preferred的话，就用preferred node
+//2. 否则就使用传入的默认node id
 static int policy_node(gfp_t gfp, struct mempolicy *policy,
 								int nd)
 {
@@ -2134,6 +2139,8 @@ struct page *alloc_pages_current(gfp_t gfp, unsigned order)
 	struct mempolicy *pol = &default_policy;
 	struct page *page;
 
+	//不在中断中，且没有__GFP_THISNODE(强制在当前node分配) flags
+	//NOTE: 这是常见情况
 	if (!in_interrupt() && !(gfp & __GFP_THISNODE))
 		pol = get_task_policy(current);
 
@@ -2141,7 +2148,7 @@ struct page *alloc_pages_current(gfp_t gfp, unsigned order)
 	 * No reference counting needed for current->mempolicy
 	 * nor system default_policy
 	 */
-	if (pol->mode == MPOL_INTERLEAVE)
+	if (pol->mode == MPOL_INTERLEAVE) //这个是不常见的策略
 		page = alloc_page_interleave(gfp, order, interleave_nodes(pol));
 	else
 		page = __alloc_pages_nodemask(gfp, order,

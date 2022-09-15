@@ -261,9 +261,9 @@ struct lruvec {
 typedef unsigned __bitwise isolate_mode_t;
 
 enum zone_watermarks {
-	WMARK_MIN,
-	WMARK_LOW,
-	WMARK_HIGH,
+	WMARK_MIN, //低于这个水位，内核会使用多种方法来解决
+	WMARK_LOW, //低于这个水位，那么要开始换出到磁盘
+	WMARK_HIGH, //空闲页多于这个水位，那么是理想的
 	NR_WMARK
 };
 
@@ -277,6 +277,7 @@ struct per_cpu_pages {
 	int batch;		/* chunk size for buddy add/remove */
 
 	/* Lists of pages, one per migrate type stored on the pcp-lists */
+	//头部放热页，尾部放冷页
 	struct list_head lists[MIGRATE_PCPTYPES];
 };
 
@@ -335,7 +336,7 @@ enum zone_type {
 	 * transfers to all addressable memory.
 	 */
 	ZONE_NORMAL,
-#ifdef CONFIG_HIGHMEM
+#ifdef CONFIG_HIGHMEM //64位系统，不会用这个的；32位系统中，真正会使用超过4G内存的情况也很少
 	/*
 	 * A memory area that is only addressable by the kernel through
 	 * mapping portions into its own address space. This is for example
@@ -344,7 +345,7 @@ enum zone_type {
 	 * table entries on i386) for each page that the kernel needs to
 	 * access.
 	 */
-	ZONE_HIGHMEM, //通过mapping机制，内核才能访问的区域
+	ZONE_HIGHMEM, //通过mapping机制，内核才能访问的区域, 现在已经不怎么使用了
 #endif
 	ZONE_MOVABLE,
 #ifdef CONFIG_ZONE_DEVICE
@@ -356,12 +357,12 @@ enum zone_type {
 
 #ifndef __GENERATING_BOUNDS_H
 
-//内存域 结构
+//内存域 结构, 在多处理器系统上，这个结构的访问非常频繁，所以要cacheline对齐
 struct zone {
 	/* Read-mostly fields */
 
 	/* zone watermarks, access with *_wmark_pages(zone) macros */
-	unsigned long watermark[NR_WMARK];
+	unsigned long watermark[NR_WMARK]; //页换出时的几个水位线
 
 	unsigned long nr_reserved_highatomic;
 
@@ -380,6 +381,8 @@ struct zone {
 	int node;
 #endif
 	struct pglist_data	*zone_pgdat;
+	/* 热表示：内存在cache中, 由于各个CPU有独立的L1 L2，所以这个结构是percpu的,
+	 * */
 	struct per_cpu_pageset __percpu *pageset; //用于实现内存的冷热分配器的
 
 #ifndef CONFIG_SPARSEMEM
@@ -509,6 +512,7 @@ struct zone {
 	atomic_long_t		vm_numa_stat[NR_VM_NUMA_STAT_ITEMS];
 } ____cacheline_internodealigned_in_smp;
 
+//描述page node 状态
 enum pgdat_flags {
 	PGDAT_CONGESTED,		/* pgdat has many dirty pages backed by
 					 * a congested BDI
@@ -621,10 +625,12 @@ extern struct page *mem_map;
  * Memory statistics and page replacement data structures are maintained on a
  * per-zone basis.
  */
+// node_data 数组，组织该结构
 struct bootmem_data;
+// 内存划分位多个结点，每个关联到一个处理器
 typedef struct pglist_data {
 	struct zone node_zones[MAX_NR_ZONES]; //包含了该结点的所有内存域管理结构，参考zone_type
-	struct zonelist node_zonelists[MAX_ZONELISTS]; //备用zone列表，结点内存不够分配的时候，从备用zone分配。譬如：属于本NUMA的内存不够分了，就去别的NUMA Node 拿
+	struct zonelist node_zonelists[MAX_ZONELISTS]; //备用zone列表，结点内存不够分配的时候，从备用zone分配。譬如：属于本NUMA的内存不够分了，就去别的NUMA Node 拿。列表中越靠后的位置，优先级越低。当前结点分配不出内存的时候，就去这里尝试分配
 	int nr_zones;
 #ifdef CONFIG_FLAT_NODE_MEM_MAP	/* means !SPARSEMEM */
 	struct page *node_mem_map; //指向该结点管理的所有page结构
@@ -633,7 +639,7 @@ typedef struct pglist_data {
 #endif
 #endif
 #ifndef CONFIG_NO_BOOTMEM
-	struct bootmem_data *bdata;
+	struct bootmem_data *bdata; //系统启动期间，内存管理子系统初始化之前，内核也需要使用内存，另外还需要保留部分内存用于初始化内存管理子系统。这个结构就是指向的自举内存分配器管理结构(boot memory allocator)
 #endif
 #if defined(CONFIG_MEMORY_HOTPLUG) || defined(CONFIG_DEFERRED_STRUCT_PAGE_INIT)
 	/*
@@ -656,7 +662,7 @@ typedef struct pglist_data {
 	int node_id; //全局结点ID
 	wait_queue_head_t kswapd_wait; //kswap守护进程睡眠队列
 	wait_queue_head_t pfmemalloc_wait;
-	struct task_struct *kswapd;	/* Protected by
+	struct task_struct *kswapd;	/* Protected by // 该内存节点对应的kswap线程，这个线程是每个NUMA node一个的
 					   mem_hotplug_begin/end() */
 	int kswapd_order;
 	enum zone_type kswapd_classzone_idx;

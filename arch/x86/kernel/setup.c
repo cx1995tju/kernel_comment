@@ -337,6 +337,8 @@ static void __init relocate_initrd(void)
 		relocated_ramdisk, relocated_ramdisk + ramdisk_size - 1);
 }
 
+//根文件系统的位置
+//相关信息来自于bootloader提供的
 static void __init early_reserve_initrd(void)
 {
 	/* Assume only end is not page aligned */
@@ -820,16 +822,16 @@ dump_kernel_offset(struct notifier_block *self, unsigned long v, void *p)
 
 void __init setup_arch(char **cmdline_p)
 {
-	memblock_reserve(__pa_symbol(_text),
+	memblock_reserve(__pa_symbol(_text), //这里是几个内核符号的地址，_text 是内核代码段起始地址
 			 (unsigned long)__bss_stop - (unsigned long)_text);
 
 	/*
 	 * Make sure page 0 is always reserved because on systems with
 	 * L1TF its contents can be leaked to user processes.
 	 */
-	memblock_reserve(0, PAGE_SIZE);
+	memblock_reserve(0, PAGE_SIZE); //刚开始的1个page 内核一般忽略，不会使用的。这里一般是bios使用的。 refer to: struct boot_params 
 
-	early_reserve_initrd();
+	early_reserve_initrd(); //根文件系统的位置预留出来
 
 	/*
 	 * At this point everything still needed from the boot loader
@@ -860,7 +862,7 @@ void __init setup_arch(char **cmdline_p)
 	 */
 	__flush_tlb_all();
 #else
-	printk(KERN_INFO "Command line: %s\n", boot_command_line);
+	printk(KERN_INFO "Command line: %s\n", boot_command_line); //打印 boot_command_line
 	boot_cpu_data.x86_phys_bits = MAX_PHYSMEM_BITS;
 #endif
 
@@ -870,7 +872,7 @@ void __init setup_arch(char **cmdline_p)
 	 */
 	olpc_ofw_detect();
 
-	idt_setup_early_traps();
+	idt_setup_early_traps(); //interrupt early
 	early_cpu_init();
 	arch_init_ideal_nops();
 	jump_label_init();
@@ -878,6 +880,7 @@ void __init setup_arch(char **cmdline_p)
 
 	setup_olpc_ofw_pgd();
 
+	//解析从bios，bootloader收集到的各种boot_params
 	ROOT_DEV = old_decode_dev(boot_params.hdr.root_dev);
 	screen_info = boot_params.screen_info;
 	edid_info = boot_params.edid_info;
@@ -913,11 +916,12 @@ void __init setup_arch(char **cmdline_p)
 	x86_init.oem.arch_setup();
 
 	iomem_resource.end = (1ULL << boot_cpu_data.x86_phys_bits) - 1;
-	e820__memory_setup();
+	e820__memory_setup(); //收集e820 table
 	parse_setup_data();
 
 	copy_edd();
 
+	//收集各种信息
 	if (!boot_params.hdr.root_flags)
 		root_mountflags &= ~MS_RDONLY;
 	init_mm.start_code = (unsigned long) _text;
@@ -938,7 +942,7 @@ void __init setup_arch(char **cmdline_p)
 #ifdef CONFIG_CMDLINE_OVERRIDE
 	strlcpy(boot_command_line, builtin_cmdline, COMMAND_LINE_SIZE);
 #else
-	if (builtin_cmdline[0]) {
+	if (builtin_cmdline[0]) { //编译阶段加入的cmdline
 		/* append boot loader cmdline to builtin */
 		strlcat(builtin_cmdline, " ", COMMAND_LINE_SIZE);
 		strlcat(builtin_cmdline, boot_command_line, COMMAND_LINE_SIZE);
@@ -959,7 +963,7 @@ void __init setup_arch(char **cmdline_p)
 	 */
 	x86_configure_nx();
 
-	parse_early_param();
+	parse_early_param(); //处理内核参数
 
 	if (efi_enabled(EFI_BOOT))
 		efi_memblock_x86_reserve_range();
@@ -1190,7 +1194,7 @@ void __init setup_arch(char **cmdline_p)
 
 	early_acpi_boot_init();
 
-	initmem_init();
+	initmem_init(); // XXX: 重要
 	dma_contiguous_reserve(max_pfn_mapped << PAGE_SHIFT);
 
 	/*
@@ -1204,7 +1208,7 @@ void __init setup_arch(char **cmdline_p)
 	if (!early_xdbc_setup_hardware())
 		early_xdbc_register_console();
 
-	x86_init.paging.pagetable_init();
+	x86_init.paging.pagetable_init(); //启动分页机制
 
 	kasan_init();
 

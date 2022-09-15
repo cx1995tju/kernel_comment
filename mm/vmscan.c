@@ -3471,7 +3471,10 @@ static bool kswapd_shrink_node(pg_data_t *pgdat,
 	return sc->nr_scanned >= sc->nr_to_reclaim;
 }
 
-/*
+/* kswpad 的核心工作，回收页面
+ *
+ * 跨node，从zone里回收pages
+ *
  * For kswapd, balance_pgdat() will reclaim pages across a node from zones
  * that are eligible for use by the caller until at least one zone is
  * balanced.
@@ -3520,7 +3523,7 @@ static int balance_pgdat(pg_data_t *pgdat, int order, int classzone_idx)
 		 * go ahead if all eligible zones for the original allocation
 		 * request are balanced to avoid excessive reclaim from kswapd.
 		 */
-		if (buffer_heads_over_limit) {
+		if (buffer_heads_over_limit) { // %bdflush
 			for (i = MAX_NR_ZONES - 1; i >= 0; i--) {
 				zone = pgdat->node_zones + i;
 				if (!managed_zone(zone))
@@ -3658,6 +3661,7 @@ static void kswapd_try_to_sleep(pg_data_t *pgdat, int alloc_order, int reclaim_o
 		 */
 		wakeup_kcompactd(pgdat, alloc_order, classzone_idx);
 
+		//尝试sleep 0.1 s
 		remaining = schedule_timeout(HZ/10);
 
 		/*
@@ -3746,18 +3750,20 @@ static int kswapd(void *p)
 	 * us from recursively trying to free more memory as we're
 	 * trying to free the first piece of memory in the first place).
 	 */
+	//对于一个程序是mem allocator，内存管理器会优先分配内存的
 	tsk->flags |= PF_MEMALLOC | PF_SWAPWRITE | PF_KSWAPD;
 	set_freezable();
 
 	pgdat->kswapd_order = 0;
 	pgdat->kswapd_classzone_idx = MAX_NR_ZONES;
-	for ( ; ; ) {
+	for ( ; ; ) { //该进程的主循环
 		bool ret;
 
 		alloc_order = reclaim_order = pgdat->kswapd_order;
 		classzone_idx = kswapd_classzone_idx(pgdat, classzone_idx);
 
 kswapd_try_sleep:
+		// 尝试睡在这个函数里
 		kswapd_try_to_sleep(pgdat, alloc_order, reclaim_order,
 					classzone_idx);
 
@@ -3788,6 +3794,7 @@ kswapd_try_sleep:
 		 */
 		trace_mm_vmscan_kswapd_wake(pgdat->node_id, classzone_idx,
 						alloc_order);
+		//这里是kswapd的核心工作
 		reclaim_order = balance_pgdat(pgdat, alloc_order, classzone_idx);
 		if (reclaim_order < alloc_order)
 			goto kswapd_try_sleep;
@@ -3949,8 +3956,8 @@ static int __init kswapd_init(void)
 
 	swap_setup();
 	for_each_node_state(nid, N_MEMORY)
- 		kswapd_run(nid);
-	ret = cpuhp_setup_state_nocalls(CPUHP_AP_ONLINE_DYN,
+ 		kswapd_run(nid); //为每个内存节点，run一个该线程
+	ret = cpuhp_setup_state_nocalls(CPUHP_AP_ONLINE_DYN, //cpu hotplug相关
 					"mm/vmscan:online", kswapd_cpu_online,
 					NULL);
 	WARN_ON(ret < 0);

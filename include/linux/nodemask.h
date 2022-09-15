@@ -387,8 +387,11 @@ static inline void __nodes_fold(nodemask_t *dstp, const nodemask_t *origp,
 
 /*
  * Bitmasks that are kept for all the nodes.
+ *
+ * 状态就是使用下面的bit mask来表示
  */
 //内存结点的状态
+//POSSIBLE ONLINE CPU 这三个状态都是用于CPU的热插拔的
 enum node_states {
 	N_POSSIBLE,		/* The node could become online at some point */
 	N_ONLINE,		/* The node is online */
@@ -408,6 +411,7 @@ enum node_states {
  * on them manage all possible and online nodes.
  */
 
+//每个state 一个 bit_mask,  指示该state的结点有哪些
 extern nodemask_t node_states[NR_NODE_STATES];
 
 #if MAX_NUMNODES > 1
@@ -431,6 +435,7 @@ static inline int num_node_state(enum node_states state)
 	return nodes_weight(node_states[state]);
 }
 
+//迭代特定状态的node
 #define for_each_node_state(__node, __state) \
 	for_each_node_mask((__node), node_states[__state])
 

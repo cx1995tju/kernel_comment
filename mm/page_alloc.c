@@ -261,6 +261,7 @@ compound_page_dtor * const compound_page_dtors[] = {
 #endif
 };
 
+//内核为关键性内存分配 保留的空间 [128KiB, 64MiBi]
 int min_free_kbytes = 1024;
 int user_min_free_kbytes = -1;
 int watermark_scale_factor = 10;
@@ -3267,6 +3268,7 @@ static bool zone_allows_reclaim(struct zone *local_zone, struct zone *zone)
  * get_page_from_freelist goes through the zonelist trying to allocate
  * a page.
  */
+//遍历已经准备好的zone_list, 尝试搞一个page
 static struct page *
 get_page_from_freelist(gfp_t gfp_mask, unsigned int order, int alloc_flags,
 						const struct alloc_context *ac)
@@ -4310,6 +4312,8 @@ got_pg:
 	return page;
 }
 
+//分配前的准备工作，见__alloc_pages_nodemask
+//主要就是构建alloc_context *ac, 为后续真正的分配做准备
 static inline bool prepare_alloc_pages(gfp_t gfp_mask, unsigned int order,
 		int preferred_nid, nodemask_t *nodemask,
 		struct alloc_context *ac, gfp_t *alloc_mask,
@@ -4357,9 +4361,12 @@ static inline void finalise_ac(gfp_t gfp_mask, struct alloc_context *ac)
 					ac->high_zoneidx, ac->nodemask);
 }
 
-/*
+/* XXX: 重要，核心
  * This is the 'heart' of the zoned buddy allocator.
  */
+/* @param nodemask, 一个bit map，用来指示node
+ *
+ * */
 struct page *
 __alloc_pages_nodemask(gfp_t gfp_mask, unsigned int order, int preferred_nid,
 							nodemask_t *nodemask)
@@ -4373,13 +4380,14 @@ __alloc_pages_nodemask(gfp_t gfp_mask, unsigned int order, int preferred_nid,
 	 * There are several places where we assume that the order value is sane
 	 * so bail out early if the request is out of bound.
 	 */
+	//order非法，直接return
 	if (unlikely(order >= MAX_ORDER)) {
 		WARN_ON_ONCE(!(gfp_mask & __GFP_NOWARN));
 		return NULL;
 	}
 
 	gfp_mask &= gfp_allowed_mask;
-	alloc_mask = gfp_mask;
+	alloc_mask = gfp_mask; //对传入的mask做一些与运算后，直接赋值给alloc_mask
 	if (!prepare_alloc_pages(gfp_mask, order, preferred_nid, nodemask, &ac, &alloc_mask, &alloc_flags))
 		return NULL;
 
@@ -5249,6 +5257,9 @@ static void build_thisnode_zonelists(pg_data_t *pgdat)
  * may still exist in local DMA zone.
  */
 
+// 该函数的任务是，在当前处理的结点和系统中其他结点的内存域之间建立一种等级次序
+// 内存域构建order，最先分配highmem，最后分配dma zone
+// 结点之间也构建order，优先分配本结点
 static void build_zonelists(pg_data_t *pgdat)
 {
 	static int node_order[MAX_NUMNODES];
@@ -5379,10 +5390,10 @@ static void __build_all_zonelists(void *data)
 	 * This node is hotadded and no memory is yet present.   So just
 	 * building zonelists is fine - no need to touch other nodes.
 	 */
-	if (self && !node_online(self->node_id)) {
+	if (self && !node_online(self->node_id)) { //hotplug走这条路径??
 		build_zonelists(self);
-	} else {
-		for_each_online_node(nid) {
+	} else { //启动时走的是这条路
+		for_each_online_node(nid) { //为每个node 初始化相关结构
 			pg_data_t *pgdat = NODE_DATA(nid);
 
 			build_zonelists(pgdat);
@@ -5442,7 +5453,7 @@ void __ref build_all_zonelists(pg_data_t *pgdat)
 {
 	if (system_state == SYSTEM_BOOTING) {
 		build_all_zonelists_init();
-	} else {
+	} else { //cpu hotplug也会调用该结构？
 		__build_all_zonelists(pgdat);
 		/* cpuset refresh routine should be here */
 	}
@@ -7300,6 +7311,7 @@ static void __setup_per_zone_wmarks(void)
  * Ensures that the watermark[min,low,high] values for each zone are set
  * correctly with respect to min_free_kbytes.
  */
+//该函数在系统启动阶段被调用，根据系统内存大小，设置一些水位
 void setup_per_zone_wmarks(void)
 {
 	static DEFINE_SPINLOCK(lock);

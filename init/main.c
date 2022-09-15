@@ -468,6 +468,7 @@ void __init parse_early_options(char *cmdline)
 }
 
 /* Arch code calls this early on, or if not, just before other parsing. */
+//处理内核参数
 void __init parse_early_param(void)
 {
 	static int done __initdata;

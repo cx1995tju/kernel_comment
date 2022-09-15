@@ -1190,6 +1190,7 @@ void __init e820__reserve_resources_late(void)
 /*
  * Pass the firmware (bootloader) E820 map to the kernel and process it:
  */
+//将bootloader 提供的E820 map 给到kernel
 char *__init e820__memory_setup_default(void)
 {
 	char *who = "BIOS-e820";
@@ -1235,7 +1236,7 @@ void __init e820__memory_setup(void)
 	/* This is a firmware interface ABI - make sure we don't break it: */
 	BUILD_BUG_ON(sizeof(struct boot_e820_entry) != 20);
 
-	who = x86_init.resources.memory_setup();
+	who = x86_init.resources.memory_setup(); // x86_init.c:: struct x86_init_ops x86_init  // %e820__memory_setup_default
 
 	memcpy(e820_table_kexec, e820_table, sizeof(*e820_table_kexec));
 	memcpy(e820_table_firmware, e820_table, sizeof(*e820_table_firmware));

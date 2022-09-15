@@ -68,24 +68,24 @@
  * SPARSEMEM_EXTREME with !SPARSEMEM_VMEMMAP).
  */
 enum pageflags {
-	PG_locked,		/* Page is locked. Don't touch. */
+	PG_locked,		/* Page is locked. Don't touch. 锁定后，内核的其他部分就不允许访问该page */
 	PG_error, //涉及该页的IO操作错误的话，就置位
-	PG_referenced, //表示该页的活跃度
+	PG_referenced, //控制系统使用该页的活跃度, 页交换子系统会使用这个信息
 	PG_uptodate, //该页已经从块设备读取，没有出错
 	PG_dirty, //该页脏了
-	PG_lru, //用于页回收的LRU算法
-	PG_active, //表示该页的活跃度
+	PG_lru, //用于页回收的LRU算法, 如果page在某个LRU表中，那么设置该标识位
+	PG_active, //控制系统使用该页的活跃度, 页交换子系统会使用这个信息
 	PG_waiters,		/* Page has waiters, check its waitqueue. Must be bit #7 and in the same byte as "PG_locked" */
 	PG_slab, //如果该页在slab中被使用
 	PG_owner_priv_1,	/* Owner use. If pagecache, fs may use*/
 	PG_arch_1,
 	PG_reserved,
-	PG_private,		/* If pagecache, has fs-private data */
+	PG_private,		/* If pagecache, has fs-private data, private成员非空，设置该位，一般都存储了文件系统的一些信息 */
 	PG_private_2,		/* If pagecache, has fs aux data */
-	PG_writeback,		/* Page is under writeback */
+	PG_writeback,		/* Page is under writeback, page正在回写到磁盘的过程 */
 	PG_head,		/* A head page */
 	PG_mappedtodisk,	/* Has blocks allocated on-disk */
-	PG_reclaim,		/* To be reclaimed asap */ //内核决定回收该位后，置位
+	PG_reclaim,		/* To be reclaimed asap */ //内核决定回收该位后，置位用来通知其他系统
 	PG_swapbacked,		/* Page is backed by RAM/swap */
 	PG_unevictable,		/* Page is "unevictable"  */
 #ifdef CONFIG_MMU

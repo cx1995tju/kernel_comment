@@ -16,6 +16,8 @@
  */
 
 /* Policies */
+//MPOL memory policy
+//refer to mempolicy.c 注释
 enum {
 	MPOL_DEFAULT,
 	MPOL_PREFERRED,
