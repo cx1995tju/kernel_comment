@@ -327,6 +327,7 @@ static inline void mmu_notifier_mm_destroy(struct mm_struct *mm)
 		__mmu_notifier_mm_destroy(mm);
 }
 
+//检查页表项是否设置了_PAGE_ACCESSED标志位，然后清除该标志位。每次访问该页时，硬件 会设置该标志(如果特定体系结构有需要，内核也会提供额外的支持)。
 #define ptep_clear_flush_young_notify(__vma, __address, __ptep)		\
 ({									\
 	int __young;							\

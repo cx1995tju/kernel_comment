@@ -850,11 +850,11 @@ static int __add_to_page_cache_locked(struct page *page,
 	}
 
 	get_page(page);
-	page->mapping = mapping;
+	page->mapping = mapping; //重要，设置page 和 address_space 的关系
 	page->index = offset;
 
 	xa_lock_irq(&mapping->i_pages);
-	error = page_cache_tree_insert(mapping, page, shadowp);
+	error = page_cache_tree_insert(mapping, page, shadowp); //重要，设置page 和 address_space 的关系
 	radix_tree_preload_end();
 	if (unlikely(error))
 		goto err_insert;
@@ -895,6 +895,7 @@ int add_to_page_cache_locked(struct page *page, struct address_space *mapping,
 }
 EXPORT_SYMBOL(add_to_page_cache_locked);
 
+// 与add_to_page_cache 类似，但是最终会将page添加到系统的LRU中做管理
 int add_to_page_cache_lru(struct page *page, struct address_space *mapping,
 				pgoff_t offset, gfp_t gfp_mask)
 {

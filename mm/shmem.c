@@ -4022,7 +4022,7 @@ int shmem_zero_setup(struct vm_area_struct *vma)
 	 * accessible to the user through its mapping, use S_PRIVATE flag to
 	 * bypass file security, in the same way as shmem_kernel_file_setup().
 	 */
-	file = shmem_kernel_file_setup("dev/zero", size, vma->vm_flags);
+	file = shmem_kernel_file_setup("dev/zero", size, vma->vm_flags); //对于共享的匿名页，搞一个文件出来
 	if (IS_ERR(file))
 		return PTR_ERR(file);
 

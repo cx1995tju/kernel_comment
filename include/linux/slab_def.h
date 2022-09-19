@@ -36,7 +36,7 @@ struct kmem_cache {
 	unsigned int freelist_size;
 
 	/* constructor func */
-	void (*ctor)(void *obj);
+	void (*ctor)(void *obj); //构造函数
 
 /* 4) cache creation/removal */
 	const char *name;

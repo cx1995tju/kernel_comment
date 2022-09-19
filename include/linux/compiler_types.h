@@ -16,7 +16,7 @@
 # define __acquire(x)	__context__(x,1)
 # define __release(x)	__context__(x,-1)
 # define __cond_lock(x,c)	((c) ? ({ __acquire(x); 1; }) : 0)
-# define __percpu	__attribute__((noderef, address_space(3))) //sparse会检查，不允许直接引用被__percpu 修饰的指针，同时其指向的位置应该在space(3), 需要使用per_cpu_ptr 来间接访问
+# define __percpu	__attribute__((noderef, address_space(3))) //sparse会检查，不允许直接引用被__percpu 修饰的指针，同时其指向的位置应该在space(3), 需要使用per_cpu_ptr 来间接访问，注意一般是表示一个指针指向一个per_cpu 变量，而不是说这个指针是per_cpu的。指针的值是固定的，不过不同的CPU访问的时候，会加上一个偏移值
 # define __rcu		__attribute__((noderef, address_space(4)))
 # define __private	__attribute__((noderef))
 extern void __chk_user_ptr(const volatile void __user *);

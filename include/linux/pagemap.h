@@ -229,6 +229,7 @@ static inline struct page *__page_cache_alloc(gfp_t gfp)
 }
 #endif
 
+//*x 表示该页的数据要来自于该空间
 static inline struct page *page_cache_alloc(struct address_space *x)
 {
 	return __page_cache_alloc(mapping_gfp_mask(x));
@@ -292,7 +293,7 @@ static inline struct page *find_get_page_flags(struct address_space *mapping,
  *
  * find_lock_page() may sleep.
  */
-//与find_get_page类似，但是会锁定该页，可能会睡眠，一直等到页解锁
+//与find_get_page类似，但是会锁定该页，如果这个页已经被其他进程锁定。可能会睡眠，一直等到页解锁
 static inline struct page *find_lock_page(struct address_space *mapping,
 					pgoff_t offset)
 {
@@ -630,6 +631,11 @@ void delete_from_page_cache_batch(struct address_space *mapping,
  * Like add_to_page_cache_locked, but used to add newly allocated pages:
  * the page is new, so we can just run __SetPageLocked() against it.
  */
+// 将分配的page添加到address_space中
+// page 添加到 mapping中
+// 添加到的位置是offset中
+//
+// 即这个page用来作为address_space offset 位置的cache
 static inline int add_to_page_cache(struct page *page,
 		struct address_space *mapping, pgoff_t offset, gfp_t gfp_mask)
 {

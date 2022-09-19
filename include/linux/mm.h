@@ -172,17 +172,19 @@ extern unsigned int kobjsize(const void *objp);
  */
 #define VM_NONE		0x00000000
 
-#define VM_READ		0x00000001	/* currently active flags */
-#define VM_WRITE	0x00000002
-#define VM_EXEC		0x00000004
-#define VM_SHARED	0x00000008
+#define VM_READ		0x00000001	/* currently active flags */ //vma可读
+#define VM_WRITE	0x00000002 //vma可写
+#define VM_EXEC		0x00000004 //vma可执行
+#define VM_SHARED	0x00000008 //vma被共享
 
 /* mprotect() hardcodes VM_MAYREAD >> 4 == VM_READ, and so for r/w/x bits. */
+//mprotect 使用的
 #define VM_MAYREAD	0x00000010	/* limits for mprotect() etc */
 #define VM_MAYWRITE	0x00000020
 #define VM_MAYEXEC	0x00000040
 #define VM_MAYSHARE	0x00000080
 
+//堆是grow up，栈是grow down
 #define VM_GROWSDOWN	0x00000100	/* general info on the segment */
 #define VM_UFFD_MISSING	0x00000200	/* missing pages tracking */
 #define VM_PFNMAP	0x00000400	/* Page-ranges managed without "struct page", just pure PFN */
@@ -192,10 +194,12 @@ extern unsigned int kobjsize(const void *objp);
 #define VM_LOCKED	0x00002000
 #define VM_IO           0x00004000	/* Memory mapped I/O or similar */
 
+//用来提示内存管理子系统和块设备层，整个区域都是顺序读写或者随机读写的
 					/* Used by sys_madvise() */
 #define VM_SEQ_READ	0x00008000	/* App will access data sequentially */
 #define VM_RAND_READ	0x00010000	/* App will not benefit from clustered reads */
 
+//form的时候不要copy
 #define VM_DONTCOPY	0x00020000      /* Do not copy this vma on fork */
 #define VM_DONTEXPAND	0x00040000	/* Cannot expand with mremap() */
 #define VM_LOCKONFAULT	0x00080000	/* Lock the pages covered when they are faulted in */
@@ -395,12 +399,12 @@ enum page_entry_size {
  */
 //实现mmap的时候，需要提供这样一个结构的
 struct vm_operations_struct {
-	void (*open)(struct vm_area_struct * area);
+	void (*open)(struct vm_area_struct * area); //open close用的不多，一般是NULL
 	void (*close)(struct vm_area_struct * area);
 	int (*split)(struct vm_area_struct * area, unsigned long addr);
 	int (*mremap)(struct vm_area_struct * area);
 	/* 自动触发的缺页异常会调用到这个函数的 */
-	vm_fault_t (*fault)(struct vm_fault *vmf);
+	vm_fault_t (*fault)(struct vm_fault *vmf); //极其重要
 	vm_fault_t (*huge_fault)(struct vm_fault *vmf,
 			enum page_entry_size pe_size);
 	void (*map_pages)(struct vm_fault *vmf,

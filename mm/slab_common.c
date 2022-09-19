@@ -30,7 +30,7 @@
 enum slab_state slab_state;
 LIST_HEAD(slab_caches);
 DEFINE_MUTEX(slab_mutex);
-struct kmem_cache *kmem_cache;
+struct kmem_cache *kmem_cache; //所有的struct kmem_cache 结构也是被kmem_cache 组织的
 
 #ifdef CONFIG_HARDENED_USERCOPY
 bool usercopy_fallback __ro_after_init =

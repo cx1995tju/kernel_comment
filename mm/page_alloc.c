@@ -1989,6 +1989,7 @@ struct page *__rmqueue_smallest(struct zone *zone, unsigned int order,
  * This array describes the order lists are fallen back to when
  * the free lists for the desirable migrate type are depleted
  */
+//从伙伴系统分配page的时候，某个类型的page不能满足需求的时候，会fallback到其他类型的伙伴系统中分配的
 static int fallbacks[MIGRATE_TYPES][4] = {
 	[MIGRATE_UNMOVABLE]   = { MIGRATE_RECLAIMABLE, MIGRATE_MOVABLE,   MIGRATE_TYPES },
 	[MIGRATE_RECLAIMABLE] = { MIGRATE_UNMOVABLE,   MIGRATE_MOVABLE,   MIGRATE_TYPES },
@@ -3206,6 +3207,7 @@ bool __zone_watermark_ok(struct zone *z, unsigned int order, unsigned long mark,
 	return false;
 }
 
+//检查当前的水位是否满足分配需求
 bool zone_watermark_ok(struct zone *z, unsigned int order, unsigned long mark,
 		      int classzone_idx, unsigned int alloc_flags)
 {
@@ -3269,6 +3271,7 @@ static bool zone_allows_reclaim(struct zone *local_zone, struct zone *zone)
  * a page.
  */
 //遍历已经准备好的zone_list, 尝试搞一个page
+// 它通过标志集和分配阶来 判断是否能进行分配。如果可以，则发起实际的分配操作。
 static struct page *
 get_page_from_freelist(gfp_t gfp_mask, unsigned int order, int alloc_flags,
 						const struct alloc_context *ac)
@@ -4111,12 +4114,13 @@ retry_cpuset:
 		goto nopage;
 
 	if (gfp_mask & __GFP_KSWAPD_RECLAIM)
-		wake_all_kswapds(order, gfp_mask, ac);
+		wake_all_kswapds(order, gfp_mask, ac); //尝试唤醒kswapd来获取一些内存
 
 	/*
 	 * The adjusted alloc_flags might result in immediate success, so try
 	 * that first
 	 */
+	//唤醒了kswap后，try again，这一次的分配会更努力
 	page = get_page_from_freelist(gfp_mask, order, alloc_flags, ac);
 	if (page)
 		goto got_pg;
@@ -4244,7 +4248,7 @@ retry:
 		goto retry_cpuset;
 
 	/* Reclaim has failed us, start killing things */
-	page = __alloc_pages_may_oom(gfp_mask, order, ac, &did_some_progress);
+	page = __alloc_pages_may_oom(gfp_mask, order, ac, &did_some_progress); //这一次的分配更努力，可能oom的
 	if (page)
 		goto got_pg;
 
@@ -4414,6 +4418,7 @@ __alloc_pages_nodemask(gfp_t gfp_mask, unsigned int order, int preferred_nid,
 	if (unlikely(ac.nodemask != nodemask))
 		ac.nodemask = nodemask;
 
+	//前面的尝试没有成功，进入慢速路径分配
 	page = __alloc_pages_slowpath(alloc_mask, order, &ac);
 
 out:
@@ -5745,6 +5750,7 @@ void __init setup_per_cpu_pageset(void)
 			alloc_percpu(struct per_cpu_nodestat);
 }
 
+//初始化per-cpu
 static __meminit void zone_pcp_init(struct zone *zone)
 {
 	/*
@@ -6366,6 +6372,7 @@ static void __init free_area_init_core(struct pglist_data *pgdat)
 }
 
 #ifdef CONFIG_FLAT_NODE_MEM_MAP
+/* 初始化mem_map 数组 */
 static void __ref alloc_node_mem_map(struct pglist_data *pgdat)
 {
 	unsigned long __maybe_unused start = 0;
@@ -6428,6 +6435,7 @@ static inline void pgdat_set_deferred_range(pg_data_t *pgdat)
 static inline void pgdat_set_deferred_range(pg_data_t *pgdat) {}
 #endif
 
+//为该结点建立 node zone等相关结构
 void __init free_area_init_node(int nid, unsigned long *zones_size,
 				   unsigned long node_start_pfn,
 				   unsigned long *zholes_size)
@@ -6450,13 +6458,13 @@ void __init free_area_init_node(int nid, unsigned long *zones_size,
 #else
 	start_pfn = node_start_pfn;
 #endif
-	calculate_node_totalpages(pgdat, start_pfn, end_pfn,
+	calculate_node_totalpages(pgdat, start_pfn, end_pfn, //计算各个内存域的page数目
 				  zones_size, zholes_size);
 
-	alloc_node_mem_map(pgdat);
+	alloc_node_mem_map(pgdat); //初始化mem_map 数组
 	pgdat_set_deferred_range(pgdat);
 
-	free_area_init_core(pgdat);
+	free_area_init_core(pgdat); //这里是最核心的，会去初始化各种成员
 }
 
 #if defined(CONFIG_HAVE_MEMBLOCK) && !defined(CONFIG_FLAT_NODE_MEM_MAP)
@@ -6876,6 +6884,8 @@ void __init free_area_init_nodes(unsigned long *max_zone_pfn)
 
 	start_pfn = find_min_pfn_with_active_regions();
 
+	//首先确定各个zone的start_pfn end_pfn
+	//NUMA 系统中, 一般在第0个node上分配DMA DMA32等Zone，然后剩下的内存都作为Normal Zone
 	for (i = 0; i < MAX_NR_ZONES; i++) {
 		if (i == ZONE_MOVABLE)
 			continue;
@@ -6893,7 +6903,7 @@ void __init free_area_init_nodes(unsigned long *max_zone_pfn)
 
 	/* Print out the zone ranges */
 	pr_info("Zone ranges:\n");
-	for (i = 0; i < MAX_NR_ZONES; i++) {
+	for (i = 0; i < MAX_NR_ZONES; i++) { //print 各个Zone信息
 		if (i == ZONE_MOVABLE)
 			continue;
 		pr_info("  %-8s ", zone_names[i]);
@@ -6929,7 +6939,7 @@ void __init free_area_init_nodes(unsigned long *max_zone_pfn)
 	zero_resv_unavail();
 	for_each_online_node(nid) {
 		pg_data_t *pgdat = NODE_DATA(nid);
-		free_area_init_node(nid, NULL,
+		free_area_init_node(nid, NULL,				//重要，init each node
 				find_min_pfn_for_node(nid), NULL);
 
 		/* Any memory on that node */

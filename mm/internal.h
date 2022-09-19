@@ -336,7 +336,7 @@ extern pmd_t maybe_pmd_mkwrite(pmd_t pmd, struct vm_area_struct *vma);
 static inline unsigned long
 __vma_address(struct page *page, struct vm_area_struct *vma)
 {
-	pgoff_t pgoff = page_to_pgoff(page);
+	pgoff_t pgoff = page_to_pgoff(page); //获取page在基数树中的index
 	return vma->vm_start + ((pgoff - vma->vm_pgoff) << PAGE_SHIFT);
 }
 
@@ -461,9 +461,20 @@ extern void set_pageblock_order(void);
 unsigned long reclaim_clean_pages_from_list(struct zone *zone,
 					    struct list_head *page_list);
 /* The ALLOC_WMARK bits are used as an index to zone->watermark */
-#define ALLOC_WMARK_MIN		WMARK_MIN
-#define ALLOC_WMARK_LOW		WMARK_LOW
-#define ALLOC_WMARK_HIGH	WMARK_HIGH
+/* 默认情况只有内存域包含页的数目至少为zone->pages_high时，才能分配页。 这对应于ALLOC_WMARK_HIGH标志。
+ *
+ * 如果要使用较低(zone->pages_low)或最低(zone->pages_min) 设置，则必须相应地设置ALLOC_WMARK_MIN或ALLOC_WMARK_LOW。
+ *
+ * ALLOC_HARDER通知伙伴系统在急需内存时放宽分配规则。
+ *
+ * 在分配高端内存域的内存时，ALLOC_HIGH进一步放宽限制。
+ *
+ * 最后， ALLOC_CPUSET告知内核，内存只能从当前进程允许运行的CPU相关联的内存结点分配，当然该选项只对NUMA系统有意义。 */
+
+// refer to: zone_watermark_ok
+#define ALLOC_WMARK_MIN		WMARK_MIN // pages_min
+#define ALLOC_WMARK_LOW		WMARK_LOW // pages_low
+#define ALLOC_WMARK_HIGH	WMARK_HIGH // paes_high
 #define ALLOC_NO_WATERMARKS	0x04 /* don't check watermarks at all */
 
 /* Mask to get the watermark bits */

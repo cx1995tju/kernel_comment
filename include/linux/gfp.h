@@ -18,23 +18,23 @@ struct vm_area_struct;
 /* Plain integer GFP bitmasks. Do not use this directly. */
 #define ___GFP_DMA		0x01u
 #define ___GFP_HIGHMEM		0x02u
-#define ___GFP_DMA32		0x04u
-#define ___GFP_MOVABLE		0x08u
-#define ___GFP_RECLAIMABLE	0x10u
-#define ___GFP_HIGH		0x20u
-#define ___GFP_IO		0x40u
-#define ___GFP_FS		0x80u
+#define ___GFP_DMA32		0x04u // 最低4b 用来指示从哪个zone分配
+#define ___GFP_MOVABLE		0x08u //将page标记为可以移动的
+#define ___GFP_RECLAIMABLE	0x10u //将page标记为可回收
+#define ___GFP_HIGH		0x20u //表示内核急切的需要内存，与HIGHMEM 没有任何关系
+#define ___GFP_IO		0x40u // 在查找空闲page期间，可以做IO操作的。如果内核在内存分配期间需要将页换出，那么只有设置了该flag，才可能将page写入磁盘
+#define ___GFP_FS		0x80u //允许分配期间做VFS相关操作。在与VFS关联的内核子系统中，不要设置这个FLAG，可能导致循环递归调用
 #define ___GFP_WRITE		0x100u
-#define ___GFP_NOWARN		0x200u
-#define ___GFP_RETRY_MAYFAIL	0x400u
-#define ___GFP_NOFAIL		0x800u
+#define ___GFP_NOWARN		0x200u //分配失败时禁止内核告警
+#define ___GFP_RETRY_MAYFAIL	0x400u //分配失败后，做几次重试
+#define ___GFP_NOFAIL		0x800u //分配失败后，一直重试，直到成功
 #define ___GFP_NORETRY		0x1000u
 #define ___GFP_MEMALLOC		0x2000u
 #define ___GFP_COMP		0x4000u
-#define ___GFP_ZERO		0x8000u
+#define ___GFP_ZERO		0x8000u //分配成功后，将page填充为0
 #define ___GFP_NOMEMALLOC	0x10000u
-#define ___GFP_HARDWALL		0x20000u
-#define ___GFP_THISNODE		0x40000u
+#define ___GFP_HARDWALL		0x20000u //限制只在当前进程的各个CPU关联的结点 上分配
+#define ___GFP_THISNODE		0x40000u //内存分配失败时，不允许使用其他node
 #define ___GFP_ATOMIC		0x80000u
 #define ___GFP_ACCOUNT		0x100000u
 #define ___GFP_DIRECT_RECLAIM	0x200000u
@@ -290,13 +290,13 @@ struct vm_area_struct;
  * in page fault path, while the non-light is used by khugepaged.
  */
 //常用的内存掩码分配组合
-#define GFP_ATOMIC	(__GFP_HIGH|__GFP_ATOMIC|__GFP_KSWAPD_RECLAIM)
-#define GFP_KERNEL	(__GFP_RECLAIM | __GFP_IO | __GFP_FS)
+#define GFP_ATOMIC	(__GFP_HIGH|__GFP_ATOMIC|__GFP_KSWAPD_RECLAIM) //用于原子分配，任何情况下都不能被中断
+#define GFP_KERNEL	(__GFP_RECLAIM | __GFP_IO | __GFP_FS) //内核态分配的默认配置
 #define GFP_KERNEL_ACCOUNT (GFP_KERNEL | __GFP_ACCOUNT)
 #define GFP_NOWAIT	(__GFP_KSWAPD_RECLAIM)
 #define GFP_NOIO	(__GFP_RECLAIM)
 #define GFP_NOFS	(__GFP_RECLAIM | __GFP_IO)
-#define GFP_USER	(__GFP_RECLAIM | __GFP_IO | __GFP_FS | __GFP_HARDWALL)
+#define GFP_USER	(__GFP_RECLAIM | __GFP_IO | __GFP_FS | __GFP_HARDWALL) //用户态分配的默认配置
 #define GFP_DMA		__GFP_DMA
 #define GFP_DMA32	__GFP_DMA32
 #define GFP_HIGHUSER	(GFP_USER | __GFP_HIGHMEM)
@@ -486,8 +486,8 @@ __alloc_pages(gfp_t gfp_mask, unsigned int order, int preferred_nid)
 static inline struct page *
 __alloc_pages_node(int nid, gfp_t gfp_mask, unsigned int order)
 {
-	VM_BUG_ON(nid < 0 || nid >= MAX_NUMNODES);
-	VM_WARN_ON((gfp_mask & __GFP_THISNODE) && !node_online(nid));
+	VM_BUG_ON(nid < 0 || nid >= MAX_NUMNODES); //基本的检查
+	VM_WARN_ON((gfp_mask & __GFP_THISNODE) && !node_online(nid)); //必须在该node分配，但是该node offline，那么显然会出错
 
 	return __alloc_pages(gfp_mask, order, nid);
 }

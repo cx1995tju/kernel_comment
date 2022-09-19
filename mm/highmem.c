@@ -380,6 +380,7 @@ EXPORT_SYMBOL(kunmap_high);
  * Describes one page->virtual association
  */
 //内核中的页映射关系记录, 所有该结构保存在散列表page_address_htable
+//64位系统，都不需要highmem机制了，这些东西意义都不大
 struct page_address_map {
 	struct page *page;
 	void *virtual;

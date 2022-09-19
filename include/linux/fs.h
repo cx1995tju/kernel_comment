@@ -339,8 +339,9 @@ typedef struct {
 typedef int (*read_actor_t)(read_descriptor_t *, struct page *,
 		unsigned long, unsigned long);
 
-//这个操作应该由具体的存储设备上的文件系统提供，譬如ext3的ext3_writeback_aops, 共享文件系统的shmem_aops, 访问裸块设备的def_blk_aops
+//这个操作应该由具体的存储设备上的文件系统提供，譬如ext3的%ext3_writeback_aops, 共享文件系统的shmem_aops, 访问裸块设备的def_blk_aops
 //很多文件系统也不会实现所有的函数的, 大多数的地址空间都只实现了部分函数指针。大多数情况下都会调用内核的默认例程。
+//前4个操作比较重要
 struct address_space_operations {
 	int (*writepage)(struct page *page, struct writeback_control *wbc); //将地址空间的一页写回到底层设备
 	int (*readpage)(struct file *, struct page *); //从后备设备读取一个页进来
@@ -412,14 +413,14 @@ int pagecache_write_end(struct file *, struct address_space *mapping,
 struct address_space { //vma要与这个结构关联起来的
 	struct inode		*host;		/* owner: inode, block_device 后备存储器 */
 	struct radix_tree_root	i_pages;	/* cached pages */ //该地址空间的所有页, 基于基数树进行管理, 使用一个index可以在基数树中找到对应的page
-	atomic_t		i_mmap_writable;/* count VM_SHARED mappings 因为这种页可能同时备多个用户共享 */
-	struct rb_root_cached	i_mmap;		/* tree of private and shared mappings 组织VMA的优先树, 现在是红黑树了 */
+	atomic_t		i_mmap_writable;/* count VM_SHARED mappings 因为这种页可能同时备多个用户共享 */ //所有用vm_shared flag创建的页的映射
+	otruct rb_root_cached	i_mmap;		/* tree of private and shared mappings 组织VMA的优先树, 现在是红黑树了 */ //核心就是这两颗树
 	struct rw_semaphore	i_mmap_rwsem;	/* protect tree, count, list */
 	/* Protected by the i_pages lock */
 	unsigned long		nrpages;	/* number of total pages 页的总数 */
 	/* number of shadow or DAX exceptional entries */
 	unsigned long		nrexceptional;
-	pgoff_t			writeback_index;/* writeback starts here, 如果要回写的话，从这里开始 */
+	pgoff_t			writeback_index;/* writeback starts here, 如果要回写的话，从这个index的开始 */
 	const struct address_space_operations *a_ops;	/* methods */ //与后备存储器建立起联系的关键点
 	unsigned long		flags;		/* error bits */
 	spinlock_t		private_lock;	/* for use by the address_space */
@@ -477,8 +478,8 @@ struct block_device {
  * Radix-tree tags, for tagging dirty and writeback pages within the pagecache
  * radix trees
  */
-#define PAGECACHE_TAG_DIRTY	0
-#define PAGECACHE_TAG_WRITEBACK	1
+#define PAGECACHE_TAG_DIRTY	0 //表示当前page已经脏了
+#define PAGECACHE_TAG_WRITEBACK	1 //表示当前页正在写回
 #define PAGECACHE_TAG_TOWRITE	2
 
 int mapping_tagged(struct address_space *mapping, int tag);

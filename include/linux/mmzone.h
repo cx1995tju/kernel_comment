@@ -36,6 +36,9 @@
  */
 #define PAGE_ALLOC_COSTLY_ORDER 3
 
+/* 1. 不可移动页: 不能移动，有固定位置，譬如：内核代码段， */
+/* 2. 可回收页: 可以删除，后续从源重新生成，譬如：page cache */
+/* 3. 可移动页: 可以随意移动，譬如：用户进程的页 */
 enum migratetype {
 	MIGRATE_UNMOVABLE,
 	MIGRATE_MOVABLE,
@@ -93,8 +96,12 @@ extern int page_group_by_mobility_disabled;
 	get_pfnblock_flags_mask(page, page_to_pfn(page),		\
 			PB_migrate_end, MIGRATETYPE_MASK)
 
+/* 1. 不可移动页: 不能移动，有固定位置，譬如：内核代码段， */
+/* 2. 可回收页: 可以删除，后续从源重新生成，譬如：page cache */
+/* 3. 可移动页: 可以随意移动，譬如：用户进程的页 */
+/* 将不同类型的页，分别管理，有助于减少碎片, 当某种类型里的分配无法满足的时候，会fallback的 */
 struct free_area {
-	struct list_head	free_list[MIGRATE_TYPES]; //连接空闲页的链表
+	struct list_head	free_list[MIGRATE_TYPES]; //连接空闲页的链表, 即连接的是page结构
 	unsigned long		nr_free; //该内存域zone中各阶内存块数目
 };
 
@@ -336,7 +343,7 @@ enum zone_type {
 	 * transfers to all addressable memory.
 	 */
 	ZONE_NORMAL,
-#ifdef CONFIG_HIGHMEM //64位系统，不会用这个的；32位系统中，真正会使用超过4G内存的情况也很少
+#ifdef CONFIG_HIGHMEM //64位系统，不会用这个的；32位系统中，真正会使用超过4G内存的情况也很少。这个东西用处不大
 	/*
 	 * A memory area that is only addressable by the kernel through
 	 * mapping portions into its own address space. This is for example

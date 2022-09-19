@@ -152,7 +152,7 @@ static void anon_vma_chain_link(struct vm_area_struct *vma,
  * an 'anon_vma' attached to it, so that we can associate the
  * anonymous pages mapped into it with that anon_vma.
  *
- * The common case will be that we already have one, which
+ * The common case will be that we already have one, which //重点注释
  * is handled inline by anon_vma_prepare(). But if
  * not we either need to find an adjacent mapping that we
  * can re-use the anon_vma from (very common when the only
@@ -172,6 +172,7 @@ static void anon_vma_chain_link(struct vm_area_struct *vma,
  *
  * This must be called with the mmap_sem held for reading.
  */
+//为该vma找一个anon_vma, 找不到的话就分配一个
 int __anon_vma_prepare(struct vm_area_struct *vma)
 {
 	struct mm_struct *mm = vma->vm_mm;
@@ -184,9 +185,9 @@ int __anon_vma_prepare(struct vm_area_struct *vma)
 	if (!avc)
 		goto out_enomem;
 
-	anon_vma = find_mergeable_anon_vma(vma);
+	anon_vma = find_mergeable_anon_vma(vma); //能不能找到一个也有的anon_vma
 	allocated = NULL;
-	if (!anon_vma) {
+	if (!anon_vma) { //如果是NULL的话，就需要分配了
 		anon_vma = anon_vma_alloc();
 		if (unlikely(!anon_vma))
 			goto out_enomem_free_avc;
@@ -749,7 +750,18 @@ struct page_referenced_arg {
 };
 /*
  * arg: page_referenced_arg will be passed
+ *
+ *
+ * page_referenced_one分为两个步骤执行其任务。
+ * 	(1) 找到指向该页的页表项。这样做是可行的，因为page_referenced_one的参数不仅包括page
+ * 	实例，还有相关的vm_area_struct。虚拟地址空间中映射该页的可以根据后者确定。
+ * 	(2) 检查页表项是否设置了_PAGE_ACCESSED标志位，然后清除该标志位。每次访问该页时，硬件 会设置该标志(如果特定体系结构有需要，内核也会提供额外的支持)。如果设置了该标志位，则引 用计数器加1;否则不变。因此经常使用的页引用计数较高，而很少使用的页则刚好相反。因此内核根据引用计数，立即就能判断某一页是否重要。
  */
+
+//遍历address_space 或者 anon_vma 中的所有vma的时候，调用该函数，判断page有没有 通过该vma被访问过，被多个vma访问过，则表示该page活跃
+//refer to rmap_walk_anon rmap_walk_file
+//
+//对于不同的vma，判断page在有没有通过该vma被访问过，被访问的越多，表示这个page越活跃
 static bool page_referenced_one(struct page *page, struct vm_area_struct *vma,
 			unsigned long address, void *arg)
 {
@@ -770,8 +782,9 @@ static bool page_referenced_one(struct page *page, struct vm_area_struct *vma,
 			return false; /* To break the loop */
 		}
 
-		if (pvmw.pte) {
-			if (ptep_clear_flush_young_notify(vma, address,
+		if (pvmw.pte) { //该page对应的pte
+			//page如果在一个vma中刚刚被访问了，那么这个vma对应的mm中记录的pte中就有_PAGE_ACCESSED标志位的
+			if (ptep_clear_flush_young_notify(vma, address,//检查页表项是否设置了_PAGE_ACCESSED标志位，然后清除该标志位。每次访问该页时，硬件 会设置该标志(如果特定体系结构有需要，内核也会提供额外的支持)。如果设置了该标志位，则引 用计数器加1; 因此经常使用的页引用计数较高，而很少使用的页则刚好相反。因此内核根据引用计数，立即就能判断某一页是否重要。
 						pvmw.pte)) {
 				/*
 				 * Don't treat a reference through
@@ -832,6 +845,8 @@ static bool invalid_page_referenced_vma(struct vm_area_struct *vma, void *arg)
  *
  * Quick test_and_clear_referenced for all mappings to a page,
  * returns the number of ptes which referenced the page.
+ * 1. 主要还是在页交换中使用，另外在`page_referenced`中也有使用:  _用于统计最近访问某个共享页的进程的数目, 基于此来判断一个页的重要性_
+ * 2. 原理：通过反向映射，找到这个page关联的所有vma，然后判断某个进程最近有没有通过这个vma访问该page，访问的越多，则表示该page越重要
  */
 int page_referenced(struct page *page,
 		    int is_locked,
@@ -844,16 +859,16 @@ int page_referenced(struct page *page,
 		.memcg = memcg,
 	};
 	struct rmap_walk_control rwc = {
-		.rmap_one = page_referenced_one,
+		.rmap_one = page_referenced_one, //后续会使用的回调函数
 		.arg = (void *)&pra,
 		.anon_lock = page_lock_anon_vma_read,
 	};
 
 	*vm_flags = 0;
-	if (!page_mapped(page))
+	if (!page_mapped(page)) //没有map的话，肯定没有进程用
 		return 0;
 
-	if (!page_rmapping(page))
+	if (!page_rmapping(page)) //没有建立反向映射的话，也就没法索引了
 		return 0;
 
 	if (!is_locked && (!PageAnon(page) || PageKsm(page))) {
@@ -1040,7 +1055,7 @@ static void __page_set_anon_rmap(struct page *page,
 	if (!exclusive)
 		anon_vma = anon_vma->root;
 
-	anon_vma = (void *) anon_vma + PAGE_MAPPING_ANON;
+	anon_vma = (void *) anon_vma + PAGE_MAPPING_ANON; //最低位不是用来做地址的，而是存储flag
 	page->mapping = (struct address_space *) anon_vma;
 	page->index = linear_page_index(vma, address);
 }
@@ -1084,6 +1099,7 @@ static void __page_check_anon_rmap(struct page *page,
  * and to ensure that PageAnon is not being upgraded racily to PageKsm
  * (but PageKsm is never downgraded to PageAnon).
  */
+//为匿名页建立反向映射
 void page_add_anon_rmap(struct page *page,
 	struct vm_area_struct *vma, unsigned long address, bool compound)
 {
@@ -1147,6 +1163,7 @@ void do_page_add_anon_rmap(struct page *page,
  * This means the inc-and-test can be bypassed.
  * Page does not have to be locked.
  */
+//为匿名页建立反向映射, page -> vma 之间的关系, 将page -> 该vma的anon_vma，即建立了反向映射
 void page_add_new_anon_rmap(struct page *page,
 	struct vm_area_struct *vma, unsigned long address, bool compound)
 {
@@ -1163,7 +1180,7 @@ void page_add_new_anon_rmap(struct page *page,
 		/* Anon THP always mapped first with PMD */
 		VM_BUG_ON_PAGE(PageTransCompound(page), page);
 		/* increment count (starts at -1) */
-		atomic_set(&page->_mapcount, 0);
+		atomic_set(&page->_mapcount, 0); //增加page 计数
 	}
 	__mod_node_page_state(page_pgdat(page), NR_ANON_MAPPED, nr);
 	__page_set_anon_rmap(page, vma, address, 1);
@@ -1176,6 +1193,7 @@ void page_add_new_anon_rmap(struct page *page,
  *
  * The caller needs to hold the pte lock.
  */
+//为文件页 建立反向映射
 void page_add_file_rmap(struct page *page, bool compound)
 {
 	int i, nr = 1;
@@ -1812,6 +1830,7 @@ static void rmap_walk_anon(struct page *page, struct rmap_walk_control *rwc,
 
 	pgoff_start = page_to_pgoff(page);
 	pgoff_end = pgoff_start + hpage_nr_pages(page) - 1;
+	//遍历anon_vma 中的所有vma
 	anon_vma_interval_tree_foreach(avc, &anon_vma->rb_root,
 			pgoff_start, pgoff_end) {
 		struct vm_area_struct *vma = avc->vma;
@@ -1822,6 +1841,7 @@ static void rmap_walk_anon(struct page *page, struct rmap_walk_control *rwc,
 		if (rwc->invalid_vma && rwc->invalid_vma(vma, rwc->arg))
 			continue;
 
+		// %page_referenced_one
 		if (!rwc->rmap_one(page, vma, address, rwc->arg))
 			break;
 		if (rwc->done && rwc->done(page))

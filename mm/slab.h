@@ -26,7 +26,7 @@ struct kmem_cache {
 	unsigned int usersize;	/* Usercopy region size */
 	const char *name;	/* Slab name for sysfs */
 	int refcount;		/* Use counter */
-	void (*ctor)(void *);	/* Called on object slot creation */
+	void (*ctor)(void *);	/* Called on object slot creation , 构造函数*/
 	struct list_head list;	/* List of all slab caches on the system */
 };
 

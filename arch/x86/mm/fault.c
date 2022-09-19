@@ -308,6 +308,7 @@ void vmalloc_sync_all(void)
  *
  *   Handle a fault on the vmalloc or module mapping area
  */
+//vmalloc 机制的关键，同用户态malloc类似，也是先分配虚拟内存，后续缺页异常的时候才分配物理内存
 static noinline int vmalloc_fault(unsigned long address)
 {
 	unsigned long pgd_paddr;
@@ -1060,6 +1061,7 @@ static int spurious_fault_check(unsigned long error_code, pte_t *pte)
  * cross-processor TLB flush, even if no stale TLB entries exist
  * on other processors.
  *
+ * // 由于权限不足导致的缺页异常
  * Spurious faults may only occur if the TLB contains an entry with
  * fewer permission than the page table entry.  Non-present (P = 0)
  * and reserved bit (R = 1) faults are never spurious.
@@ -1249,8 +1251,10 @@ __do_page_fault(struct pt_regs *regs, unsigned long error_code,
 	 * (error_code & 4) == 0, and that the fault was not a
 	 * protection error (error_code & 9) == 0.
 	 */
+	//在kernel 里出问题了
 	if (unlikely(fault_in_kernel_space(address))) {
 		if (!(error_code & (X86_PF_RSVD | X86_PF_USER | X86_PF_PROT))) {
+			//vmalloc fault
 			if (vmalloc_fault(address) >= 0)
 				return;
 		}
@@ -1303,20 +1307,20 @@ __do_page_fault(struct pt_regs *regs, unsigned long error_code,
 		local_irq_enable();
 		error_code |= X86_PF_USER;
 		flags |= FAULT_FLAG_USER;
-	} else {
+	} else { //内核态出问题了
 		if (regs->flags & X86_EFLAGS_IF)
 			local_irq_enable();
 	}
 
 	perf_sw_event(PERF_COUNT_SW_PAGE_FAULTS, 1, regs, address);
 
+	//收集出问题的原因
 	if (error_code & X86_PF_WRITE)
 		flags |= FAULT_FLAG_WRITE;
 	if (error_code & X86_PF_INSTR)
 		flags |= FAULT_FLAG_INSTRUCTION;
 
-	/*
-	 * When running in the kernel we expect faults to occur only to
+	/* When running in the kernel we expect faults to occur only to
 	 * addresses in user space.  All other faults represent errors in
 	 * the kernel and should generate an OOPS.  Unfortunately, in the
 	 * case of an erroneous fault occurring in a code path which already
@@ -1326,7 +1330,7 @@ __do_page_fault(struct pt_regs *regs, unsigned long error_code,
 	 * listed in the exceptions table.
 	 *
 	 * As the vast majority of faults will be valid we will only perform
-	 * the source reference check when there is a possibility of a
+	 * the source reference check when there is a possibility of a //只有一种死锁的可能性
 	 * deadlock. Attempt to lock the address space, if we cannot we then
 	 * validate the source. If this is invalid we can skip the address
 	 * space check, thus avoiding the deadlock:
@@ -1390,6 +1394,7 @@ good_area:
 		return;
 	}
 
+	//原则：当发现是处理不了的缺页异常的时候，要能够优雅的退出，千万不能陷入在无穷无尽的缺页异常中
 	/*
 	 * If for any reason at all we couldn't handle the fault,
 	 * make sure we exit gracefully rather than endlessly redo
@@ -1406,7 +1411,7 @@ good_area:
 	 * fault, so we read the pkey beforehand.
 	 */
 	pkey = vma_pkey(vma);
-	fault = handle_mm_fault(vma, address, flags);
+	fault = handle_mm_fault(vma, address, flags); //这里去处理
 	major |= fault & VM_FAULT_MAJOR;
 
 	/*
@@ -1474,10 +1479,11 @@ trace_page_fault_entries(unsigned long address, struct pt_regs *regs,
 dotraplinkage void notrace
 do_page_fault(struct pt_regs *regs, unsigned long error_code)
 {
+	//硬件支持，cr2寄存器记录了线性地址
 	unsigned long address = read_cr2(); /* Get the faulting address */ // CR2是页故障线性地址寄存器，保存最后一次出现页故障的全32位线性地址(经过段寄存器转换的地址，在linux下这个值与虚拟地址一样)。
 	enum ctx_state prev_state; //address: 出问题的线性地址，在linux下就是虚拟地址
 
-	prev_state = exception_enter();
+	prev_state = exception_enter(); //用于tracking???
 	if (trace_pagefault_enabled())
 		trace_page_fault_entries(address, regs, error_code);
 

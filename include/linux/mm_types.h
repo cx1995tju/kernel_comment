@@ -85,7 +85,7 @@ struct page {
 			 */
 			struct list_head lru; //实现LRU回收的挂链结构, 通过该结构可以挂到各个LRU队列上
 			/* See page-flags.h for PAGE_MAPPING_FLAGS */
-			struct address_space *mapping; //该页所在地址空间, 如果mapping最低位为1的话，则其指向anon_vma(实现匿名页的反向映射)结构, 如果是二进制可执行文件的话，这个address_space可能表示的是一个文件, 参考__page_set_anon_rmap
+			struct address_space *mapping; //该页所在地址空间, 如果mapping最低位为1的话，则其指向anon_vma(实现匿名页的反向映射)结构, 如果是二进制可执行文件的话，这个address_space可能表示的是一个文件, 参考__page_set_anon_rmap, refer to: %__page_set_anon_rmap
 			pgoff_t index;		/* Our offset within mapping. */
 			/**
 			 * @private: Mapping-private opaque data.
@@ -165,7 +165,7 @@ struct page {
 		 * If the page can be mapped to userspace, encodes the number
 		 * of times this page is referenced by a page table.
 		 */
-		atomic_t _mapcount;  //页表中有多少项指向该页
+		atomic_t _mapcount;  //页表中有多少项指向该页, 初始值为-1，page插入到逆向映射数据结构的时候，才会赋值为0。之后每次增加一个使用者，就++。 refer to: %page_add_new_anon_rmap
 
 		/*
 		 * If the page is neither PageSlab nor mappable to userspace,
@@ -269,9 +269,9 @@ struct vm_area_struct {
 					   within vm_mm. */
 
 	/* linked list of VM areas per task, sorted by address */
-	struct vm_area_struct *vm_next, *vm_prev; // 单链表组织该结构
+	struct vm_area_struct *vm_next, *vm_prev; // 单链表组织该结构, refer to %mm_struct->mmap
 
-	struct rb_node vm_rb; //通过该成员，组织到红黑树管理, 这个结构使用非常频繁，需要多种方式组织
+	struct rb_node vm_rb; //通过该成员，组织到红黑树管理, 这个结构使用非常频繁，需要多种方式组织, refer to %mm_struct->vm_rb
 
 	/*
 	 * Largest free memory gap in bytes to the left of this VMA.
@@ -291,10 +291,13 @@ struct vm_area_struct {
 	 * For areas with an address space and backing store,
 	 * linkage into the address_space->i_mmap interval tree.
 	 */
+	//一个进程的某些虚拟内存空间可能是对应到某个文件的(mmap), 通过vma.shared -> address_space -> IO
+	//另一方面，这个文件被mmap了后，还是可以使用正常的文件操作的，那么路径就是file -> address_space -> IO
+	//vma 通过这个找到一个address_space, page结构也对应一个address_space, 最终两者建立联系
 	struct {
 		struct rb_node rb;
 		unsigned long rb_subtree_last;
-	} shared; //如果有后备存储器的话，这个结点会链接到对应的address_space的i_mmap成员的, 在address_space中被组织成rbtree
+	} shared; //如果有后备存储器的话，这个结点会链接到对应的address_space的i_mmap成员的, 在address_space中被组织成rbtree。注意这个vma有多个rb_node 成员的，可以同时在多棵红黑树中被组织
 
 	/*
 	 * A file's MAP_PRIVATE vma can be in both i_mmap tree and anon_vma
@@ -302,15 +305,15 @@ struct vm_area_struct {
 	 * can only be in the i_mmap tree.  An anonymous MAP_PRIVATE, stack
 	 * or brk vma (with NULL file) can only be in an anon_vma list.
 	 */
-	struct list_head anon_vma_chain; /* Serialized by mmap_sem & //管理匿名页的
+	struct list_head anon_vma_chain; /* Serialized by mmap_sem & //管理PRIVATE的匿名页的, 所有的匿名页保存在一个双链表中
 					  * page_table_lock */
-	struct anon_vma *anon_vma;	/* Serialized by page_table_lock */
+	struct anon_vma *anon_vma;	/* Serialized by page_table_lock */ // refer to :%anon_vma_prepare。匿名页page结构会对应到一个anon_vma 结构，vma也对应到该结构，最终两者建立其联系
 
 	/* Function pointers to deal with this struct. */
 	const struct vm_operations_struct *vm_ops; //操作这个vma的相关函数
 
 	/* Information about our backing store: */
-	unsigned long vm_pgoff;		/* Offset (within vm_file) in PAGE_SIZE //文件映射的偏移，单位是页
+	unsigned long vm_pgoff;		/* Offset (within vm_file) in PAGE_SIZE //文件映射的偏移，单位是页, 即该vma对应的文件的哪个偏移位置
 					   units */
 	struct file * vm_file;		/* File we map to (can be NULL). */		//描述了一个被映射的文件, vma -> file -> address_space -> 磁盘。参考前面的address_space, 一个vma也可以直接与后备存储器构建联系
 	void * vm_private_data;		/* was vm_pte (shared mem) */
@@ -349,7 +352,7 @@ struct mm_struct {
 				unsigned long addr, unsigned long len,
 				unsigned long pgoff, unsigned long flags);
 #endif
-		unsigned long mmap_base;	/* base of mmap area */
+		unsigned long mmap_base;	/* base of mmap area, 一般设置为这个值TASK_UNMAPPED_BASE */
 		unsigned long mmap_legacy_base;	/* base of mmap area in bottom-up allocations */
 #ifdef CONFIG_HAVE_ARCH_COMPAT_MMAP_BASES
 		/* Base adresses for compatible mmap() */

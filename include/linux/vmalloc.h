@@ -32,8 +32,9 @@ struct notifier_block;		/* in notifier.h */
 #endif
 
 //每个vmalloc区域都有一个该结构
+//类似于用户进程用mm_struct 来记录页面映射相关信息。内核里用这个结构来记录
 struct vm_struct {
-	struct vm_struct	*next; //所有的vmalloc保存在单链表
+	struct vm_struct	*next; //所有的vmalloc保存在单链表, refer to %vmap_area
 	void			*addr; //分配的区域的虚拟地址
 	unsigned long		size;
 	unsigned long		flags; //相关标志 %VM_ALLOC

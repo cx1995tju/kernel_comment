@@ -434,6 +434,7 @@ EXPORT_SYMBOL(lru_cache_add_file);
  * pagevec is drained. This gives a chance for the caller of lru_cache_add()
  * have the page added to the active list using mark_page_accessed().
  */
+//将page添加到系统的LRU机制中，做管理
 void lru_cache_add(struct page *page)
 {
 	VM_BUG_ON_PAGE(PageActive(page) && PageUnevictable(page), page);

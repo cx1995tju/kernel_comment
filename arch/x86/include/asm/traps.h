@@ -148,11 +148,11 @@ enum {
 /*
  * Page fault error code bits:
  *
- *   bit 0 ==	 0: no page found	1: protection fault
- *   bit 1 ==	 0: read access		1: write access
+ *   bit 0 ==	 0: no page found(缺页)	1: protection fault(访问权限不足)
+ *   bit 1 ==	 0: read access(读访问)		1: write access(写访问)
  *   bit 2 ==	 0: kernel-mode access	1: user-mode access
- *   bit 3 ==				1: use of reserved bit detected
- *   bit 4 ==				1: fault was an instruction fetch
+ *   bit 3 ==				1: use of reserved bit detected(检测到使用过了保留位)
+ *   bit 4 ==				1: fault was an instruction fetch(取指令的时候，出现了缺页异常)
  *   bit 5 ==				1: protection keys block access
  */
 enum x86_pf_error_code {

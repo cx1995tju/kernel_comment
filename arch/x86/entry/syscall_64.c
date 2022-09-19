@@ -21,5 +21,5 @@ asmlinkage const sys_call_ptr_t sys_call_table[__NR_syscall_max+1] = {
 	 * when the & below is removed.
 	 */
 	[0 ... __NR_syscall_max] = &sys_ni_syscall,
-#include <asm/syscalls_64.h>
+#include <asm/syscalls_64.h> //通过syscall_64.tbl 生成该文件？
 };

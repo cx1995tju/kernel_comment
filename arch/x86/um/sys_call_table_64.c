@@ -44,6 +44,7 @@
 
 extern asmlinkage long sys_ni_syscall(unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long);
 
+//这里给出了一个初始值，没有实现的系统调用后续都会到sys_ni_syscall
 const sys_call_ptr_t sys_call_table[] ____cacheline_aligned = {
 	/*
 	 * Smells like a compiler bug -- it doesn't work

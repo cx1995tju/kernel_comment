@@ -480,6 +480,9 @@ EXPORT_SYMBOL(vm_insert_page);
  *  to a regular file.  in this case, the unmapping will need
  *  to invoke file system routines that need the global lock.
  */
+//这个函数不仅仅可以用来map，进而扩充内存；也可以用于unmap
+//简单的理解，这个syscall，就是尝试更新堆在虚拟空间中的新的结束地址
+//不会真的分配物理内存，相关分配工作需要延迟到缺页异常的时候
 SYSCALL_DEFINE1(brk, unsigned long, brk)
 {
 	struct mm_struct *mm = current->mm;
@@ -493,7 +496,7 @@ SYSCALL_DEFINE1(brk, unsigned long, brk)
 	/*
 	 * Always allow shrinking brk
 	 */
-	if (brk <= mm->brk) {
+	if (brk <= mm->brk) { //这里是减少堆空间
 		mm->brk = brk;
 		return brk;
 	}
@@ -502,7 +505,7 @@ SYSCALL_DEFINE1(brk, unsigned long, brk)
 	 * Ok, looks good - let it rip.
 	 */
 	flush_icache_range(mm->brk, brk);
-	return mm->brk = brk;
+	return mm->brk = brk; //简单的更新就可以了
 }
 
 /*

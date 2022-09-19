@@ -259,6 +259,7 @@ extern int _cond_resched(void);
  * supposed to.
  */
   /* 内核抢占的前提下会尝试调度 */
+  //表示该函数可以睡眠的，如果发现当前函数处在不能睡眠的上下文，那么就会报错的
 # define might_sleep() \
 	do { __might_sleep(__FILE__, __LINE__, 0); might_resched(); } while (0)
 # define sched_annotate_sleep()	(current->task_state_change = 0)
