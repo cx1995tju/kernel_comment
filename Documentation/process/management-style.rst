@@ -66,8 +66,8 @@ backtracking.  Suddenly, you get to be doubly managerial for making
 And people will even see that as true leadership (*cough* bullshit
 *cough*).
 
-Thus the key to avoiding big decisions becomes to just avoiding to do
-things that can't be undone.  Don't get ushered into a corner from which
+**Thus the key to avoiding big decisions becomes to just avoiding to do
+things that can't be undone.**  Don't get ushered into a corner from which
 you cannot escape.  A cornered rat may be dangerous - a cornered manager
 is just pitiful.
 
@@ -114,7 +114,7 @@ sure as hell shouldn't encourage them by promising them that what they
 work on will be included.  Make them at least think twice before they
 embark on a big endeavor.
 
-Remember: they'd better know more about the details than you do, and
+**Remember**: they'd better know more about the details than you do, and
 they usually already think they have the answer to everything.  The best
 thing you can do as a manager is not to instill confidence, but rather a
 healthy dose of critical thinking on what they do.

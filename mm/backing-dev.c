@@ -249,6 +249,7 @@ static int __init default_bdi_init(void)
 {
 	int err;
 
+	//分配一个 _全局的_ 工作队列, 后续可以把其他的work挂到这里
 	bdi_wq = alloc_workqueue("writeback", WQ_MEM_RECLAIM | WQ_FREEZABLE |
 					      WQ_UNBOUND | WQ_SYSFS, 0);
 	if (!bdi_wq)

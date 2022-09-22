@@ -13,8 +13,10 @@
 
 typedef struct wait_queue_entry wait_queue_entry_t;
 
+//执行函数，wq_entry 一般是嵌入到一个大的结构中的，通过container_of 可以获取到该结构
+//key 主要在poll机制中使用wake_up_poll, 一般用来表达某种事件，譬如POLLOUT
 typedef int (*wait_queue_func_t)(struct wait_queue_entry *wq_entry, unsigned mode, int flags, void *key);
-int default_wake_function(struct wait_queue_entry *wq_entry, unsigned mode, int flags, void *key);
+int default_wake_function(struct wait_queue_entry *wq_entry, unsigned mode, int flags, void *key); //一个默认执行函数
 //挂载的是进程，唤醒进程
 
 /* wait_queue_entry::flags */
@@ -25,13 +27,16 @@ int default_wake_function(struct wait_queue_entry *wq_entry, unsigned mode, int 
 /*
  * A single wait-queue entry structure:
  */
+//挂在睡眠队列的一个entry，一般将其嵌入到某个大的结构中，那么该结构就可以看作一个可以被调度的实体了
+//通过container_of 也可以获取该结构
 struct wait_queue_entry {
 	unsigned int		flags;
-	void			*private;
+	void			*private; //常用来保存task_struct 结构
 	wait_queue_func_t	func;
 	struct list_head	entry;
 };
 
+//睡眠队列头
 struct wait_queue_head {
 	spinlock_t		lock;
 	struct list_head	head;
