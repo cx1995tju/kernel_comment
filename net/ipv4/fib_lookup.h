@@ -6,7 +6,7 @@
 #include <linux/list.h>
 #include <net/ip_fib.h>
 
-//代表一条路由表项
+//代表一条路由表项, 就是用于优化fib_info 结构的
 //其实fib_info结构才是存储了更多的路由表项信息，但是为了优化，有时候几条表项仅仅是fa_tos不同，我们就将其指向同一个fib_info中
 //为了减少fib_info的量，差异不大的路由项共用fib_info结构，搭配不同的fib_alias结构，该结构表示了路由在优先级，tos等方面的不同。
 struct fib_alias {

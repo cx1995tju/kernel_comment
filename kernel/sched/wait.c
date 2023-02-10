@@ -19,7 +19,7 @@ void add_wait_queue(struct wait_queue_head *wq_head, struct wait_queue_entry *wq
 	unsigned long flags;
 
 	wq_entry->flags &= ~WQ_FLAG_EXCLUSIVE;
-	spin_lock_irqsave(&wq_head->lock, flags); //必须要原子的加锁哟
+	spin_lock_irqsave(&wq_head->lock, flags); //必须要原子的加锁哟, 所以要关中断
 	__add_wait_queue(wq_head, wq_entry);
 	spin_unlock_irqrestore(&wq_head->lock, flags);
 }
@@ -85,7 +85,7 @@ static int __wake_up_common(struct wait_queue_head *wq_head, unsigned int mode,
 	if (bookmark && (bookmark->flags & WQ_FLAG_BOOKMARK)) {
 		curr = list_next_entry(bookmark, entry);
 
-		list_del(&bookmark->entry);
+		list_del(&bookmark->entry); //refer to __wake_up_common_lock
 		bookmark->flags = 0;
 	} else
 		curr = list_first_entry(&wq_head->head, wait_queue_entry_t, entry); //获取队列上的first entry
@@ -93,22 +93,23 @@ static int __wake_up_common(struct wait_queue_head *wq_head, unsigned int mode,
 	if (&curr->entry == &wq_head->head) //空队列
 		return nr_exclusive;
 
+	//注意一般non-exclusive的都是在队列前面的, refet to %prepare_to_wait_event, exclusive的会放在队列尾部的
 	list_for_each_entry_safe_from(curr, next, &wq_head->head, entry) {
 		unsigned flags = curr->flags;
 		int ret;
 
-		if (flags & WQ_FLAG_BOOKMARK)
+		if (flags & WQ_FLAG_BOOKMARK) //如果一个entry是bookmark的，那么这里先跳过, 其上一次被执行过了，直接执行其后一个
 			continue;
 
-		ret = curr->func(curr, mode, wake_flags, key); //执行entry上的函数
+		ret = curr->func(curr, mode, wake_flags, key); //执行entry上的函数, 核心
 		if (ret < 0)
 			break;
-		if (ret && (flags & WQ_FLAG_EXCLUSIVE) && !--nr_exclusive)
+		if (ret && (flags & WQ_FLAG_EXCLUSIVE) && !--nr_exclusive) //如果是exclusive的entry，而exclusive的额度又不够了，那么就break
 			break;
 
-		if (bookmark && (++cnt > WAITQUEUE_WALK_BREAK_CNT) &&
-				(&next->entry != &wq_head->head)) {
-			bookmark->flags = WQ_FLAG_BOOKMARK;
+		if (bookmark && (++cnt > WAITQUEUE_WALK_BREAK_CNT) && //唤醒的够多了，给waker一个时间break一下
+				(&next->entry != &wq_head->head)) { //说明还有需要处理的
+			bookmark->flags = WQ_FLAG_BOOKMARK; //表示这个bookmark已经被使用了, waker先跳出去休息下
 			list_add_tail(&bookmark->entry, &next->entry);
 			break;
 		}
@@ -129,12 +130,12 @@ static void __wake_up_common_lock(struct wait_queue_head *wq_head, unsigned int 
 	INIT_LIST_HEAD(&bookmark.entry);
 
 	spin_lock_irqsave(&wq_head->lock, flags);
-	nr_exclusive = __wake_up_common(wq_head, mode, nr_exclusive, wake_flags, key, &bookmark);
+	nr_exclusive = __wake_up_common(wq_head, mode, nr_exclusive, wake_flags, key, &bookmark); //第一次进来的时候，如果一次性处理的太多，会在bookmark保存当前的处理位置，然后从这里跳出休息一下。因为这里暂时恢复了中断, 所以可能发生调度的。如果开启了内核抢占，这里就更可能发生调度了
 	spin_unlock_irqrestore(&wq_head->lock, flags);
 
 	while (bookmark.flags & WQ_FLAG_BOOKMARK) {
 		spin_lock_irqsave(&wq_head->lock, flags);
-		nr_exclusive = __wake_up_common(wq_head, mode, nr_exclusive,
+		nr_exclusive = __wake_up_common(wq_head, mode, nr_exclusive, //再次进来处理，这一次进来bookmark中保存了上一次暂停的位置的
 						wake_flags, key, &bookmark);
 		spin_unlock_irqrestore(&wq_head->lock, flags);
 	}
@@ -143,13 +144,15 @@ static void __wake_up_common_lock(struct wait_queue_head *wq_head, unsigned int 
 /**
  * __wake_up - wake up threads blocked on a waitqueue.
  * @wq_head: the waitqueue
- * @mode: which threads
+ * @mode: which threads %TASK_NORMAL
  * @nr_exclusive: how many wake-one or wake-many threads to wake up
- * @key: is directly passed to the wakeup function
+ * @key: is directly passed to the wakeup function //传递给回调函数的
  *
  * If this function wakes up a task, it executes a full memory barrier before
  * accessing the task state.
  */
+
+//唤醒wq_head 该等待队列上的entry(可能是一个task_struct)
 void __wake_up(struct wait_queue_head *wq_head, unsigned int mode,
 			int nr_exclusive, void *key)
 {
@@ -232,6 +235,8 @@ EXPORT_SYMBOL_GPL(__wake_up_sync);	/* For internal use only */
  * stops them from bleeding out - it would still allow subsequent
  * loads to move into the critical region).
  */
+//wq_entry 加入到wq_head 队列中，然后设置当前的tsk的状态
+//refer to: %waitqueue_active
 void
 prepare_to_wait(struct wait_queue_head *wq_head, struct wait_queue_entry *wq_entry, int state)
 {
@@ -239,7 +244,7 @@ prepare_to_wait(struct wait_queue_head *wq_head, struct wait_queue_entry *wq_ent
 
 	wq_entry->flags &= ~WQ_FLAG_EXCLUSIVE; //WQ_FLAG_EXCLUSIVE表示等待的进程想要被独占的唤醒, 但是这里是置零的
 	spin_lock_irqsave(&wq_head->lock, flags);
-	if (list_empty(&wq_entry->entry))
+	if (list_empty(&wq_entry->entry)) //表示这个entry还没有加入某个队列中
 		__add_wait_queue(wq_head, wq_entry);
 	set_current_state(state);
 	spin_unlock_irqrestore(&wq_head->lock, flags);
@@ -269,6 +274,7 @@ void init_wait_entry(struct wait_queue_entry *wq_entry, int flags)
 }
 EXPORT_SYMBOL(init_wait_entry);
 
+// 会处理信号，有信号的话就不加入，直接退出
 long prepare_to_wait_event(struct wait_queue_head *wq_head, struct wait_queue_entry *wq_entry, int state)
 {
 	unsigned long flags;

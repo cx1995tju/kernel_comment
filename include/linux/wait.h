@@ -20,7 +20,7 @@ int default_wake_function(struct wait_queue_entry *wq_entry, unsigned mode, int 
 //挂载的是进程，唤醒进程
 
 /* wait_queue_entry::flags */
-#define WQ_FLAG_EXCLUSIVE	0x01
+#define WQ_FLAG_EXCLUSIVE	0x01 // %refert to __wake_up_common
 #define WQ_FLAG_WOKEN		0x02
 #define WQ_FLAG_BOOKMARK	0x04
 
@@ -54,6 +54,7 @@ struct task_struct;
 	.func		= default_wake_function,				\
 	.entry		= { NULL, NULL } }
 
+//声明一个默认entry
 #define DECLARE_WAITQUEUE(name, tsk)						\
 	struct wait_queue_entry name = __WAITQUEUE_INITIALIZER(name, tsk)
 
@@ -118,7 +119,7 @@ init_waitqueue_func_entry(struct wait_queue_entry *wq_entry, wait_queue_func_t f
  *
  *                                      for (;;) {
  *      @cond = true;                     prepare_to_wait(&wq_head, &wait, state);
- *      smp_mb();                         // smp_mb() from set_current_state()
+ *      smp_mb();                         // smp_mb() from set_current_state(), 在prepare_to_wait 中有set_current_state,其中有smp_mb()
  *      if (waitqueue_active(wq_head))         if (@cond)
  *        wake_up(wq_head);                      break;
  *                                        schedule();
@@ -131,6 +132,24 @@ init_waitqueue_func_entry(struct wait_queue_entry *wq_entry, wait_queue_func_t f
  *
  * Also note that this 'optimization' trades a spin_lock() for an smp_mb(),
  * which (when the lock is uncontended) are of roughly equal cost.
+ *
+ *
+ * 上述并发简化一下
+ * CPU0				CPU1		
+ * cond1 = True			cond2 = True
+ * // smp_mb()			smp_mb()
+ * if (cond2) wake_up(CPU1)     if (!cond1) sleep()
+ *	                        
+ * 如果cpu1 看到的gloabl memory order是
+ * CPU1:: cond2 = True
+ * CPU0:: if (cond1) wake_up(CPU1)
+ * CPU0:: cond1 = True
+ * CPU1:: if (!cond1) sleep()
+ *
+ * 显然CPU1会睡死, 将注释的smp_mb() 去除，就不会有该情况了
+ *
+ *
+ * 注：一般都不会使用这些函数，各种唤醒睡眠的API封装了一大堆
  */
 //active表示该队列非空
 static inline int waitqueue_active(struct wait_queue_head *wq_head)
@@ -186,7 +205,7 @@ static inline void __add_wait_queue_entry_tail(struct wait_queue_head *wq_head, 
 static inline void
 __add_wait_queue_entry_tail_exclusive(struct wait_queue_head *wq_head, struct wait_queue_entry *wq_entry)
 {
-	wq_entry->flags |= WQ_FLAG_EXCLUSIVE;
+	wq_entry->flags |= WQ_FLAG_EXCLUSIVE; //%refer to __wake_up_common
 	__add_wait_queue_entry_tail(wq_head, wq_entry);
 }
 
@@ -196,12 +215,16 @@ __remove_wait_queue(struct wait_queue_head *wq_head, struct wait_queue_entry *wq
 	list_del(&wq_entry->entry);
 }
 
-void __wake_up(struct wait_queue_head *wq_head, unsigned int mode, int nr, void *key);
-void __wake_up_locked_key(struct wait_queue_head *wq_head, unsigned int mode, void *key);
+//注：locked 表示wake_flags 为 0
+//注：key表示使用了key这个参数给cb
+//注：sync表示使用了WF_SYNC wake_flags
+//注：bookmark 表示有bookmark，在唤醒期间可能会开中断，让出运行的机会
+void __wake_up(struct wait_queue_head *wq_head, unsigned int mode, int nr, void *key); //最普通的唤醒, 没有任何flags的
+void __wake_up_locked_key(struct wait_queue_head *wq_head, unsigned int mode, void *key); //没有bookmark，只唤醒一个nr_exclusive thread
 void __wake_up_locked_key_bookmark(struct wait_queue_head *wq_head,
 		unsigned int mode, void *key, wait_queue_entry_t *bookmark);
-void __wake_up_sync_key(struct wait_queue_head *wq_head, unsigned int mode, int nr, void *key);
-void __wake_up_locked(struct wait_queue_head *wq_head, unsigned int mode, int nr);
+void __wake_up_sync_key(struct wait_queue_head *wq_head, unsigned int mode, int nr, void *key); //wake_flags: 设置为为WF_SYNC
+void __wake_up_locked(struct wait_queue_head *wq_head, unsigned int mode, int nr); //locked 表示没有bookmark
 void __wake_up_sync(struct wait_queue_head *wq_head, unsigned int mode, int nr);
 
 #define wake_up(x)			__wake_up(x, TASK_NORMAL, 1, NULL)
@@ -210,6 +233,7 @@ void __wake_up_sync(struct wait_queue_head *wq_head, unsigned int mode, int nr);
 #define wake_up_locked(x)		__wake_up_locked((x), TASK_NORMAL, 1)
 #define wake_up_all_locked(x)		__wake_up_locked((x), TASK_NORMAL, 0)
 
+//仅仅唤醒含interruptibl状态的进程
 #define wake_up_interruptible(x)	__wake_up(x, TASK_INTERRUPTIBLE, 1, NULL)
 #define wake_up_interruptible_nr(x, nr)	__wake_up(x, TASK_INTERRUPTIBLE, nr, NULL)
 #define wake_up_interruptible_all(x)	__wake_up(x, TASK_INTERRUPTIBLE, 0, NULL)
@@ -237,6 +261,7 @@ void __wake_up_sync(struct wait_queue_head *wq_head, unsigned int mode, int nr);
 	__cond || !__ret;							\
 })
 
+//这个state不是常量，那么就是interruptible???
 #define ___wait_is_interruptible(state)						\
 	(!__builtin_constant_p(state) ||					\
 		state == TASK_INTERRUPTIBLE || state == TASK_KILLABLE)		\

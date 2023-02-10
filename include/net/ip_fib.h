@@ -69,7 +69,7 @@ struct rtable;
 
 //注： 所谓的重定向路由，它会更新本节点路由表的一个路由项条目，要注意的是，这个更新并不是永久的，而是临时的，
 //所以Linux的做法并不是直接修改路由表，而是修改下一跳缓存！
-//参考 __ip_do_redirect __ip_rt_update_pmtu
+//参考 __ip_do_redirect __ip_rt_update_pmtu update_or_create_fnhe
 struct fib_nh_exception {
 	struct fib_nh_exception __rcu	*fnhe_next;
 	int				fnhe_genid;
@@ -94,7 +94,7 @@ struct fnhe_hash_bucket {
 
 /* 下一跳路由的信息， next hop */
 struct fib_nh {
-	struct net_device	*nh_dev; //该路由表项的输出设备, 当相关设备被down的时候，netdev_down事件会被触发，fib_netdev_event函数被调用, 如果要到这个下一跳，就要从这个端口出去
+	struct net_device	*nh_dev; //该路由表项的输出设备 | 当相关设备被down的时候，netdev_down事件会被触发，fib_netdev_event()函数被调用 | 如果要到这个下一跳，就要从这个端口出去
 	struct hlist_node	nh_hash;
 	struct fib_info		*nh_parent; //指向所属路由表项的fib_info结构
 	unsigned int		nh_flags;
@@ -122,6 +122,7 @@ struct fib_nh {
 //记录如何处理与该路由匹配的数据报的信息
 //多个fib_alias可能共享fib_info
 //为了减少fib_info的量，差异不大的路由项共用fib_info结构，搭配不同的fib_alias结构，该结构表示了路由在优先级，tos等方面的不同。
+// 大部分成员，都可以对应到 ip route 命令中的参数
 struct fib_info {
 	struct hlist_node	fib_hash; //插入到fib_info_hash散列表中的, 所有的fib_info实例都插入到这个散列表中
 	struct hlist_node	fib_lhash; //插入到fib_info_laddrhash散列表中，当路由表项有一个首选源地址的时候，插入到该散列表
@@ -136,7 +137,7 @@ struct fib_info {
 	__be32			fib_prefsrc; //首选源地址, 如果需要给lookup函数提供一个特定的源地址作为key的话，就是这个参数
 	u32			fib_tb_id;
 	u32			fib_priority; //路由优先级，值越小，优先级越高, 默认是0
-	struct dst_metrics	*fib_metrics; //与路由相关的一组度量值
+	struct dst_metrics	*fib_metrics; //与路由相关的一组度量值, ip route 命令 提供了对应的mtru window rtt 等多个选项用于设置
 #define fib_mtu fib_metrics->metrics[RTAX_MTU-1] //路由的其他度量值
 #define fib_window fib_metrics->metrics[RTAX_WINDOW-1]
 #define fib_rtt fib_metrics->metrics[RTAX_RTT-1]
@@ -161,7 +162,7 @@ struct fib_result { //路由查找的结果, 路由查找结束后也会根据�
 	unsigned char	scope;
 	u32		tclassid;
 	struct fib_info *fi; //指向对应的fib_info数组, fib_info中包含了下一跳的信息fib_nh, 这里仅仅是包含的是fib_nh的索引
-	struct fib_table *table; //指向fib_table
+	struct fib_table *table; //指向fib_table, fib_lookup 就是在这个table里找到的给fib_result
 	struct hlist_head *fa_head; //指向一个fib_alias的list, 所有的fib_alias按照fa_tos递减和fib_priority的递增的顺序存储. fa_tos为0的时候表通配
 };
 
@@ -233,12 +234,13 @@ void __net_exit fib4_notifier_exit(struct net *net);
 void fib_notify(struct net *net, struct notifier_block *nb);
 
 //表示一张路由表, 路由表的entry是fib_alias(必须关联到一个fib_info结构, fib_info被组织成fib_info_hash 后 fib_info_laddrhash中)结构，被组织成一个trie
+//准确的说，表示ip相关协议的路由表
 struct fib_table {
 	struct hlist_node	tb_hlist; //所有的路由表组织在一个hash表中
-	u32			tb_id; //路由表id，在支持策略路由的场景下，主机最多可以有256个路由表，即fib_rule中的table成员, %RT_TABLE_MAIN
+	u32			tb_id; //路由表id，在支持策略路由的场景下，主机最多可以有256(ip rule list 可以看到)个路由表，即fib_rule中的table成员, %RT_TABLE_MAIN
 	int			tb_num_default; //表中的默认路由数目
 	struct rcu_head		rcu;
-	unsigned long 		*tb_data; //一颗字典树，保存路由表项, trie结构
+	unsigned long 		*tb_data; //一颗字典树，保存路由表项, trie结构, 组织的结构就是fib_info + fib_alias
 	unsigned long		__data[0]; //零长数组
 };
 
@@ -280,7 +282,9 @@ static inline struct fib_table *fib_new_table(struct net *net, u32 id)
 }
 
 //这个函数有两个版本，支不支持策略路由是不同的, CONFIG_IP_MULTIPLE_TABLES
-//这个是不支持的
+//这个是不支持的 multiple_table 的版本
+//flowi4 是查找用的key，来自于其调用者，一层一层的收集信息，并且做检查
+//res 是其调用者提供的用于，返回查找结果的结构
 static inline int fib_lookup(struct net *net, const struct flowi4 *flp,
 			     struct fib_result *res, unsigned int flags)
 {
@@ -290,7 +294,7 @@ static inline int fib_lookup(struct net *net, const struct flowi4 *flp,
 
 	rcu_read_lock();
 
-	//为什么没有查找local路由???? commit 0ddcf43d5d4a 中将LOCAL MAIN的查找整合到了一起
+	//为什么没有查找local路由???? commit 0ddcf43d5d4a 中将LOCAL MAIN的查找整合到了一起https://vincent.bernat.ch/en/blog/2017-ipv4-route-lookup-linux 
 	tb = fib_get_table(net, RT_TABLE_MAIN);
 	if (tb)
 		err = fib_table_lookup(tb, flp, res, flags | FIB_LOOKUP_NOREF); //路由表中，查路由
@@ -343,21 +347,21 @@ static inline int fib_lookup(struct net *net, struct flowi4 *flp,
 	int err = -ENETUNREACH;
 
 	flags |= FIB_LOOKUP_NOREF;
-	if (net->ipv4.fib_has_custom_rules) //设置了路由策略
+	if (net->ipv4.fib_has_custom_rules) //这个namespace 设置了custom路由策略, 即有其他路由表的情况
 		return __fib_lookup(net, flp, res, flags);
 
 	rcu_read_lock();
 
 	res->tclassid = 0;
 
-	tb = rcu_dereference_rtnl(net->ipv4.fib_main);
+	tb = rcu_dereference_rtnl(net->ipv4.fib_main); // 先查找 这个 namespace 的 main 表
 	if (tb)
-		err = fib_table_lookup(tb, flp, res, flags);
+		err = fib_table_lookup(tb, flp, res, flags); // 支持策略路由的核心，就是这里使用flow 先进行路由表的查找
 
 	if (!err)
 		goto out;
 
-	tb = rcu_dereference_rtnl(net->ipv4.fib_default);
+	tb = rcu_dereference_rtnl(net->ipv4.fib_default); // 最后查找default 表
 	if (tb)
 		err = fib_table_lookup(tb, flp, res, flags);
 

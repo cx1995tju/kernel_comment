@@ -1440,7 +1440,7 @@ static inline int task_on_rq_migrating(struct task_struct *p)
 /*
  * wake flags
  */
-#define WF_SYNC			0x01		/* Waker goes to sleep after wakeup */
+#define WF_SYNC			0x01		/* Waker goes to sleep after wakeup */ //%__wake_up_sync_key
 #define WF_FORK			0x02		/* Child wakeup after fork */
 #define WF_MIGRATED		0x4		/* Internal use, task got migrated */
 

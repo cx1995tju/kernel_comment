@@ -67,10 +67,10 @@ struct task_group;
  */
 
 /* Used in tsk->state: */
-#define TASK_RUNNING			0x0000
-#define TASK_INTERRUPTIBLE		0x0001
-#define TASK_UNINTERRUPTIBLE		0x0002
-#define __TASK_STOPPED			0x0004
+#define TASK_RUNNING			0x0000 //表示进程是可以run的状态，不一定正在run
+#define TASK_INTERRUPTIBLE		0x0001 //信号可以唤醒的
+#define TASK_UNINTERRUPTIBLE		0x0002 //不响应信号
+#define __TASK_STOPPED			0x0004 //调试目的，收到了 SIGSTOP信号
 #define __TASK_TRACED			0x0008
 /* Used in tsk->exit_state: */
 #define EXIT_DEAD			0x0010

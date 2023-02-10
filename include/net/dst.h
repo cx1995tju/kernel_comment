@@ -43,7 +43,7 @@ struct dst_entry {
 #else
 	void			*__pad1;
 #endif
-	int			(*input)(struct sk_buff *); //ip_local_deliver ip_forward ip_mr_input  ip_error
+	int			(*input)(struct sk_buff *); // 被设置为 ip_local_deliver ip_forward ip_mr_input  ip_error 等等
 	int			(*output)(struct net *net, struct sock *sk, struct sk_buff *skb); /* 报文输入输出函数, %ip_output */
 
 	unsigned short		flags; //%DST_HOST

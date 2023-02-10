@@ -1321,11 +1321,11 @@ static inline t_key prefix_mismatch(t_key key, struct key_vector *n)
 }
 
 /* should be called with rcu_read_lock */
-//在table中找路由
+// 在路由表中查找路由, flowi4 是查找的key, fib_result 是查找的结果
 int fib_table_lookup(struct fib_table *tb, const struct flowi4 *flp,
 		     struct fib_result *res, int fib_flags)
 {
-	struct trie *t = (struct trie *) tb->tb_data;
+	struct trie *t = (struct trie *) tb->tb_data; // 路由表的组织是 字典树
 #ifdef CONFIG_IP_FIB_TRIE_STATS
 	struct trie_use_stats __percpu *stats = t->stats;
 #endif
@@ -1451,7 +1451,7 @@ found:
 	index = key ^ n->key;
 
 	/* Step 3: Process the leaf, if that fails fall back to backtracing */
-	hlist_for_each_entry_rcu(fa, &n->leaf, fa_list) {
+	hlist_for_each_entry_rcu(fa, &n->leaf, fa_list) { // 在路由表里找到一个对应的fib_info
 		struct fib_info *fi = fa->fa_info;
 		int nhsel, err;
 

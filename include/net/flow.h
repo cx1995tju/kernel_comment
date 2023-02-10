@@ -29,7 +29,7 @@ struct flowi_tunnel {
 struct flowi_common {
 	int	flowic_oif; /* 输出网络设备索引 */
 	int	flowic_iif; /* 输入网络设备索引 */
-	__u32	flowic_mark;
+	__u32	flowic_mark; // 一般是防火墙标记的mark
 	__u8	flowic_tos;
 	__u8	flowic_scope;
 	__u8	flowic_proto; /* 标识4层协议 */

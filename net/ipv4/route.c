@@ -1430,7 +1430,7 @@ static bool rt_bind_exception(struct rtable *rt, struct fib_nh_exception *fnhe,
 	return ret;
 }
 
-//将下一跳信息，缓存到rt中
+//将下一跳信息rt，缓存到nh中
 static bool rt_cache_route(struct fib_nh *nh, struct rtable *rt)
 {
 	struct rtable *orig, *prev, **p;
@@ -1447,10 +1447,10 @@ static bool rt_cache_route(struct fib_nh *nh, struct rtable *rt)
 	 * on this dst
 	 */
 	dst_hold(&rt->dst);
-	prev = cmpxchg(p, orig, rt); //rt缓存到了nh中
+	prev = cmpxchg(p, orig, rt); //rt缓存到了nh中, 同时需要将老的orig释放带哦的
 	if (prev == orig) {
 		if (orig) {
-			dst_dev_put(&orig->dst);
+			dst_dev_put(&orig->dst); // 这里注意 rtable 和 dst 的关系是first-member-inherit, 所以这里就是等价于释放了rtable
 			dst_release(&orig->dst);
 		}
 	} else {
@@ -1535,7 +1535,7 @@ static void rt_set_nexthop(struct rtable *rt, __be32 daddr,
 			   struct fib_info *fi, u16 type, u32 itag,
 			   const bool do_cache)
 {
-	bool cached = false;
+	bool cached = false; //根据fi，res 找到next hop
 
 	if (fi) {
 		struct fib_nh *nh = &FIB_RES_NH(*res);
@@ -1601,7 +1601,7 @@ struct rtable *rt_dst_alloc(struct net_device *dev,
 		rt->rt_uses_gateway = 0;
 		INIT_LIST_HEAD(&rt->rt_uncached);
 
-		rt->dst.output = ip_output;
+		rt->dst.output = ip_output;  // 这里是默认的output cb
 		if (flags & RTCF_LOCAL)
 			rt->dst.input = ip_local_deliver; //输入路由
 	}
@@ -2200,17 +2200,18 @@ int ip_route_input_rcu(struct sk_buff *skb, __be32 daddr, __be32 saddr,
 }
 
 /* called with rcu_read_lock() */
-//创建输出路由缓存项, 使用路由查找的结构fib_result 构建缓存项，这里本质是缓存的下一跳
+//创建输出路由缓存项, 使用路由查找的结构fib_result 构建缓存项(主要是使用fib_result 中的fib_info 结构)，这里本质是缓存的下一跳。
+//这个仅仅是路由查找结果的缓存，在后续发包的路径中使用
 static struct rtable *__mkroute_output(const struct fib_result *res,
 				       const struct flowi4 *fl4, int orig_oif,
 				       struct net_device *dev_out,
 				       unsigned int flags)
 {
-	struct fib_info *fi = res->fi;
+	struct fib_info *fi = res->fi; // 核心的核心，是查找结果中的路由项的代表，rtable 这个查找结果的缓存就需要这儿的信息来构建
 	struct fib_nh_exception *fnhe;
 	struct in_device *in_dev;
 	u16 type = res->type;
-	struct rtable *rth;
+	struct rtable *rth; //核心的核心就是构造这个结构
 	bool do_cache;
 
 	in_dev = __in_dev_get_rcu(dev_out);
@@ -2266,15 +2267,15 @@ static struct rtable *__mkroute_output(const struct fib_result *res,
 
 	fnhe = NULL;
 	do_cache &= fi != NULL;
-	if (fi) {
+	if (fi) { // 已经找到了fib_info 的话，那么直接来使用fib_info 构造咯, 一般来说都是这条路径
 		struct rtable __rcu **prth;
-		struct fib_nh *nh = &FIB_RES_NH(*res);
+		struct fib_nh *nh = &FIB_RES_NH(*res); // 首先找到next 
 
-		fnhe = find_exception(nh, fl4->daddr);
+		fnhe = find_exception(nh, fl4->daddr); // 还得看一看有没有next_hop_exception, 有的话，这个优先, 说明路由由于ICMP 重定向报文或者PMTU，或者其他原因导致了有变更
 		if (!do_cache)
 			goto add;
 		if (fnhe) {
-			prth = &fnhe->fnhe_rth_output;
+			prth = &fnhe->fnhe_rth_output; // 有fnhe的话，直接使用就是了
 		} else {
 			if (unlikely(fl4->flowi4_flags &
 				     FLOWI_FLAG_KNOWN_NH &&
@@ -2283,10 +2284,10 @@ static struct rtable *__mkroute_output(const struct fib_result *res,
 				do_cache = false;
 				goto add;
 			}
-			prth = raw_cpu_ptr(nh->nh_pcpu_rth_output);
+			prth = raw_cpu_ptr(nh->nh_pcpu_rth_output); // 没有nh_exception的话，就老老实实用 nh
 		}
 		rth = rcu_dereference(*prth);
-		if (rt_cache_valid(rth) && dst_hold_safe(&rth->dst))
+		if (rt_cache_valid(rth) && dst_hold_safe(&rth->dst)) // fib_nh 中的rttable 还没有过期，那么就直接使用; 过期了就重新分配构造
 			return rth;
 	}
 
@@ -2319,7 +2320,7 @@ add:
 #endif
 	}
 
-	rt_set_nexthop(rth, fl4->daddr, res, fnhe, fi, type, 0, do_cache);
+	rt_set_nexthop(rth, fl4->daddr, res, fnhe, fi, type, 0, do_cache);	// 分配了新的rtable后，又将其保存到对应的nh或者fnhe中, 保存新的同时，需要将老的释放掉的
 	lwtunnel_set_redirect(&rth->dst);
 
 	return rth;
@@ -2329,6 +2330,10 @@ add:
  * Major route resolver routine.
  */
 
+//fl4 是查找路由的key
+//fib_result 是查找路由的结构，最后将其组织为一个通用的rtable 结构，返回出去
+//flowi4 来自于一路调用下来的各层的填充，从最初的socket层开始。反正就是收集信息给路由子系统使用
+//甚至这个函数里也还在填充flowi结构
 struct rtable *ip_route_output_key_hash(struct net *net, struct flowi4 *fl4,
 					const struct sk_buff *skb)
 {
@@ -2338,7 +2343,7 @@ struct rtable *ip_route_output_key_hash(struct net *net, struct flowi4 *fl4,
 		.fi		= NULL,
 		.table		= NULL,
 		.tclassid	= 0,
-	};
+	}; //这里分配了，随后在各层函数的调用中，慢慢填充
 	struct rtable *rth;
 
 	fl4->flowi4_iif = LOOPBACK_IFINDEX;
@@ -2365,6 +2370,7 @@ struct rtable *ip_route_output_key_hash_rcu(struct net *net, struct flowi4 *fl4,
 	struct rtable *rth;
 	int err = -ENETUNREACH;
 
+	//如果指定了saddr
 	if (fl4->saddr) { //大部分场景下，也不会指定出地址的
 		rth = ERR_PTR(-EINVAL);
 		if (ipv4_is_multicast(fl4->saddr) ||
@@ -2384,7 +2390,7 @@ struct rtable *ip_route_output_key_hash_rcu(struct net *net, struct flowi4 *fl4,
 		    (ipv4_is_multicast(fl4->daddr) ||
 		     ipv4_is_lbcast(fl4->daddr))) {
 			/* It is equivalent to inet_addr_type(saddr) == RTN_LOCAL */
-			dev_out = __ip_dev_find(net, fl4->saddr, false);
+			dev_out = __ip_dev_find(net, fl4->saddr, false); // 检查下这个saddr 是不是真的local addr
 			if (!dev_out)
 				goto out;
 
@@ -2403,7 +2409,7 @@ struct rtable *ip_route_output_key_hash_rcu(struct net *net, struct flowi4 *fl4,
 			   Luckily, this hack is good workaround.
 			 */
 
-			fl4->flowi4_oif = dev_out->ifindex;
+			fl4->flowi4_oif = dev_out->ifindex; // 收集的信息足够了，local 转发也不需要更深层的查找了
 			goto make_route;
 		}
 
@@ -2415,8 +2421,9 @@ struct rtable *ip_route_output_key_hash_rcu(struct net *net, struct flowi4 *fl4,
 	}
 
 
-	if (fl4->flowi4_oif) { //大部分场景下，不会指定出interface的
-		dev_out = dev_get_by_index_rcu(net, fl4->flowi4_oif);
+	// 如果指定了out interface
+	if (fl4->flowi4_oif) { //大部分场景下，不会指定出interface的, out interface 的查找正是路由查找的工作之一呢
+		dev_out = dev_get_by_index_rcu(net, fl4->flowi4_oif); // check out interface 的状态
 		rth = ERR_PTR(-ENODEV);
 		if (!dev_out)
 			goto out;
@@ -2445,7 +2452,7 @@ struct rtable *ip_route_output_key_hash_rcu(struct net *net, struct flowi4 *fl4,
 	}
 
 	if (!fl4->daddr) { //大部分场景下，有明确的目的地址的
-		fl4->daddr = fl4->saddr;
+		fl4->daddr = fl4->saddr; //没有指定的话，就当作自己发给自己，loopback咯, 那么也直接去make_route
 		if (!fl4->daddr)
 			fl4->daddr = fl4->saddr = htonl(INADDR_LOOPBACK);
 		dev_out = net->loopback_dev;
@@ -2455,6 +2462,7 @@ struct rtable *ip_route_output_key_hash_rcu(struct net *net, struct flowi4 *fl4,
 		goto make_route;
 	}
 
+	// common case: 指定了目的地址
 	//找路由表
 	err = fib_lookup(net, fl4, res, 0);
 	if (err) {
@@ -2520,7 +2528,7 @@ struct rtable *ip_route_output_key_hash_rcu(struct net *net, struct flowi4 *fl4,
 
 
 make_route:
-	//构建路由缓存项rtable
+	//构建路由查找结果的缓存项rtable, 供这个查找函数返回后，发包的时候使用
 	rth = __mkroute_output(res, fl4, orig_oif, dev_out, flags);
 
 out:

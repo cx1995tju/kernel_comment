@@ -48,11 +48,11 @@
 struct fib_nh;
 struct fib_info;
 struct uncached_list;
-struct rtable { //ipv4的路由缓存项条目, 主要是缓存下一跳的信息
-	struct dst_entry	dst; //这是general的
+struct rtable { //一个通用的代表 routing entry 的结构, 是路由查找的最终结果，其中最重要的就是包含了input output函数 refer to `__mkroute_output`
+	struct dst_entry	dst; //这是general的, 这里面的output callback是最重要的
 
 	int			rt_genid; //用于和net namespae中的id比较，进而判断是否过期, 参考%ipv4_dst_check %__sk_dst_check
-	unsigned int		rt_flags; //%RTCF_NOTIFY
+	unsigned int		rt_flags; //%RTCF_NOTIFY	% RTCF_BROADCAST
 	__u16			rt_type; //%RTN_UNSPEC
 	__u8			rt_is_input; //是输入路由, 1表示是输入路由
 	__u8			rt_uses_gateway; //下一跳是不是gateway
