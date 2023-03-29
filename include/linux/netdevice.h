@@ -334,7 +334,7 @@ struct napi_struct {
 	int			poll_owner;
 #endif
 	struct net_device	*dev;
-	struct gro_list		gro_hash[GRO_HASH_BUCKETS];
+	struct gro_list		gro_hash[GRO_HASH_BUCKETS]; //可以暂存一些包，用于gro
 	struct sk_buff		*skb;
 	struct hrtimer		timer;
 	struct list_head	dev_list;
@@ -365,7 +365,7 @@ enum {
 enum gro_result {
 	GRO_MERGED,
 	GRO_MERGED_FREE,
-	GRO_HELD,
+	GRO_HELD,       // 包暂存在napi中
 	GRO_NORMAL,
 	GRO_DROP,
 	GRO_CONSUMED,

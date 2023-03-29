@@ -1672,7 +1672,7 @@ static int unix_dgram_sendmsg(struct socket *sock, struct msghdr *msg,
 		goto out;
 
 	err = -EMSGSIZE;
-	if (len > sk->sk_sndbuf - 32)
+	if (len > sk->sk_sndbuf - 32) // 212960 - 32
 		goto out;
 
 	if (len > SKB_MAX_ALLOC) {

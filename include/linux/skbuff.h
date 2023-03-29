@@ -890,9 +890,9 @@ struct sk_buff {
 	unsigned char		*head, //数据
 				*data;
 	unsigned int		truesize; /* alloc_skb(x)的时候，会将truesize初始化为x + sizeof(sk_buff) + sizeof(sharde_info) */
-					/* 整合数据缓冲区的大小，包括sk_buff， 线性数据区，非线性数据区 */
+					/* 整个数据缓冲区的大小，包括sk_buff， 线性数据区，非线性数据区 */
 	refcount_t		users; /* 引用计数，合适时机释放该结构, 仅仅保护的是该结构，不保护缓冲区，缓冲区的保护见skb_shared_info结构的dataref */
-};
+}; //  sk_buff->end 后会紧跟一个skb_shared_info 结构的, SG 区的数据在shared_info 中有记载
 
 #ifdef __KERNEL__
 /*

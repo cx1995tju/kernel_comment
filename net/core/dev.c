@@ -5452,6 +5452,7 @@ static void gro_flush_oldest(struct list_head *head)
 	napi_gro_complete(oldest);
 }
 
+//napi 中缓存了之前的skb，现在尝试和这个skb merge 下
 static enum gro_result dev_gro_receive(struct napi_struct *napi, struct sk_buff *skb)
 {
 	u32 hash = skb_get_hash_raw(skb) & (GRO_HASH_BUCKETS - 1);
