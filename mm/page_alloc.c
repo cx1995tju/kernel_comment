@@ -2992,6 +2992,8 @@ static struct page *rmqueue_pcplist(struct zone *preferred_zone,
 
 /*
  * Allocate a page from the given zone. Use pcplists for order-0 allocations.
+ *
+ * 对于 0 阶有特殊优化
  */
 static inline
 struct page *rmqueue(struct zone *preferred_zone,
@@ -3270,7 +3272,7 @@ static bool zone_allows_reclaim(struct zone *local_zone, struct zone *zone)
  * get_page_from_freelist goes through the zonelist trying to allocate
  * a page.
  */
-//遍历已经准备好的zone_list, 尝试搞一个page
+//遍历已经准备好的zone_list, 尝试搞一个page, 即从 buddy system 从尝试分配内存
 // 它通过标志集和分配阶来 判断是否能进行分配。如果可以，则发起实际的分配操作。
 static struct page *
 get_page_from_freelist(gfp_t gfp_mask, unsigned int order, int alloc_flags,
@@ -3339,7 +3341,7 @@ get_page_from_freelist(gfp_t gfp_mask, unsigned int order, int alloc_flags,
 #endif
 			/* Checked here to keep the fast path fast */
 			BUILD_BUG_ON(ALLOC_NO_WATERMARKS < NR_WMARK);
-			if (alloc_flags & ALLOC_NO_WATERMARKS)
+			if (alloc_flags & ALLOC_NO_WATERMARKS)	// watermark 不 ok 的时候会进到这里，一看不需要check watermark, 直接跳出去尝试 分配内存了
 				goto try_this_zone;
 
 			if (node_reclaim_mode == 0 ||
@@ -4132,12 +4134,12 @@ retry_cpuset:
 	 * try prevent permanent fragmentation by migrating from blocks of the
 	 * same migratetype.
 	 * Don't try this for allocations that are allowed to ignore
-	 * watermarks, as the ALLOC_NO_WATERMARKS attempt didn't yet happen.
+	 * watermarks, as the ALLOC_NO_WATERMARKS attempt didn't yet happen. // 设置了这个flags，就不会去compact 内存了
 	 */
 	if (can_direct_reclaim &&
 			(costly_order ||
 			   (order > 0 && ac->migratetype != MIGRATE_MOVABLE))
-			&& !gfp_pfmemalloc_allowed(gfp_mask)) {
+			&& !gfp_pfmemalloc_allowed(gfp_mask)) {	// pfmemalloc allowed 的话，那么就不会进入这个分支了
 		page = __alloc_pages_direct_compact(gfp_mask, order,
 						alloc_flags, ac,
 						INIT_COMPACT_PRIORITY,

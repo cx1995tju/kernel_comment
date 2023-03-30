@@ -37,11 +37,11 @@
 #define PAGE_ALLOC_COSTLY_ORDER 3
 
 /* 1. 不可移动页: 不能移动，有固定位置，譬如：内核代码段， */
-/* 2. 可回收页: 可以删除，后续从源重新生成，譬如：page cache */
-/* 3. 可移动页: 可以随意移动，譬如：用户进程的页 */
+/* 2. 可移动页: 可以随意移动，譬如：用户进程的页。属于用户空间应用程序的页属于该类别。它们是通过页表映射的。如果它们复制到新位置，页表项可以相应地更新，应用程序不会注意到任何事 */
+/* 3. 可回收页: 可以删除，后续从源重新生成，譬如：page cache, kswapd守护进程会根据可回收页访问的频繁程度，周期性释放此类内存*/
 enum migratetype {
 	MIGRATE_UNMOVABLE,
-	MIGRATE_MOVABLE,
+	MIGRATE_MOVABLE,	// 大部分是这种
 	MIGRATE_RECLAIMABLE,
 	MIGRATE_PCPTYPES,	/* the number of types on the pcp lists */
 	MIGRATE_HIGHATOMIC = MIGRATE_PCPTYPES,
