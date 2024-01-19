@@ -6709,7 +6709,7 @@ int kvm_arch_init(void *opaque)
 		goto out;
 	}
 
-	if (!ops->cpu_has_kvm_support()) {
+	if (!ops->cpu_has_kvm_support()) { // %vmx_init_ops
 		printk(KERN_ERR "kvm: no hardware support\n");
 		r = -EOPNOTSUPP;
 		goto out;
@@ -7586,7 +7586,7 @@ static int vcpu_enter_guest(struct kvm_vcpu *vcpu)
 	 * IPI are then delayed after guest entry, which ensures that they
 	 * result in virtual interrupt delivery.
 	 */
-	local_irq_disable(); //disable 了中断， 在non-root模式下直接关闭中断的。
+	local_irq_disable(); //disable 了中断， 在non-root模式下直接关闭中断的。 这时候如果发生了外部中断，会根据 vmcs 的设置来决定是否 vm-exiting
 	vcpu->mode = IN_GUEST_MODE;
 
 	srcu_read_unlock(&vcpu->kvm->srcu, vcpu->srcu_idx);
@@ -7645,6 +7645,7 @@ static int vcpu_enter_guest(struct kvm_vcpu *vcpu)
 		vcpu->arch.switch_db_regs &= ~KVM_DEBUGREG_RELOAD;
 	}
 
+	// 注意此时 irq 被 disable 了
 	kvm_x86_ops->run(vcpu); //%vmx_vcpu_run这个函数内部就有一次完整的VM-Entry VM-Exit过程
 
 	/*

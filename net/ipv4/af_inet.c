@@ -323,7 +323,7 @@ lookup_protocol:
 	WARN_ON(!answer_prot->slab);
 
 	err = -ENOBUFS;
-	sk = sk_alloc(net, PF_INET, GFP_KERNEL, answer_prot, kern);
+	sk = sk_alloc(net, PF_INET, GFP_KERNEL, answer_prot, kern); // _answer_prot_
 	if (!sk)
 		goto out;
 

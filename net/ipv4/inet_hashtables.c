@@ -723,7 +723,7 @@ other_parity_scan:
 		 */
 		inet_bind_bucket_for_each(tb, &head->chain) {
 			if (net_eq(ib_net(tb), net) && tb->port == port) {
-				if (tb->fastreuse >= 0 ||
+				if (tb->fastreuse >= 0 ||	// >= 0 是未开启么？
 				    tb->fastreuseport >= 0)
 					goto next_port;
 				WARN_ON(hlist_empty(&tb->owners));
